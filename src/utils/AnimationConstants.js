@@ -1,34 +1,36 @@
 /**
- * Animation Constants - Extracted from Import.smali
+ * Animation Constants - Extracted from Import.smali (with corrections)
  *
  * Animation IDs are packed as: (packageId << 10) | animId
- * Direction order for all units: E, N, NE, NW, S, SE, SW, W (offsets 0-7)
+ * Direction order for all units: SE, NE, E, N, SW, S, W, NW (offsets 0-7)
+ * Note: Original smali docs said E, N, NE, NW, S, SE, SW, W but actual sprites are +45° rotated
  */
 
-// Direction indices as used in Import.smali
+// Direction indices as used in animation files
+// Note: The actual sprite directions are rotated +45° from Import.smali docs
 export const ANIM_DIR = {
-    E: 0,   // East
-    N: 1,   // North
-    NE: 2,  // Northeast
-    NW: 3,  // Northwest
-    S: 4,   // South
-    SE: 5,  // Southeast
-    SW: 6,  // Southwest
-    W: 7    // West
+    SE: 0,  // Southeast (Import.smali said E)
+    NE: 1,  // Northeast (Import.smali said N)
+    E: 2,   // East (Import.smali said NE)
+    N: 3,   // North (Import.smali said NW)
+    SW: 4,  // Southwest (Import.smali said S)
+    S: 5,   // South (Import.smali said SE)
+    W: 6,   // West (Import.smali said SW)
+    NW: 7   // Northwest (Import.smali said W)
 };
 
 // Map from game direction (0-7) to animation direction offset
 // getDirection() returns: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-// Import.smali animation offsets: E=0, N=1, NE=2, NW=3, S=4, SE=5, SW=6, W=7
+// Actual animation file order: SE=0, NE=1, E=2, N=3, SW=4, S=5, W=6, NW=7
 export const GAME_DIR_TO_ANIM_DIR = [
-    1,  // Game 0 (N) -> Anim 1 (N)
-    2,  // Game 1 (NE) -> Anim 2 (NE)
-    0,  // Game 2 (E) -> Anim 0 (E)
-    5,  // Game 3 (SE) -> Anim 5 (SE)
-    4,  // Game 4 (S) -> Anim 4 (S)
-    6,  // Game 5 (SW) -> Anim 6 (SW)
-    7,  // Game 6 (W) -> Anim 7 (W)
-    3   // Game 7 (NW) -> Anim 3 (NW)
+    3,  // Game 0 (N) -> Anim 3 (N)
+    1,  // Game 1 (NE) -> Anim 1 (NE)
+    2,  // Game 2 (E) -> Anim 2 (E)
+    0,  // Game 3 (SE) -> Anim 0 (SE)
+    5,  // Game 4 (S) -> Anim 5 (S)
+    4,  // Game 5 (SW) -> Anim 4 (SW)
+    6,  // Game 6 (W) -> Anim 6 (W)
+    7   // Game 7 (NW) -> Anim 7 (NW)
 ];
 
 /**

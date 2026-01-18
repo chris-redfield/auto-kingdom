@@ -181,6 +181,32 @@ const transform = packed & 0x7;                    // 3 bits
 - `tools/parse_anim_dat.py` - Python script to parse and dump .dat files to JSON
 - `test_anim.html` - Browser test page to preview animations
 
+## Direction Order for Unit Animations
+
+Unit animations (walk, attack, idle, death) come in sets of 8, one for each facing direction.
+The base animation ID + direction offset gives the specific animation.
+
+**Animation Direction Offsets (CORRECTED - verified in-game):**
+```
+Offset  Direction (Visual)
+0       SE (Southeast)
+1       NE (Northeast)
+2       E  (East)
+3       N  (North)
+4       SW (Southwest)
+5       S  (South)
+6       W  (West)
+7       NW (Northwest)
+```
+
+**Note:** The original Import.smali documentation listed a different order (E, N, NE, NW, S, SE, SW, W),
+but testing revealed the actual sprites are rotated +45° clockwise from that documentation.
+
+**Example:** For a Warrior with walk base ID 17:
+- Walk North = 17 + 3 = animation 20
+- Walk East = 17 + 2 = animation 19
+- Walk South = 17 + 5 = animation 22
+
 ## Notes
 
 - Sprite sheet sizes vary (512x512 or 1024x1024)
