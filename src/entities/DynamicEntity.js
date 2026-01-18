@@ -558,6 +558,9 @@ export class DynamicEntity extends Entity {
             this.moving = true;
             this.state = EntityState.MOVING;
 
+            // Update direction immediately so sprite faces the right way
+            this.direction = IsoMath.getDirection(this.gridI, this.gridJ, this.targetI, this.targetJ);
+
             return true;
         }
 
