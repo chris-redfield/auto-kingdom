@@ -190,14 +190,27 @@
     <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
     <script type="module">
         import { AnimationLoader, AnimatedSprite } from './src/graphics/AnimationLoader.js';
-        import { UNIT_ANIMS, GAME_DIR_TO_ANIM_DIR, getAnimId } from './src/utils/AnimationConstants.js';
+        import { UNIT_ANIMS } from './src/utils/AnimationConstants.js';
+
+        // Local direction mapping for test page buttons
+        // Button order: E(0), SE(1), S(2), SW(3), W(4), NW(5), N(6), NE(7)
+        // Animation offsets: E=0, N=1, NE=2, NW=3, S=4, SE=5, SW=6, W=7
+        // With visual shift correction applied
+        const TEST_BTN_TO_ANIM = [2, 0, 5, 4, 6, 7, 3, 1];
+
+        function getTestAnimId(unitConfig, state, btnDir) {
+            const baseId = unitConfig[state];
+            if (baseId === undefined) return 0;
+            const animDirOffset = TEST_BTN_TO_ANIM[btnDir] || 0;
+            return baseId + animDirOffset;
+        }
 
         let app;
         let loader;
         let currentPackage = 7;
         let currentAnim = 0;
         let currentState = 'idle';
-        let currentDir = 0;  // Game direction
+        let currentDir = 0;  // Button direction
         let animSprite;
 
         // Current unit config
@@ -252,7 +265,7 @@
             if (!currentUnitConfig) return;
 
             // Calculate animation ID from unit config, state, and direction
-            const animId = getAnimId(currentUnitConfig, currentState, currentDir);
+            const animId = getTestAnimId(currentUnitConfig, currentState, currentDir);
             currentPackage = currentUnitConfig.package;
             currentAnim = animId;
 

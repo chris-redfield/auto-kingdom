@@ -13,6 +13,8 @@ import { Missile, MissileType, createMissile } from '../entities/Missile.js';
 import { HUD } from '../ui/HUD.js';
 import { AnimationLoader } from '../graphics/AnimationLoader.js';
 import { UNIT_ANIMS } from '../utils/AnimationConstants.js';
+import { getSoundManager } from '../audio/SoundManager.js';
+import { SOUNDS, MUSIC } from '../audio/SoundConstants.js';
 
 export class Game {
     constructor(app, input, assetLoader) {
@@ -71,6 +73,10 @@ export class Game {
         // Animation system
         this.animLoader = new AnimationLoader();
         this.animationsLoaded = false;
+
+        // Sound system
+        this.soundManager = getSoundManager();
+        this.soundsLoaded = false;
 
         this.init();
     }
@@ -262,6 +268,26 @@ export class Game {
                 // Test screen shake
                 this.camera.shake(10, 500);
                 break;
+
+            case 'm':
+                // Toggle music
+                if (this.soundsLoaded) {
+                    const muted = this.soundManager.toggleMusicMute();
+                    console.log(`Music ${muted ? 'muted' : 'unmuted'}`);
+                    // Start music if not playing and just unmuted
+                    if (!muted && !this.soundManager.currentMusic) {
+                        this.soundManager.playRandomIngameMusic();
+                    }
+                }
+                break;
+
+            case 'n':
+                // Toggle sound effects
+                if (this.soundsLoaded) {
+                    const muted = this.soundManager.toggleSoundMute();
+                    console.log(`Sound effects ${muted ? 'muted' : 'unmuted'}`);
+                }
+                break;
         }
     }
 
@@ -366,6 +392,9 @@ export class Game {
         // Load animations (async - units will update when loaded)
         this.loadAnimations();
 
+        // Initialize sound (async)
+        this.initSound();
+
         // Create test unit on the grid
         this.createTestUnit();
 
@@ -379,7 +408,7 @@ export class Game {
 
         // Add compact controls hint (top right)
         const controlsHint = new PIXI.Text({
-            text: 'Right-drag: Pan | Arrows: Move | Click: Select/Attack | D: Debug',
+            text: 'Right-drag: Pan | Arrows: Move | Click: Select/Attack | D: Debug | M: Music | N: Mute SFX',
             style: {
                 fontFamily: 'Arial',
                 fontSize: 11,
@@ -427,6 +456,46 @@ export class Game {
     }
 
     /**
+     * Initialize sound system
+     */
+    async initSound() {
+        try {
+            await this.soundManager.init();
+            await this.soundManager.loadCommonSounds();
+            this.soundsLoaded = true;
+            console.log('Sound system initialized');
+
+            // Optionally start background music
+            // this.soundManager.playRandomIngameMusic();
+        } catch (error) {
+            console.warn('Failed to initialize sound:', error);
+            this.soundsLoaded = false;
+        }
+    }
+
+    /**
+     * Play a sound effect
+     * @param {number} soundId - Sound ID from SOUNDS constants
+     */
+    playSound(soundId) {
+        if (this.soundsLoaded) {
+            this.soundManager.play(soundId);
+        }
+    }
+
+    /**
+     * Play a sound at a position (with distance attenuation)
+     * @param {number} soundId - Sound ID
+     * @param {number} x - World X
+     * @param {number} y - World Y
+     */
+    playSoundAt(soundId, x, y) {
+        if (this.soundsLoaded) {
+            this.soundManager.playAt(soundId, x, y, this.camera);
+        }
+    }
+
+    /**
      * Apply animations to existing entities once loaded
      */
     applyAnimationsToEntities() {
@@ -467,6 +536,7 @@ export class Game {
         playerUnit.game = this;  // Link to game for combat
         playerUnit.team = 'player';  // Team for combat targeting
         playerUnit.autoPlay = false;  // Player controls this unit manually
+        playerUnit.unitType = 'knight';  // For death sounds
         this.grid.container.addChild(playerUnit.sprite);
         this.entities.push(playerUnit);
 
@@ -483,7 +553,8 @@ export class Game {
             { i: 25, j: 20 }
         ];
 
-        for (const pos of enemyPositions) {
+        for (let idx = 0; idx < enemyPositions.length; idx++) {
+            const pos = enemyPositions[idx];
             if (this.grid.isWalkable(pos.i, pos.j)) {
                 const enemy = new DynamicEntity(pos.i, pos.j);
                 enemy.initSprite();
@@ -493,6 +564,8 @@ export class Game {
                 enemy.setGrid(this.grid);
                 enemy.game = this;
                 enemy.team = 'enemy';
+                // Alternate between rat and troll for variety
+                enemy.unitType = (idx % 2 === 0) ? 'rat' : 'troll';
                 this.grid.container.addChild(enemy.sprite);
                 this.entities.push(enemy);
             }
@@ -517,6 +590,7 @@ export class Game {
                 friendly.isRanged = true;  // Make friendlies ranged for variety
                 friendly.rangedRange = 6;
                 friendly.sightRange = 12;  // Friendlies can see even further
+                friendly.unitType = 'ranger';  // For death sounds
                 this.grid.container.addChild(friendly.sprite);
                 this.entities.push(friendly);
             }
@@ -732,6 +806,9 @@ export class Game {
         this.setState(GameState.GAME_PAUSE);
         this.gold += 100;  // Bonus gold
 
+        // Play victory sound
+        this.playSound(SOUNDS.GOLD);
+
         if (this.hud) {
             this.hud.showMessage('VICTORY! +100 Gold', 3000);
         }
@@ -744,6 +821,9 @@ export class Game {
     onDefeat() {
         this.gameEnded = true;
         this.setState(GameState.GAME_PAUSE);
+
+        // Play defeat sound
+        this.playSound(SOUNDS.YOUR_BUILDING_DENIED);
 
         if (this.hud) {
             this.hud.showMessage('DEFEAT!', 3000);

@@ -18,18 +18,17 @@ export const ANIM_DIR = {
 };
 
 // Map from game direction (0-7) to animation direction offset
-// Game uses: 0=E, 1=SE, 2=S, 3=SW, 4=W, 5=NW, 6=N, 7=NE (isometric clockwise)
-// Import.smali uses: E, N, NE, NW, S, SE, SW, W (offsets 0-7)
-// Note: Shifted by -1 in button sequence to correct visual alignment
+// getDirection() returns: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
+// Import.smali animation offsets: E=0, N=1, NE=2, NW=3, S=4, SE=5, SW=6, W=7
 export const GAME_DIR_TO_ANIM_DIR = [
-    2,  // Game 0 (E) -> Anim offset 2 (NE visual)
-    0,  // Game 1 (SE) -> Anim offset 0 (E visual)
-    5,  // Game 2 (S) -> Anim offset 5 (SE visual)
-    4,  // Game 3 (SW) -> Anim offset 4 (S visual)
-    6,  // Game 4 (W) -> Anim offset 6 (SW visual)
-    7,  // Game 5 (NW) -> Anim offset 7 (W visual)
-    3,  // Game 6 (N) -> Anim offset 3 (NW visual)
-    1   // Game 7 (NE) -> Anim offset 1 (N visual)
+    1,  // Game 0 (N) -> Anim 1 (N)
+    2,  // Game 1 (NE) -> Anim 2 (NE)
+    0,  // Game 2 (E) -> Anim 0 (E)
+    5,  // Game 3 (SE) -> Anim 5 (SE)
+    4,  // Game 4 (S) -> Anim 4 (S)
+    6,  // Game 5 (SW) -> Anim 6 (SW)
+    7,  // Game 6 (W) -> Anim 7 (W)
+    3   // Game 7 (NW) -> Anim 3 (NW)
 ];
 
 /**

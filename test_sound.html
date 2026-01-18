@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sound Test - Majesty JS</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        h1 { color: #88aacc; }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #223344;
+            border-radius: 8px;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #aaccee;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #446688;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #5588aa;
+        }
+        button:active {
+            background: #3366aa;
+        }
+        .music-btn {
+            background: #664488;
+        }
+        .music-btn:hover {
+            background: #8866aa;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            background: #334455;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .volume-control {
+            margin: 10px 0;
+        }
+        .volume-control label {
+            display: inline-block;
+            width: 120px;
+        }
+        input[type="range"] {
+            width: 200px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sound System Test</h1>
+
+    <div class="section">
+        <h2>Controls</h2>
+        <button id="initAudio">Initialize Audio (Click First!)</button>
+        <div class="volume-control">
+            <label>Sound Volume:</label>
+            <input type="range" id="soundVolume" min="0" max="100" value="70">
+            <span id="soundVolumeLabel">70%</span>
+        </div>
+        <div class="volume-control">
+            <label>Music Volume:</label>
+            <input type="range" id="musicVolume" min="0" max="100" value="50">
+            <span id="musicVolumeLabel">50%</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Combat Sounds</h2>
+        <button data-sound="PHYSIC_UNIT_HIT_ENEMY">Melee Hit</button>
+        <button data-sound="RANGE_UNIT_SHOT">Arrow Shot</button>
+        <button data-sound="PHYSIC_UNIT_DEATH">Warrior Death</button>
+        <button data-sound="RAT_DEATH">Rat Death</button>
+        <button data-sound="TROLL_DEATH">Troll Death</button>
+        <button data-sound="SKELETON_DEATH">Skeleton Death</button>
+        <button data-sound="GOBLIN_ANY_DEATH">Goblin Death</button>
+    </div>
+
+    <div class="section">
+        <h2>UI Sounds</h2>
+        <button data-sound="CLICK_APPROVE">Click Approve</button>
+        <button data-sound="CLICK_DENY">Click Deny</button>
+        <button data-sound="CLICK_MENU_AND_GAME_BUTTON">Menu Click</button>
+        <button data-sound="GOLD">Gold</button>
+        <button data-sound="UNIT_LEVELUP">Level Up</button>
+        <button data-sound="TOOLTIP_OR_MESSAGE">Tooltip</button>
+    </div>
+
+    <div class="section">
+        <h2>Magic Sounds</h2>
+        <button data-sound="FIREBALL">Fireball</button>
+        <button data-sound="LIGHTNING">Lightning</button>
+        <button data-sound="HEAL">Heal</button>
+        <button data-sound="TELEPORT">Teleport</button>
+        <button data-sound="BLESSING">Blessing</button>
+        <button data-sound="RESURRECTION">Resurrection</button>
+    </div>
+
+    <div class="section">
+        <h2>Music</h2>
+        <button class="music-btn" data-music="MAIN_THEME">Main Theme</button>
+        <button class="music-btn" data-music="INGAME_1">In-Game 1</button>
+        <button class="music-btn" data-music="INGAME_2">In-Game 2</button>
+        <button class="music-btn" data-music="INGAME_3">In-Game 3</button>
+        <button class="music-btn" data-music="MAP">Map</button>
+        <button class="music-btn" id="stopMusic">Stop Music</button>
+    </div>
+
+    <div id="status">Status: Click "Initialize Audio" to start</div>
+
+    <script type="module">
+        import { SoundManager } from './src/audio/SoundManager.js';
+        import { SOUNDS, MUSIC } from './src/audio/SoundConstants.js';
+
+        const soundManager = new SoundManager();
+        const status = document.getElementById('status');
+
+        function log(msg) {
+            status.textContent = msg;
+            console.log(msg);
+        }
+
+        // Initialize audio button
+        document.getElementById('initAudio').onclick = async () => {
+            log('Initializing audio...');
+            const success = await soundManager.init();
+            if (success) {
+                await soundManager.loadCommonSounds();
+                log('Audio initialized! Click buttons to play sounds.');
+            } else {
+                log('Failed to initialize audio.');
+            }
+        };
+
+        // Volume controls
+        document.getElementById('soundVolume').oninput = (e) => {
+            const vol = e.target.value / 100;
+            soundManager.setSoundVolume(vol);
+            document.getElementById('soundVolumeLabel').textContent = e.target.value + '%';
+        };
+
+        document.getElementById('musicVolume').oninput = (e) => {
+            const vol = e.target.value / 100;
+            soundManager.setMusicVolume(vol);
+            document.getElementById('musicVolumeLabel').textContent = e.target.value + '%';
+        };
+
+        // Sound effect buttons
+        document.querySelectorAll('[data-sound]').forEach(btn => {
+            btn.onclick = async () => {
+                const soundName = btn.dataset.sound;
+                const soundId = SOUNDS[soundName];
+                if (soundId !== undefined) {
+                    log(`Playing: ${soundName} (ID: ${soundId})`);
+                    await soundManager.loadSound(soundId);
+                    soundManager.play(soundId);
+                } else {
+                    log(`Unknown sound: ${soundName}`);
+                }
+            };
+        });
+
+        // Music buttons
+        document.querySelectorAll('[data-music]').forEach(btn => {
+            btn.onclick = async () => {
+                const musicName = btn.dataset.music;
+                const musicId = MUSIC[musicName];
+                if (musicId !== undefined) {
+                    log(`Playing music: ${musicName}`);
+                    await soundManager.playMusic(musicId);
+                } else {
+                    log(`Unknown music: ${musicName}`);
+                }
+            };
+        });
+
+        // Stop music button
+        document.getElementById('stopMusic').onclick = () => {
+            soundManager.stopMusic();
+            log('Music stopped');
+        };
+    </script>
+</body>
+</html>

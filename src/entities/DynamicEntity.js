@@ -14,6 +14,7 @@ import * as IsoMath from '../world/IsoMath.js';
 import { EntityState, FLD_BUSY, FLD_EMPTY } from '../utils/Constants.js';
 import { AnimatedSprite } from '../graphics/AnimationLoader.js';
 import { UNIT_ANIMS, GAME_DIR_TO_ANIM_DIR, getAnimId } from '../utils/AnimationConstants.js';
+import { SOUNDS, getDeathSoundForUnit } from '../audio/SoundConstants.js';
 
 export class DynamicEntity extends Entity {
     /**
@@ -87,6 +88,9 @@ export class DynamicEntity extends Entity {
         this.unitAnimConfig = null;
         this.currentAnimState = 'idle';
         this.currentAnimDir = 0;     // Track animation direction offset (0-7)
+
+        // Unit type for sounds (e.g., 'warrior', 'rat', 'troll')
+        this.unitType = 'warrior';
     }
 
     /**
@@ -735,6 +739,10 @@ export class DynamicEntity extends Entity {
             if (this.game && this.game.spawnMissile) {
                 this.game.spawnMissile(this, target);
             }
+            // Play ranged attack sound
+            if (this.game && this.game.playSoundAt) {
+                this.game.playSoundAt(SOUNDS.RANGE_UNIT_SHOT, this.worldX, this.worldY);
+            }
             return false;  // Damage dealt by missile on impact
         } else {
             // Melee attack - deal damage directly
@@ -742,6 +750,11 @@ export class DynamicEntity extends Entity {
 
             // Visual feedback for melee hit
             this.showMeleeEffect(target);
+
+            // Play melee hit sound
+            if (this.game && this.game.playSoundAt) {
+                this.game.playSoundAt(SOUNDS.PHYSIC_UNIT_HIT_ENEMY, target.worldX, target.worldY);
+            }
 
             // Give experience if killed
             if (killed) {
@@ -835,6 +848,11 @@ export class DynamicEntity extends Entity {
         this.health = this.maxHealth;
         this.damage += 2;
 
+        // Play level up sound
+        if (this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.UNIT_LEVELUP, this.worldX, this.worldY);
+        }
+
         console.log(`Entity ${this.id} leveled up to ${this.level}!`);
     }
 
@@ -848,6 +866,12 @@ export class DynamicEntity extends Entity {
 
         // Vacate the cell we're on
         this.vacateCell(this.gridI, this.gridJ);
+
+        // Play death sound
+        if (this.game && this.game.playSoundAt) {
+            const deathSound = getDeathSoundForUnit(this.unitType);
+            this.game.playSoundAt(deathSound, this.worldX, this.worldY);
+        }
 
         // Play death animation if available
         if (this.useAnimations && this.animSprite) {
