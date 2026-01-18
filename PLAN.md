@@ -167,11 +167,18 @@ Goal: Replace placeholder graphics with proper sprites and add sound effects.
 - Root cause: Transform code interpretation may differ from original OpenGL renderer
 - Workaround: Most animations work correctly; edge cases need investigation
 
-### Phase 1.11: Unit Sprites
-- [ ] Map unit types to animation packages
-- [ ] Integrate AnimationLoader with DynamicEntity
-- [ ] Direction-based sprite facing (using transform codes)
-- [ ] State-based animations (idle, walk, attack, death)
+### Phase 1.11: Unit Sprites ✅
+- [x] Map unit types to animation packages (see AnimationConstants.js UNIT_ANIMS)
+- [x] Integrate AnimationLoader with DynamicEntity (setAnimations method)
+- [x] Direction-based sprite facing - **FIXED:** Animation direction offsets were +45° from docs
+- [x] State-based animations (idle, walk, attack, death)
+- [x] Immediate direction update on movement start (no delay bug)
+
+**Direction Fix Notes:**
+- Original Import.smali docs claimed order: E, N, NE, NW, S, SE, SW, W
+- Actual sprite file order: SE, NE, E, N, SW, S, W, NW (+45° rotation)
+- Fixed in AnimationConstants.js GAME_DIR_TO_ANIM_DIR mapping
+- Documented in assets/sprites/ASSET_FORMAT.md
 
 ### Phase 1.12: Tile & Building Textures
 - [ ] Identify tile/terrain assets in animation packages
@@ -192,10 +199,11 @@ Goal: Replace placeholder graphics with proper sprites and add sound effects.
 ### Current Status:
 - Animation format: ✅ Reverse-engineered and documented
 - AnimationLoader: ✅ Created, parses .dat files correctly
+- Unit sprites: ✅ Integrated with DynamicEntity, direction mapping fixed
+- Direction system: ✅ Corrected +45° offset in animation files (see ASSET_FORMAT.md)
 - Tiles: Programmatic textures (TileRenderer.js) - working placeholder
-- Units: Geometric shapes (ellipse body + circle head)
 - Effects: Basic graphics (slash lines, circle missiles)
-- Sound: OGG files copied, no playback yet
+- Sound: ✅ SoundManager created, OGG files ready
 
 ### Animation Package Contents (Discovered):
 | Package | Contents | Use For |
@@ -278,9 +286,13 @@ After visual polish is done:
     │   └── IsoMath.js      # Coordinate conversions
     ├── /ui
     │   └── HUD.js          # Heads-up display
+    ├── /audio
+    │   ├── SoundManager.js     # Audio playback system
+    │   └── SoundConstants.js   # Sound effect mappings
     └── /utils
-        ├── AssetLoader.js  # Asset management
-        └── Constants.js    # Game constants
+        ├── AssetLoader.js      # Asset management
+        ├── Constants.js        # Game constants
+        └── AnimationConstants.js # Unit animation IDs & direction mapping
 ```
 
 ---
