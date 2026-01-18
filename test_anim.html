@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Animation Test - Majesty JS</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            margin-bottom: 10px;
+        }
+        #controls {
+            margin-bottom: 10px;
+        }
+        button {
+            margin-right: 5px;
+            margin-bottom: 5px;
+            padding: 5px 12px;
+            cursor: pointer;
+        }
+        .unit-btn {
+            background: #446688;
+            color: white;
+            border: none;
+        }
+        .unit-btn:hover {
+            background: #5588aa;
+        }
+        .state-btn {
+            background: #336644;
+            color: white;
+            border: none;
+        }
+        .state-btn.active {
+            background: #44aa66;
+        }
+        .dir-btn {
+            background: #664433;
+            color: white;
+            border: none;
+            width: 40px;
+        }
+        .dir-btn.active {
+            background: #aa6644;
+        }
+        canvas {
+            border: 1px solid #446688;
+        }
+        #unit-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #223344;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .section-label {
+            color: #88aacc;
+            margin-right: 8px;
+        }
+        table {
+            margin-top: 10px;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        th, td {
+            padding: 4px 8px;
+            border: 1px solid #446688;
+            text-align: left;
+        }
+        th {
+            background: #335566;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Loading animations...</div>
+
+    <div id="controls">
+        <!-- Quick unit type buttons -->
+        <span class="section-label">Unit Type:</span>
+        <button class="unit-btn" data-pkg="7" data-unit="RANGER">Ranger (Pkg 7)</button>
+        <button class="unit-btn" data-pkg="8" data-unit="WARRIOR">Knight (Pkg 8)</button>
+        <button class="unit-btn" data-pkg="13" data-unit="GIANT_RAT">Giant Rat (Pkg 13)</button>
+        <button class="unit-btn" data-pkg="14" data-unit="TROLL">Troll (Pkg 14)</button>
+        <br><br>
+
+        <!-- Animation state buttons -->
+        <span class="section-label">State:</span>
+        <button class="state-btn active" data-state="idle">Idle</button>
+        <button class="state-btn" data-state="walk">Walk</button>
+        <button class="state-btn" data-state="attack">Attack</button>
+        <button class="state-btn" data-state="death">Death</button>
+
+        &nbsp;|&nbsp;
+
+        <!-- Direction buttons (8 directions) -->
+        <span class="section-label">Direction:</span>
+        <button class="dir-btn active" data-dir="0">E</button>
+        <button class="dir-btn" data-dir="1">SE</button>
+        <button class="dir-btn" data-dir="2">S</button>
+        <button class="dir-btn" data-dir="3">SW</button>
+        <button class="dir-btn" data-dir="4">W</button>
+        <button class="dir-btn" data-dir="5">NW</button>
+        <button class="dir-btn" data-dir="6">N</button>
+        <button class="dir-btn" data-dir="7">NE</button>
+        <br><br>
+
+        <!-- Playback controls -->
+        <span class="section-label">Playback:</span>
+        <button id="prevFrame">&lt; Frame</button>
+        <button id="nextFrame">Frame &gt;</button>
+        <button id="togglePlay">Pause</button>
+        <span id="frameInfo"></span>
+
+        &nbsp;|&nbsp;
+
+        <!-- Manual package/anim controls -->
+        <span class="section-label">Manual:</span>
+        <label>Pkg: <select id="packageSelect">
+            <option value="0">0 - UI</option>
+            <option value="1">1 - Buildings</option>
+            <option value="3">3 - Fire Warriors</option>
+            <option value="4">4 - Orcs</option>
+            <option value="7" selected>7 - Rangers</option>
+            <option value="8">8 - Knights</option>
+            <option value="13">13 - Giant Rats</option>
+            <option value="14">14 - Trolls</option>
+        </select></label>
+        <button id="loadPkg">Load</button>
+        <button id="prevAnim">&lt; Anim</button>
+        <button id="nextAnim">Anim &gt;</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="unit-info">
+        <strong>Animation Mapping (from Import.smali):</strong>
+        <table>
+            <tr>
+                <th>Unit</th>
+                <th>Package</th>
+                <th>Attack</th>
+                <th>Death</th>
+                <th>Walk</th>
+                <th>Idle</th>
+            </tr>
+            <tr>
+                <td>Ranger</td>
+                <td>7</td>
+                <td>0-7</td>
+                <td>8-15</td>
+                <td>16-23</td>
+                <td>24-31</td>
+            </tr>
+            <tr>
+                <td>Knight/Warrior</td>
+                <td>8</td>
+                <td>1-8</td>
+                <td>9-16</td>
+                <td>17-24</td>
+                <td>25-32</td>
+            </tr>
+            <tr>
+                <td>Giant Rat</td>
+                <td>13</td>
+                <td>8-15</td>
+                <td>16-23</td>
+                <td>24-31</td>
+                <td>32-39</td>
+            </tr>
+            <tr>
+                <td>Troll</td>
+                <td>14</td>
+                <td>1-8</td>
+                <td>9-16</td>
+                <td>17-24</td>
+                <td>25-32</td>
+            </tr>
+        </table>
+        <p style="margin-top:8px; color:#aaa;">
+            Direction order (Import.smali): E, N, NE, NW, S, SE, SW, W (+0 to +7)<br>
+            Game direction order: E(0), SE(1), S(2), SW(3), W(4), NW(5), N(6), NE(7)
+        </p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
+    <script type="module">
+        import { AnimationLoader, AnimatedSprite } from './src/graphics/AnimationLoader.js';
+        import { UNIT_ANIMS, GAME_DIR_TO_ANIM_DIR, getAnimId } from './src/utils/AnimationConstants.js';
+
+        let app;
+        let loader;
+        let currentPackage = 7;
+        let currentAnim = 0;
+        let currentState = 'idle';
+        let currentDir = 0;  // Game direction
+        let animSprite;
+
+        // Current unit config
+        let currentUnitConfig = UNIT_ANIMS.RANGER;
+
+        async function init() {
+            // Create PixiJS app
+            app = new PIXI.Application();
+            await app.init({
+                width: 800,
+                height: 500,
+                backgroundColor: 0x2a2a4a
+            });
+            document.getElementById('canvas-container').appendChild(app.canvas);
+
+            // Create loader
+            loader = new AnimationLoader();
+
+            // Load initial package
+            await loadPackage(currentPackage);
+
+            // Setup controls
+            setupControls();
+
+            // Create initial sprite
+            updateAnimFromUnitConfig();
+
+            // Start game loop
+            app.ticker.add(update);
+        }
+
+        async function loadPackage(pkg) {
+            document.getElementById('info').textContent = `Loading package ${pkg}...`;
+            try {
+                if (!loader.animationData[pkg]) {
+                    await loader.loadPackage('assets/sprites/anims/anims', pkg);
+                }
+                currentPackage = pkg;
+                const numAnims = loader.animationData[pkg].length;
+                document.getElementById('info').textContent =
+                    `Package ${pkg}: ${numAnims} animations loaded`;
+                document.getElementById('packageSelect').value = pkg;
+                return true;
+            } catch (e) {
+                document.getElementById('info').textContent = `Error loading package ${pkg}: ${e.message}`;
+                console.error(e);
+                return false;
+            }
+        }
+
+        function updateAnimFromUnitConfig() {
+            if (!currentUnitConfig) return;
+
+            // Calculate animation ID from unit config, state, and direction
+            const animId = getAnimId(currentUnitConfig, currentState, currentDir);
+            currentPackage = currentUnitConfig.package;
+            currentAnim = animId;
+
+            createAnimSprite();
+        }
+
+        function createAnimSprite() {
+            if (animSprite) {
+                app.stage.removeChild(animSprite.container);
+            }
+
+            if (!loader.animationData[currentPackage]) {
+                console.warn(`Package ${currentPackage} not loaded`);
+                return;
+            }
+
+            animSprite = new AnimatedSprite(loader, currentPackage, currentAnim);
+            animSprite.container.x = 400;
+            animSprite.container.y = 250;
+            animSprite.container.scale.set(3);  // Scale up for visibility
+
+            app.stage.addChild(animSprite.container);
+
+            updateFrameInfo();
+        }
+
+        function updateFrameInfo() {
+            const anim = loader.getAnimation(currentPackage, currentAnim);
+            if (anim) {
+                document.getElementById('frameInfo').textContent =
+                    `Anim ${currentAnim}, Frame ${animSprite.currentFrame}/${anim.frameCount - 1}`;
+            }
+        }
+
+        function setupControls() {
+            // Unit type buttons
+            document.querySelectorAll('.unit-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    const unitName = btn.dataset.unit;
+                    const pkg = parseInt(btn.dataset.pkg);
+                    currentUnitConfig = UNIT_ANIMS[unitName];
+
+                    await loadPackage(pkg);
+                    updateAnimFromUnitConfig();
+                };
+            });
+
+            // State buttons
+            document.querySelectorAll('.state-btn').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.state-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentState = btn.dataset.state;
+                    updateAnimFromUnitConfig();
+                };
+            });
+
+            // Direction buttons
+            document.querySelectorAll('.dir-btn').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentDir = parseInt(btn.dataset.dir);
+                    updateAnimFromUnitConfig();
+                };
+            });
+
+            // Manual package load
+            document.getElementById('loadPkg').onclick = async () => {
+                const newPkg = parseInt(document.getElementById('packageSelect').value);
+                if (await loadPackage(newPkg)) {
+                    currentUnitConfig = null;  // Clear unit config for manual mode
+                    currentAnim = 0;
+                    createAnimSprite();
+                }
+            };
+
+            // Manual anim navigation
+            document.getElementById('prevAnim').onclick = () => {
+                currentAnim = Math.max(0, currentAnim - 1);
+                currentUnitConfig = null;  // Manual mode
+                createAnimSprite();
+            };
+
+            document.getElementById('nextAnim').onclick = () => {
+                const max = loader.animationData[currentPackage].length - 1;
+                currentAnim = Math.min(max, currentAnim + 1);
+                currentUnitConfig = null;  // Manual mode
+                createAnimSprite();
+            };
+
+            // Frame navigation
+            document.getElementById('prevFrame').onclick = () => {
+                if (!animSprite) return;
+                animSprite.playing = false;
+                document.getElementById('togglePlay').textContent = 'Play';
+                const fc = animSprite.getFrameCount();
+                animSprite.currentFrame = (animSprite.currentFrame - 1 + fc) % fc;
+                animSprite.updateFrame();
+                updateFrameInfo();
+            };
+
+            document.getElementById('nextFrame').onclick = () => {
+                if (!animSprite) return;
+                animSprite.playing = false;
+                document.getElementById('togglePlay').textContent = 'Play';
+                animSprite.nextFrame();
+                updateFrameInfo();
+            };
+
+            document.getElementById('togglePlay').onclick = () => {
+                if (!animSprite) return;
+                animSprite.playing = !animSprite.playing;
+                document.getElementById('togglePlay').textContent =
+                    animSprite.playing ? 'Pause' : 'Play';
+            };
+        }
+
+        function update() {
+            if (animSprite && animSprite.playing) {
+                animSprite.update();
+                updateFrameInfo();
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

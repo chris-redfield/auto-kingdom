@@ -1,0 +1,36 @@
+{
+    "textures": {
+        "anims0": "assets/sprites/anims0_0.png",
+        "anims1_0": "assets/sprites/anims1_0.png",
+        "anims1_1": "assets/sprites/anims1_1.png"
+    },
+    "spritesheets": {
+        "test_units": {
+            "image": "assets/sprites/anims1_0.png",
+            "frames": {
+                "unit_0": { "x": 0, "y": 0, "width": 64, "height": 64, "anchorX": 0.5, "anchorY": 0.9 },
+                "unit_1": { "x": 64, "y": 0, "width": 64, "height": 64, "anchorX": 0.5, "anchorY": 0.9 },
+                "unit_2": { "x": 128, "y": 0, "width": 64, "height": 64, "anchorX": 0.5, "anchorY": 0.9 },
+                "unit_3": { "x": 192, "y": 0, "width": 64, "height": 64, "anchorX": 0.5, "anchorY": 0.9 },
+                "unit_4": { "x": 256, "y": 0, "width": 64, "height": 64, "anchorX": 0.5, "anchorY": 0.9 },
+                "unit_5": { "x": 320, "y": 0, "width": 64, "height": 64, "anchorX": 0.5, "anchorY": 0.9 },
+                "unit_6": { "x": 384, "y": 0, "width": 64, "height": 64, "anchorX": 0.5, "anchorY": 0.9 },
+                "unit_7": { "x": 448, "y": 0, "width": 64, "height": 64, "anchorX": 0.5, "anchorY": 0.9 }
+            }
+        }
+    },
+    "animations": {
+        "unit_idle": {
+            "sheet": "test_units",
+            "frames": ["unit_0", "unit_1", "unit_2", "unit_3"],
+            "duration": 150,
+            "loop": true
+        },
+        "unit_walk": {
+            "sheet": "test_units",
+            "frames": ["unit_4", "unit_5", "unit_6", "unit_7"],
+            "duration": 100,
+            "loop": true
+        }
+    }
+}
