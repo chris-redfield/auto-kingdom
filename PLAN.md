@@ -45,7 +45,8 @@ All phases of the Playable Prototype are done:
 - Victory/defeat conditions
 
 ### In Progress:
-- [ ] **Milestone 1.5:** Visual & Audio Polish (sprites, textures, sounds)
+- [x] **Milestone 1.5:** Visual & Audio Polish (sprites, textures, sounds) - COMPLETE
+- [ ] **Milestone 2:** First Mission (Map Loading + Game UI)
 
 ---
 
@@ -186,7 +187,10 @@ Goal: Replace placeholder graphics with proper sprites and add sound effects.
 - [x] Added loadTileset() method to Grid.js for loading from AnimationLoader
 - [x] Updated IsoMath.js tile dimensions to match original (66x36 pixels)
 - [x] **FIXED terrain decoration bug** - was loading shadow sprites (anims 21-30) instead of decorations (0-15)
-- [ ] Add building placeholders from anims1 package
+- [x] Created Building.js entity class for static buildings
+- [x] Loaded Package 1 (buildings) in Game.js
+- [x] Added BUILDING_ANIMS to AnimationConstants.js
+- [x] Test building (Castle) renders with real sprites
 
 **Tileset Implementation Notes:**
 - TILESET_COMMON = Package 25, Animation 59 (7 frames, each 66x36 pixels)
@@ -215,9 +219,16 @@ Goal: Replace placeholder graphics with proper sprites and add sound effects.
 
 ### Phase 1.14: Sound Effects
 - [x] Copy 77 OGG sound files to assets/audio/
-- [ ] Create AudioManager for sound playback
-- [ ] Combat sounds (attack, hit, death)
+- [x] Create SoundManager for sound playback
+- [x] Combat sounds (attack, hit, death)
 - [ ] UI sounds (click, select)
+
+### Phase 1.15: Code Quality & Bug Fixes (2026-01-18)
+- [x] Replaced setInterval with PIXI.Ticker in Missile.js (hit effect fade)
+- [x] Replaced setInterval with PIXI.Ticker in DynamicEntity.js (melee effect fade)
+- [x] **FIXED:** Enemies kept attacking dead units - clearAttackTarget() now resets state to IDLE
+- [x] **FIXED:** Dead entities no longer process AI (early return in update())
+- [x] Removed unnecessary sprite transparency on death
 
 ### Current Status:
 - Animation format: ✅ Reverse-engineered and documented
@@ -291,16 +302,47 @@ This means decorations should be loaded from map data, not scattered randomly.
 
 ---
 
-## MILESTONE 2: First Mission (Future)
+## MILESTONE 2: First Mission (IN PROGRESS)
 
-After visual polish is done:
-- **Map Loading** (parse .m files, load objects/decorations from map data)
-- Building system (Castle, Guilds)
-- Unit recruitment
-- Resource management (gold, taxes)
-- Mission objectives
-- Win/lose conditions
-- Full UI dialogs
+### 🎯 Current Focus: Map Loading + Game UI
+
+Building both systems in parallel since UI is needed to interact with loaded maps.
+
+### Phase 2.1: Map File Parsing
+- [ ] Reverse-engineer .m file format (binary analysis)
+- [ ] Create MapLoader.js to parse map files
+- [ ] Extract: dimensions, terrain types, object positions, spawn points
+- [ ] Load map0.m as first test case
+
+### Phase 2.2: Game UI (Original Style)
+- [ ] Analyze original UI from Package 0 (portraits, buttons, icons)
+- [ ] Bottom action bar (build, recruit, spells)
+- [ ] Building interaction menus
+- [ ] Unit recruitment dialogs
+- [ ] Resource display (gold, mana)
+- [ ] Minimap
+
+### Phase 2.3: Map Object Spawning
+- [ ] Spawn buildings from map data
+- [ ] Spawn decorations (terrain-aware: grass/snow/necro)
+- [ ] Spawn units/monsters at spawn points
+- [ ] Connect to existing Building.js entity
+
+### Phase 2.4: Building System
+- [ ] Castle (player HQ)
+- [ ] Guild buildings (Warrior, Ranger, Wizard)
+- [ ] Marketplace, Blacksmith
+- [ ] Building placement from UI
+
+### Phase 2.5: Unit Recruitment
+- [ ] Recruit units from guild buildings
+- [ ] Gold cost system
+- [ ] Unit spawn at building location
+
+### Phase 2.6: Mission System
+- [ ] Mission objectives (defeat enemies, protect castle)
+- [ ] Win/lose conditions
+- [ ] Mission complete screen
 
 ### Map File Format (Needs Reverse Engineering)
 
@@ -353,7 +395,9 @@ Map files are located at `assets/s3/map0.m` through `map29.m`:
     │   └── TileRenderer.js # Programmatic tile textures
     ├── /entities
     │   ├── Entity.js       # Base entity (GameObject)
-    │   └── DynamicEntity.js# Moving entity (DynamicObject)
+    │   ├── DynamicEntity.js# Moving entity (DynamicObject)
+    │   ├── Building.js     # Static building entity
+    │   └── Missile.js      # Projectile entity
     ├── /world
     │   ├── Grid.js         # Isometric grid system
     │   └── IsoMath.js      # Coordinate conversions
@@ -378,7 +422,8 @@ Map files are located at `assets/s3/map0.m` through `map29.m`:
 | `Game.smali` | `Game.js` | State machine |
 | `GameObject.smali` | `Entity.js` | Base entity |
 | `DynamicObject.smali` | `DynamicEntity.js` | Moving entities |
-| `Missile.smali` | `Missile.js` | Projectiles (TODO) |
+| `Missile.smali` | `Missile.js` | Projectiles |
+| `Building.smali` | `Building.js` | Static buildings |
 | `Location.smali` | `Grid.js` | Map/grid |
 | `Animation.smali` | `Animator.js` | Sprite playback |
 

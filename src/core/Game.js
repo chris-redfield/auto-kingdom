@@ -16,6 +16,7 @@ import { AnimationLoader } from '../graphics/AnimationLoader.js';
 import { UNIT_ANIMS, BUILDING_ANIMS } from '../utils/AnimationConstants.js';
 import { getSoundManager } from '../audio/SoundManager.js';
 import { SOUNDS, MUSIC } from '../audio/SoundConstants.js';
+import { MapLoader } from '../world/MapLoader.js';
 
 export class Game {
     constructor(app, input, assetLoader) {
@@ -50,8 +51,9 @@ export class Game {
 
         // Grid/Map
         this.grid = null;
-        this.gridWidth = 32;   // Grid size in tiles
-        this.gridHeight = 32;
+        this.mapLoader = null;  // Loaded map data
+        this.gridWidth = 64;    // Default, will be overridden by map
+        this.gridHeight = 64;
 
         // World size (calculated from grid)
         this.worldWidth = SCREEN_WIDTH * 2;
@@ -129,8 +131,34 @@ export class Game {
         // Transition to game state (for prototype, skip menus)
         this.setState(GameState.GAME);
 
-        // Create a test world (placeholder)
-        this.createTestContent();
+        // Load map and create world
+        this.loadMapAndCreateWorld();
+    }
+
+    /**
+     * Load map file and create game world with correct dimensions
+     */
+    async loadMapAndCreateWorld() {
+        try {
+            // Load map file
+            this.mapLoader = new MapLoader();
+            await this.mapLoader.load('./assets/maps/map0.m');
+            console.log('Map loaded successfully!');
+            console.log(`Dimensions: ${this.mapLoader.mapWidth}x${this.mapLoader.mapHeight}`);
+            console.log(`Cell size: ${this.mapLoader.cellWidth}x${this.mapLoader.cellHeight}`);
+            console.log(`Packages needed: ${this.mapLoader.packagesToLoad.join(', ')}`);
+
+            // Use map dimensions for grid
+            this.gridWidth = this.mapLoader.mapWidth;
+            this.gridHeight = this.mapLoader.mapHeight;
+
+            // Now create the world with correct dimensions
+            this.createTestContent();
+        } catch (err) {
+            console.error('Failed to load map:', err);
+            // Fallback to default grid size
+            this.createTestContent();
+        }
     }
 
     /**
