@@ -468,3 +468,260 @@ To properly render terrain tiles, implement:
 - Changed IsoMath.js from 66x36 to 64x32 (matches map cell size)
 - Exact 0.5x scale: 128x64 tileset → 64x32 grid cells
 - Ready for when viewport culling is implemented
+
+---
+
+## How the Original Game Renders Terrain (Location.smali Analysis)
+
+### Overview
+
+The original game in `Location.draw()` (lines 3745-4239) uses a fundamentally different approach that **eliminates the boundary problem entirely**:
+
+1. **No static background** - Tiles ARE the background
+2. **Dynamic viewport culling** - Only renders tiles visible on screen
+3. **Every frame, full coverage** - Screen is completely filled with tiles
+4. **No gap possible** - There's no separate background to clash with tiles
+
+### Step-by-Step Breakdown
+
+#### 1. Calculate Starting Tile from Scroll Position (lines 3795-3840)
+
+```java
+// Pseudocode reconstruction from smali
+int startI = ((scrollX - cellWidthDiv2 + scrollY*2) / cellWidth) & ~1;
+int startJ = ((scrollY*2 - (scrollX - cellWidthDiv2)) / cellWidth) & ~1;
+
+// Calculate screen pixel offset for first tile
+int screenX = (startI - startJ) * cellWidthDiv2 - cellWidthDiv2 - scrollX;
+int screenY = (startI + startJ) * cellHeightDiv2 - scrollY;
+```
+
+The `& ~1` operation rounds down to even indices for proper isometric alignment.
+
+#### 2. Outer Loop: Rows (lines 3900-3909)
+
+```java
+// Continue until we've filled the screen vertically
+while (screenY < screenHeight + cellHeight*2) {
+    // ... inner loop
+    screenY += cellHeight;
+    startI += 2;  // Move diagonally
+    startJ -= 2;  // In isometric space
+}
+```
+
+#### 3. Inner Loop: Columns (lines 3918-3927)
+
+```java
+// For each row, render tiles until we've filled horizontally
+while (screenX < screenWidth + cellWidth*2) {
+    // Bounds check - skip if outside map
+    if (i >= 0 && j >= 0 && i < mapWidth && j < mapHeight) {
+        // Render the tile
+        renderTile(i, j, screenX, screenY);
+    }
+    screenX += cellWidth * 2;  // Move 2 tiles right
+    i += 2;                     // Grid indices follow
+    j -= 2;
+}
+```
+
+#### 4. Tile Rendering (lines 4057-4089)
+
+```java
+// Extract terrain frame from map data
+int terrainValue = map[i][j];
+int frame = (terrainValue >> 3) & 0x7F;  // Bits 3-9 = frame (0-127)
+
+// Draw the terrain tile
+Animation.drawFrame(graphics, screenX, screenY, TERRAIN_ANIM_ID, frame);
+```
+
+#### 5. Multi-Layer Overlay System (lines 4091-4174)
+
+The original also renders up to 4 overlay tiles for smooth transitions:
+
+```java
+// Read 4 adjacent terrain values
+short v21 = map[i][j];      // Current tile
+short v23 = map[i+1][j];    // Right neighbor
+short v25 = map[i][j+1];    // Bottom neighbor
+short v26 = map[i+1][j+1];  // Diagonal neighbor
+
+// Extract overlay frames (bits 10-15, different from base frame!)
+int overlay1 = (v21 >> 10) & 0x3F;
+int overlay2 = (v23 >> 10) & 0x3F;
+int overlay3 = (v25 >> 10) & 0x3F;
+int overlay4 = (v26 >> 10) & 0x3F;
+
+// Draw overlays at offset positions (if non-zero)
+if (overlay1 > 0) drawFrame(x, y, TERRAIN_ANIM, overlay1);
+if (overlay2 > 0) drawFrame(x + halfWidth, y + halfHeight, TERRAIN_ANIM, overlay2);
+if (overlay3 > 0) drawFrame(x - halfWidth, y + halfHeight, TERRAIN_ANIM, overlay3);
+if (overlay4 > 0) drawFrame(x, y + cellHeight, TERRAIN_ANIM, overlay4);
+```
+
+### Optimization: Dirty Flag System (lines 3967-4016)
+
+```java
+// Buffer system for partial updates
+if (!bufferNeedRefresh) {
+    // Check if tile needs redraw (bit 2 = dirty flag)
+    if ((map[i][j] & 0x4) != 0x4 &&
+        (map[i+1][j] & 0x4) != 0x4 &&
+        (map[i][j+1] & 0x4) != 0x4 &&
+        (map[i+1][j+1] & 0x4) != 0x4) {
+        // Tile is clean, check if within dirty buffer regions
+        if (!collisionDetector(bufferRegion1, tileRect) &&
+            !collisionDetector(bufferRegion2, tileRect)) {
+            continue;  // Skip this tile, it hasn't changed
+        }
+    }
+}
+```
+
+### Why This Approach Doesn't Have Our Problem
+
+| Original Game | Our Implementation |
+|---------------|-------------------|
+| Tiles cover entire visible screen | Tiles cover 80x80 area |
+| No separate background layer | Solid green background fills rest |
+| Screen bounds = tile bounds | Tile bounds ≠ screen bounds |
+| Zero gap by design | Gap between tiles and background |
+| Color consistency guaranteed | Color mismatch at boundary |
+
+### Key Insight: The Diamond Pattern
+
+The original's isometric rendering creates a **diamond-shaped tile coverage area** that exactly matches the rectangular screen:
+
+```
+         Screen
+    ┌───────────────┐
+    │ ╱╲   ╱╲   ╱╲  │
+    │╱  ╲ ╱  ╲ ╱  ╲ │  ← Tiles extend slightly
+    │╲  ╱ ╲  ╱ ╲  ╱ │    beyond screen edges
+    │ ╲╱   ╲╱   ╲╱  │
+    │ ╱╲   ╱╲   ╱╲  │
+    │╱  ╲ ╱  ╲ ╱  ╲ │
+    │╲  ╱ ╲  ╱ ╲  ╱ │
+    └───────────────┘
+```
+
+The extra `cellWidth*2` and `cellHeight*2` in the loop bounds ensures tiles extend past screen edges, preventing any untiled pixels.
+
+### Data Format Summary
+
+**Terrain value (16-bit short):**
+```
+Bit  15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
+     └──── overlay ────┘ └──── frame ────┘ F  D  ?  ?
+                                          │  │
+                                          │  └─ Dirty flag (bit 2)
+                                          └─── Unknown flag
+```
+
+- **Bits 3-9 (7 bits):** Base terrain frame (0-127, we see 0-63 used)
+- **Bits 10-15 (6 bits):** Overlay frame for smooth transitions
+- **Bit 2:** Dirty flag for buffer optimization
+
+---
+
+## Implementation Plan for Proper Terrain Rendering
+
+### Phase 1: Basic Viewport Culling
+
+```javascript
+// In Grid.js
+renderVisibleTerrain(cameraX, cameraY, screenWidth, screenHeight) {
+    // 1. Calculate starting tile from camera position
+    const { startI, startJ, offsetX, offsetY } =
+        this.getStartingTile(cameraX, cameraY);
+
+    // 2. Calculate how many tiles fit on screen
+    const tilesWide = Math.ceil(screenWidth / TILE_WIDTH) + 4;
+    const tilesHigh = Math.ceil(screenHeight / TILE_HEIGHT) + 4;
+
+    // 3. Render tiles in isometric order
+    for (let row = 0; row < tilesHigh; row++) {
+        for (let col = 0; col < tilesWide; col++) {
+            const i = startI + (col * 2) + (row % 2);
+            const j = startJ - (col * 2) + row;
+
+            if (this.isInBounds(i, j)) {
+                this.renderTerrainTile(i, j);
+            }
+        }
+    }
+}
+```
+
+### Phase 2: Sprite Pooling (Performance)
+
+```javascript
+// Reuse sprites instead of creating/destroying
+class TilePool {
+    constructor(maxTiles) {
+        this.available = [];
+        this.inUse = new Map();  // key: "i,j" -> sprite
+    }
+
+    acquire(i, j) {
+        const key = `${i},${j}`;
+        if (this.inUse.has(key)) return this.inUse.get(key);
+
+        const sprite = this.available.pop() || new PIXI.Sprite();
+        this.inUse.set(key, sprite);
+        return sprite;
+    }
+
+    release(i, j) {
+        const key = `${i},${j}`;
+        const sprite = this.inUse.get(key);
+        if (sprite) {
+            this.inUse.delete(key);
+            this.available.push(sprite);
+        }
+    }
+}
+```
+
+### Phase 3: Overlay System (Optional)
+
+The original uses overlays for smooth terrain transitions. This is optional but would improve visual quality:
+
+```javascript
+renderOverlays(i, j, screenX, screenY) {
+    // Read adjacent terrain values
+    const v21 = this.getTerrain(i, j);
+    const v23 = this.getTerrain(i+1, j);
+    const v25 = this.getTerrain(i, j+1);
+    const v26 = this.getTerrain(i+1, j+1);
+
+    // Extract overlay frames (bits 10-15)
+    const overlay1 = (v21 >> 10) & 0x3F;
+    const overlay2 = (v23 >> 10) & 0x3F;
+    const overlay3 = (v25 >> 10) & 0x3F;
+    const overlay4 = (v26 >> 10) & 0x3F;
+
+    // Draw overlays at offset positions
+    if (overlay1) this.drawOverlay(screenX, screenY, overlay1);
+    if (overlay2) this.drawOverlay(screenX + TILE_HALF_WIDTH,
+                                   screenY + TILE_HALF_HEIGHT, overlay2);
+    // ... etc
+}
+```
+
+---
+
+## Summary: Why Original Works, Ours Didn't
+
+| Aspect | Original | Our Attempt |
+|--------|----------|-------------|
+| **Coverage** | 100% of visible screen | 80x80 tile area |
+| **Background** | None (tiles ARE background) | Solid green rectangle |
+| **Boundary** | None exists | Sharp diagonal line |
+| **Performance** | Only visible tiles | 6400 sprites always |
+| **Camera** | Updates tiles per frame | Static tile positions |
+| **Color Match** | N/A (no background) | Mismatch at edge |
+
+**The fix:** Implement viewport-based rendering that covers the entire screen, updating which tiles are rendered as the camera moves. No static background needed.
