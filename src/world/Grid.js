@@ -112,8 +112,49 @@ export class Grid {
         // Map data reference (for terrain rendering from map file)
         this.mapLoader = null;
 
-        // Terrain tile textures (from tileset spritesheet)
+        // Terrain tile textures (from tileset spritesheet) - DEPRECATED
+        // Use terrainAnimLoader instead for proper offset handling
         this.terrainTiles = [];
+
+        // Terrain animation data (with per-frame offsets)
+        this.terrainAnimLoader = null;
+        this.terrainPackageId = null;
+
+        // Viewport-based terrain rendering
+        this.terrainSprites = new Map();  // "i,j" -> sprite/container (sprite pool)
+        this.lastCameraX = null;
+        this.lastCameraY = null;
+        this.visibleTileMargin = 3;  // Extra tiles beyond screen edge
+    }
+
+    /**
+     * Set terrain animation loader for proper offset handling
+     * @param {AnimationLoader} animLoader - Loaded animation data
+     * @param {number} packageId - Terrain package (45=grass, 46=necro, 47=snow)
+     */
+    setTerrainAnimations(animLoader, packageId) {
+        this.terrainAnimLoader = animLoader;
+        this.terrainPackageId = packageId;
+
+        // Log some terrain frame data to verify offsets
+        const anim0 = animLoader.getAnimation(packageId, 0);
+        if (anim0) {
+            console.log(`Terrain package ${packageId}: ${anim0.frameCount} frames in anim 0`);
+
+            // Check first few frames for offset data
+            for (let f = 0; f < Math.min(3, anim0.frameCount); f++) {
+                const frame = animLoader.getFrame(packageId, 0, f);
+                if (frame && frame.layers.length > 0) {
+                    const layer = frame.layers[0];
+                    console.log(`  Frame ${f}: offset=(${layer.xOffset}, ${layer.yOffset}), ` +
+                        `rect=${frame.rects[0]?.width}x${frame.rects[0]?.height}`);
+                }
+            }
+        }
+
+        // Clear existing terrain and re-render with new system
+        this.clearTerrainSprites();
+        console.log('Terrain animations set - will use AnimationLoader for rendering');
     }
 
     /**
@@ -316,37 +357,192 @@ export class Grid {
 
     /**
      * Render using textured sprites
+     * Called once during initialization - sets up background
+     * Terrain tiles are updated dynamically via updateVisibleTerrain()
      */
     renderTextured() {
         // Clear previous
         this.tilesContainer.removeChildren();
         this.backgroundContainer.removeChildren();
 
-        // Use solid green background for consistent appearance
-        // Terrain tiles are DISABLED until viewport culling is implemented
-        // (rendering all 40,000 tiles causes performance issues,
-        //  rendering partial area causes visible boundary artifacts)
-        this.renderGrassBackground();
+        // Check if we can render terrain (either via AnimationLoader or old tile array)
+        const canRenderTerrain = this.mapLoader && (
+            this.terrainAnimLoader !== null ||
+            this.terrainTiles.length > 0
+        );
 
-        // TODO: Implement viewport-based terrain tile rendering
-        // - Only render tiles visible in camera viewport
-        // - Update on camera pan/zoom
-        // - Would enable proper roads, paths, water features
-        //
-        // if (this.mapLoader && this.terrainTiles.length > 0) {
-        //     this.renderTerrainFromMap();
-        // }
+        if (canRenderTerrain) {
+            // Terrain tiles will be rendered by updateVisibleTerrain()
+            // No static background needed - tiles cover everything
+            console.log('Viewport-based terrain rendering enabled');
+        } else {
+            // Fallback: solid green background until terrain loads
+            this.renderGrassBackground();
+        }
     }
 
     /**
-     * Render terrain tiles from map data
-     * For large maps, only render a sample to avoid performance issues
+     * Update visible terrain tiles based on camera viewport
+     * Call this each frame (or when camera moves significantly)
+     *
+     * @param {Camera} camera - Camera with x, y, width, height
+     * @param {number} gridOffsetX - Grid container's X offset in world
+     * @param {number} gridOffsetY - Grid container's Y offset in world
      */
-    renderTerrainFromMap() {
-        // For 200x200 maps, rendering all 40,000 tiles is too slow
-        // Render a larger center portion for better visibility
+    updateVisibleTerrain(camera, gridOffsetX = 0, gridOffsetY = 0) {
+        // Need mapLoader and either AnimationLoader or old tile array
+        const canRender = this.mapLoader && (
+            this.terrainAnimLoader !== null ||
+            this.terrainTiles.length > 0
+        );
+        if (!canRender) return;
 
-        // Debug: count frame index distribution across ENTIRE map
+        // Check if camera moved enough to warrant update
+        const cameraMoveThreshold = IsoMath.TILE_HALF_HEIGHT;
+        if (this.lastCameraX !== null &&
+            Math.abs(camera.x - this.lastCameraX) < cameraMoveThreshold &&
+            Math.abs(camera.y - this.lastCameraY) < cameraMoveThreshold) {
+            return;  // Camera hasn't moved enough
+        }
+
+        this.lastCameraX = camera.x;
+        this.lastCameraY = camera.y;
+
+        // Calculate visible area in grid-local coordinates
+        // Camera coordinates are world coordinates; grid has an offset
+        const viewLeft = camera.x - gridOffsetX;
+        const viewTop = camera.y - gridOffsetY;
+        const viewRight = viewLeft + camera.width;
+        const viewBottom = viewTop + camera.height;
+
+        // Convert viewport corners to grid coordinates
+        // Add margin for tiles that partially overlap viewport
+        const margin = this.visibleTileMargin;
+
+        // Get grid bounds for all corners of the viewport (isometric means we need all 4)
+        const topLeftGrid = IsoMath.worldToGrid(viewLeft, viewTop);
+        const topRightGrid = IsoMath.worldToGrid(viewRight, viewTop);
+        const bottomLeftGrid = IsoMath.worldToGrid(viewLeft, viewBottom);
+        const bottomRightGrid = IsoMath.worldToGrid(viewRight, viewBottom);
+
+        // Find the bounding box of visible tiles
+        // In isometric view, the visible diamond is rotated 45°
+        const minI = Math.floor(Math.min(topLeftGrid.i, topRightGrid.i, bottomLeftGrid.i, bottomRightGrid.i)) - margin;
+        const maxI = Math.ceil(Math.max(topLeftGrid.i, topRightGrid.i, bottomLeftGrid.i, bottomRightGrid.i)) + margin;
+        const minJ = Math.floor(Math.min(topLeftGrid.j, topRightGrid.j, bottomLeftGrid.j, bottomRightGrid.j)) - margin;
+        const maxJ = Math.ceil(Math.max(topLeftGrid.j, topRightGrid.j, bottomLeftGrid.j, bottomRightGrid.j)) + margin;
+
+        // Clamp to map bounds
+        const startI = Math.max(0, minI);
+        const endI = Math.min(this.width, maxI);
+        const startJ = Math.max(0, minJ);
+        const endJ = Math.min(this.height, maxJ);
+
+        // Track which tiles should be visible
+        const visibleKeys = new Set();
+
+        // Add/update visible tiles
+        for (let j = startJ; j < endJ; j++) {
+            for (let i = startI; i < endI; i++) {
+                const key = `${i},${j}`;
+                visibleKeys.add(key);
+
+                // Skip if already rendered
+                if (this.terrainSprites.has(key)) continue;
+
+                // Create new sprite for this tile
+                const sprite = this.createTerrainSprite(i, j);
+                if (sprite) {
+                    this.terrainSprites.set(key, sprite);
+                    this.backgroundContainer.addChild(sprite);
+                }
+            }
+        }
+
+        // Remove tiles that are no longer visible
+        for (const [key, sprite] of this.terrainSprites) {
+            if (!visibleKeys.has(key)) {
+                this.backgroundContainer.removeChild(sprite);
+                this.terrainSprites.delete(key);
+            }
+        }
+    }
+
+    /**
+     * Create a terrain sprite for a tile position
+     * Uses AnimationLoader to get proper per-frame offsets
+     * @returns {PIXI.Container|PIXI.Sprite|null} The sprite/container, or null if no texture
+     */
+    createTerrainSprite(i, j) {
+        // Get frame index from map data
+        const frameIndex = this.mapLoader.getTerrainFrame(i, j);
+
+        // Use AnimationLoader if available (preferred - has offset data)
+        if (this.terrainAnimLoader && this.terrainPackageId !== null) {
+            // Terrain tiles are in animation 0 of the terrain package
+            // Each frame is a different tile type
+            const container = this.terrainAnimLoader.createFrameContainer(
+                this.terrainPackageId,
+                0,  // Animation 0 contains the terrain tiles
+                frameIndex
+            );
+
+            if (container) {
+                // Tiles are 130x68 (from animation data), need to scale to 64x32 grid cells
+                // Using 64/130 ≈ 0.492 to match grid cell width
+                const scale = 64 / 130;
+                container.scale.set(scale, scale);
+
+                // Get the TOP point of the tile
+                const topPos = IsoMath.getTileTop(i, j);
+
+                // Position container - the offsets from animation data handle alignment
+                container.x = topPos.x;
+                container.y = topPos.y;
+
+                return container;
+            }
+        }
+
+        // Fallback: use old tile texture array (without offsets)
+        const tileIndex = Math.min(frameIndex, this.terrainTiles.length - 1);
+        if (tileIndex < 0 || tileIndex >= this.terrainTiles.length) {
+            return null;
+        }
+
+        const tileTexture = this.terrainTiles[tileIndex];
+        if (!tileTexture) return null;
+
+        const sprite = new PIXI.Sprite(tileTexture);
+        sprite.scale.set(0.5, 0.5);
+        sprite.anchor.set(0.5, 0);
+
+        const topPos = IsoMath.getTileTop(i, j);
+        sprite.x = topPos.x;
+        sprite.y = topPos.y;
+
+        return sprite;
+    }
+
+    /**
+     * Clear all terrain sprites (call when changing maps)
+     */
+    clearTerrainSprites() {
+        for (const sprite of this.terrainSprites.values()) {
+            this.backgroundContainer.removeChild(sprite);
+        }
+        this.terrainSprites.clear();
+        this.lastCameraX = null;
+        this.lastCameraY = null;
+    }
+
+    /**
+     * Log terrain frame distribution for debugging
+     * Call this after map loading to analyze terrain variety
+     */
+    logTerrainDistribution() {
+        if (!this.mapLoader) return;
+
         const frameCounts = {};
         for (let j = 0; j < this.height; j++) {
             for (let i = 0; i < this.width; i++) {
@@ -355,81 +551,17 @@ export class Grid {
             }
         }
 
-        // Log frame distribution (sorted by count)
         const total = this.width * this.height;
         const sortedFrames = Object.entries(frameCounts)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 15);
+
         console.log('Terrain frame distribution (top 15):');
         sortedFrames.forEach(([frame, count]) => {
             const pct = ((count / total) * 100).toFixed(1);
             console.log(`  Frame ${frame}: ${count} tiles (${pct}%)`);
         });
         console.log(`Total unique frames: ${Object.keys(frameCounts).length}`);
-
-        // Render a 80x80 area around center (6,400 tiles)
-        // Render ALL tiles for seamless appearance
-        const renderRadius = 40;
-        const centerI = Math.floor(this.width / 2);
-        const centerJ = Math.floor(this.height / 2);
-        const startI = Math.max(0, centerI - renderRadius);
-        const endI = Math.min(this.width, centerI + renderRadius);
-        const startJ = Math.max(0, centerJ - renderRadius);
-        const endJ = Math.min(this.height, centerJ + renderRadius);
-
-        let tilesRendered = 0;
-
-        // Render ALL tiles in correct isometric order (back to front)
-        // This gives seamless terrain appearance
-        for (let j = startJ; j < endJ; j++) {
-            for (let i = startI; i < endI; i++) {
-                this.renderTerrainTile(i, j);
-                tilesRendered++;
-            }
-        }
-
-        console.log(`Terrain: ${tilesRendered} tiles rendered (${renderRadius * 2}x${renderRadius * 2} area)`);
-    }
-
-    /**
-     * Render a single terrain tile at grid position
-     *
-     * Renders terrain tiles from the tileset. Frame 0 is basic grass,
-     * higher frames are variations (flowers, water, paths, etc.)
-     *
-     * Tileset tiles are 128x64, scaled to 64x32 (exact 0.5x scale)
-     */
-    renderTerrainTile(i, j) {
-        // Get frame index from map data
-        const frameIndex = this.mapLoader.getTerrainFrame(i, j);
-
-        // Clamp frame index to available tiles
-        const tileIndex = Math.min(frameIndex, this.terrainTiles.length - 1);
-
-        if (tileIndex < 0 || tileIndex >= this.terrainTiles.length) {
-            return;  // No texture available
-        }
-
-        const tileTexture = this.terrainTiles[tileIndex];
-        if (!tileTexture) return;
-
-        // Create sprite for this tile
-        const sprite = new PIXI.Sprite(tileTexture);
-
-        // Exact 0.5x scale: 128x64 tileset → 64x32 grid cells
-        // Using exact scale avoids fractional pixel rendering artifacts
-        sprite.scale.set(0.5, 0.5);
-
-        // Convert grid position to world position
-        const worldPos = IsoMath.gridToWorld(i, j);
-
-        // Position sprite - center on the tile position
-        // Tile dimensions after scaling: 64x32
-        sprite.x = worldPos.x - IsoMath.TILE_HALF_WIDTH;
-        sprite.y = worldPos.y - IsoMath.TILE_HALF_HEIGHT;
-
-        // Add to background container (behind entities)
-        this.backgroundContainer.addChild(sprite);
     }
 
     /**

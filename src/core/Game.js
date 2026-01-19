@@ -166,58 +166,24 @@ export class Game {
     }
 
     /**
-     * Load terrain tileset from the terrain package
+     * Load terrain tileset from the terrain package via AnimationLoader
      * Package 45 = grass, 46 = necro, 47 = snow
+     *
+     * IMPORTANT: Must use AnimationLoader to get per-frame offset data!
+     * Each terrain tile has xOffset/yOffset that affects positioning.
+     * Simply cutting up the PNG ignores these offsets and causes gaps.
      */
     async loadTerrainTileset() {
         if (!this.mapLoader) return;
 
-        const terrainPackage = this.mapLoader.getTerrainPackage();
-        const tilesetPath = `assets/sprites/anims/anims${terrainPackage}/0.png`;
+        this.terrainPackage = this.mapLoader.getTerrainPackage();
 
-        try {
-            this.terrainTexture = await PIXI.Assets.load(tilesetPath);
-            console.log(`Loaded terrain tileset: ${tilesetPath}`);
+        // Terrain will be loaded via AnimationLoader in loadAnimations()
+        // Just store the package ID for now
+        console.log(`Terrain package: ${this.terrainPackage} (will load via AnimationLoader)`);
 
-            // Create tile textures from the spritesheet
-            // Terrain tiles are 128x64 isometric diamonds arranged in a grid
-            this.terrainTiles = this.createTerrainTileTextures(this.terrainTexture);
-            console.log(`Created ${this.terrainTiles.length} terrain tile textures`);
-        } catch (error) {
-            console.warn(`Failed to load terrain tileset: ${tilesetPath}`, error);
-            this.terrainTexture = null;
-            this.terrainTiles = [];
-        }
-    }
-
-    /**
-     * Create individual tile textures from the terrain spritesheet
-     * The tileset has isometric tiles arranged in a grid
-     */
-    createTerrainTileTextures(texture) {
-        const tiles = [];
-        const tileWidth = 128;  // Isometric tile width
-        const tileHeight = 64;  // Isometric tile height
-        const cols = 8;         // 8 columns in spritesheet (1024 / 128)
-        const rows = 8;         // 8 rows of main tiles (512 / 64)
-
-        for (let row = 0; row < rows; row++) {
-            for (let col = 0; col < cols; col++) {
-                const frame = new PIXI.Rectangle(
-                    col * tileWidth,
-                    row * tileHeight,
-                    tileWidth,
-                    tileHeight
-                );
-                const tileTexture = new PIXI.Texture({
-                    source: texture.source,
-                    frame: frame
-                });
-                tiles.push(tileTexture);
-            }
-        }
-
-        return tiles;
+        // Initialize empty - will be populated after AnimationLoader loads the package
+        this.terrainTiles = [];
     }
 
     /**
@@ -453,13 +419,14 @@ export class Game {
         this.grid = new Grid(this.gridWidth, this.gridHeight, this.app);
 
         // If map data is loaded, pass it to the grid for terrain rendering
-        if (this.mapLoader && this.terrainTiles && this.terrainTiles.length > 0) {
-            this.grid.setMapData(this.mapLoader, this.terrainTiles);
-            console.log('Using real terrain tiles from map data');
+        // Terrain tiles will be loaded later via AnimationLoader
+        if (this.mapLoader) {
+            this.grid.setMapData(this.mapLoader, []);  // Empty array - will use AnimationLoader
+            console.log('Map data set - terrain will render after AnimationLoader loads package');
         } else {
             // Fallback: generate test map
             this.grid.generateTestMap();
-            console.log('Using procedural test map (no terrain tiles)');
+            console.log('Using procedural test map (no map data)');
         }
 
         this.grid.render();
@@ -511,6 +478,9 @@ export class Game {
             center.y + this.grid.container.y,
             true
         );
+
+        // Note: Terrain will be rendered after loadAnimations() loads the terrain package
+        // The game loop calls grid.updateVisibleTerrain() which handles rendering
 
         // Add compact controls hint (top right)
         const controlsHint = new PIXI.Text({
@@ -569,6 +539,18 @@ export class Game {
             // Package 27: Grass decorations (rocks, bushes, trees, etc.)
             await this.animLoader.loadPackage(basePath, 27);
             console.log('Loaded grass decoration animations (package 27)');
+
+            // Load terrain package (45=grass, 46=necro, 47=snow)
+            // MUST use AnimationLoader to get per-frame offset data!
+            if (this.terrainPackage) {
+                await this.animLoader.loadPackage(basePath, this.terrainPackage);
+                console.log(`Loaded terrain animations (package ${this.terrainPackage})`);
+
+                // Pass the AnimationLoader to Grid for proper terrain rendering
+                if (this.grid) {
+                    this.grid.setTerrainAnimations(this.animLoader, this.terrainPackage);
+                }
+            }
 
             this.animationsLoaded = true;
 
@@ -1152,6 +1134,15 @@ export class Game {
     updateGameplay(deltaTime) {
         // Update camera
         this.camera.update(deltaTime);
+
+        // Update visible terrain tiles (viewport culling)
+        if (this.grid && this.grid.mapLoader) {
+            this.grid.updateVisibleTerrain(
+                this.camera,
+                this.grid.container.x,
+                this.grid.container.y
+            );
+        }
 
         // Update hover highlight
         this.updateHoverTile();
