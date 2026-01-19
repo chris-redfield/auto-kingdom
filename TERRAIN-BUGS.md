@@ -1,15 +1,28 @@
 # Terrain Rendering - Problems and Challenges
 
-## Current Status: INVESTIGATING PER-FRAME OFFSETS (2026-01-19)
+## Current Status: ~90% WORKING (2026-01-19)
 
-Viewport culling is implemented but tiles still have gaps/seams.
+**Terrain rendering is now functional!** Tiles render correctly with roads, paths, grass variations, and water visible.
 
-**Root cause discovered:** Each terrain tile has per-frame **offset data** (xOffset, yOffset)
-in the animation `.dat` files. Simply cutting up the PNG in a 128x64 grid ignores these
-offsets, causing misalignment.
+### What's Working ✅
+- Viewport-based culling (only visible tiles rendered)
+- Dynamic tile updates as camera pans
+- Sprite pooling for performance
+- Proper tile positioning using AnimationLoader
+- Tiles are 130x68 (not 128x64!), scaled to 64x32 grid cells
 
-**Solution:** Use AnimationLoader to render terrain tiles, which properly applies the
-xOffset/yOffset from the animation data.
+### What's Missing (10%) ⚠️
+- **Overlay system** for smooth terrain transitions (bits 10-15 of terrain value)
+- Without overlays, terrain transitions look "too straight" / grid-like
+- Roads and paths have hard edges instead of smooth blending
+
+### Key Discovery: Tile Size
+The animation data revealed tiles are actually **130x68** pixels (not 128x64 as assumed):
+```
+Frame 0: offset=(0, 0), rect=130x68
+Frame 1: offset=(0, 0), rect=130x68
+```
+Scale factor: `64/130 ≈ 0.492` (not 0.5)
 
 ---
 
@@ -707,3 +720,107 @@ const overlay1 = (terrainValue >> 10) & 0x3F;
 | **Color Match** | N/A (no background) | Mismatch at edge | ✅ N/A - consistent tiles |
 
 **The fix has been implemented!** Viewport-based rendering now matches the original game's approach.
+
+---
+
+## FINAL WORKING SOLUTION (2026-01-19)
+
+### The Problem Journey
+
+1. **First attempt:** Cut PNG into 128x64 grid → Gaps between tiles
+2. **Second attempt:** Adjust positioning with anchor points → Still gaps
+3. **Third attempt:** Scale 0.5x with top-vertex positioning → Better but not perfect
+4. **Fourth attempt:** Use AnimationLoader → Discovered tiles are 130x68, not 128x64!
+5. **Final solution:** Use AnimationLoader + correct scale (64/130) → **WORKS!**
+
+### Why It Works Now
+
+The original game uses `Animation.drawFrame()` which:
+1. Reads frame data from `.dat` files (not just cutting up PNG)
+2. Each frame has: `rect` (actual size), `xOffset`, `yOffset`, `transform`
+3. Terrain tiles are 130x68 pixels with (0,0) offset
+4. Proper scale is `64/130 ≈ 0.492`, not `0.5`
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `Grid.js` | Added `setTerrainAnimations()`, `createTerrainSprite()` uses AnimationLoader |
+| `Game.js` | Loads terrain package (45) via AnimationLoader, passes to Grid |
+| `IsoMath.js` | TILE_WIDTH=64, TILE_HEIGHT=32 (unchanged) |
+
+### Code: How Terrain Tiles Are Rendered
+
+```javascript
+// Grid.js - createTerrainSprite()
+createTerrainSprite(i, j) {
+    const frameIndex = this.mapLoader.getTerrainFrame(i, j);
+
+    // Use AnimationLoader (has proper frame data)
+    if (this.terrainAnimLoader) {
+        const container = this.terrainAnimLoader.createFrameContainer(
+            this.terrainPackageId,
+            0,  // Animation 0 = terrain tiles
+            frameIndex
+        );
+
+        if (container) {
+            // Tiles are 130x68, scale to 64x32 grid cells
+            const scale = 64 / 130;  // ≈ 0.492
+            container.scale.set(scale, scale);
+
+            // Position at tile's top vertex
+            const topPos = IsoMath.getTileTop(i, j);
+            container.x = topPos.x;
+            container.y = topPos.y;
+
+            return container;
+        }
+    }
+    // ... fallback code
+}
+```
+
+### Terrain Data Format (16-bit)
+
+```
+Bit  15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
+     └──── overlay ────┘ └──── frame ────┘ ?  ?  ?  ?
+```
+
+- **Bits 3-9:** Base terrain frame (0-85 for package 45)
+- **Bits 10-15:** Overlay frame for transitions (NOT YET IMPLEMENTED)
+
+### What's Still Missing: Overlay System
+
+The original draws 4 overlay tiles per position for smooth transitions:
+
+```java
+// From Location.smali - we don't do this yet
+int overlay1 = (map[i][j] >> 10) & 0x3F;
+int overlay2 = (map[i+1][j] >> 10) & 0x3F;
+int overlay3 = (map[i][j+1] >> 10) & 0x3F;
+int overlay4 = (map[i+1][j+1] >> 10) & 0x3F;
+
+if (overlay1 > 0) drawFrame(x, y, overlay1);
+if (overlay2 > 0) drawFrame(x + halfWidth, y + halfHeight, overlay2);
+if (overlay3 > 0) drawFrame(x - halfWidth, y + halfHeight, overlay3);
+if (overlay4 > 0) drawFrame(x, y + cellHeight, overlay4);
+```
+
+This creates smooth grass-to-road, road-to-water transitions. Without it, edges look "too straight".
+
+### Performance
+
+- ~200-400 tiles rendered (visible viewport + margin)
+- Tiles added/removed dynamically as camera pans
+- Much better than rendering all 40,000 tiles
+
+---
+
+## Lessons Learned
+
+1. **Don't assume tile sizes** - Always check animation data for actual dimensions
+2. **Use AnimationLoader** - It handles frame rects, offsets, and transforms properly
+3. **Viewport culling is essential** - 40,000 sprites = bad, 400 sprites = good
+4. **Check the original** - Location.smali revealed the overlay system we're missing
