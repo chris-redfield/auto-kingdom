@@ -380,17 +380,81 @@ const frame = (transformed >> 3) & 0x7F;  // 0-127
 - `src/world/Grid.js`: Added setMapData() and renderTerrainFromMap()
 - `src/core/Game.js`: Added loadTerrainTileset() and createTerrainTileTextures()
 
-### Phase 2.3: Map Object Parsing
-- [ ] Parse the 11,921 bytes of object data
-- [ ] Identify object types (buildings, decorations, spawn points)
-- [ ] Extract positions and properties
-- [ ] Document object format
+### Phase 2.3: Map Object Parsing ✅ COMPLETE
+- [x] Parse the 11,921 bytes of object data
+- [x] Identify object types (buildings, decorations, spawn points)
+- [x] Extract positions and properties
+- [x] Document object format
 
-### Phase 2.4: Map Object Spawning
-- [ ] Spawn buildings from map data
-- [ ] Spawn decorations (terrain-aware: grass/snow/necro)
-- [ ] Spawn units/monsters at spawn points
-- [ ] Connect to existing Building.js entity
+**Object Parsing Results (map0.m):**
+- Total objects: 2,276
+- Object breakdown: 2,237 category 1 + 27 category 2 + 12 category 3
+- Type distribution: Trees (96-100): 2,182 | DECOR_GRASS (112-118): ~30 | RUINS (104-105): 13 | Buildings (32): 2 | Spawns (255): 9 | Waves (254): 3 | Trolls (87): 4
+
+**Object Types Discovered:**
+| Type Hex | Type Dec | Name | Category |
+|----------|----------|------|----------|
+| 0x20 | 32 | Castle | Building |
+| 0x57 | 87 | TYPE_TROLL | Unit (enemy) |
+| 0x60-0x64 | 96-100 | TREE_GREEN 1-5 | Static decoration |
+| 0x65-0x69 | 101-105 | RUINS_GRASS 1-5 | Static decoration |
+| 0x6a-0x6f | 106-111 | RUINS_GRASS_GRAVE 1-6 | Static decoration |
+| 0x70-0x7b | 112-123 | DECOR_GRASS_* | Static decoration |
+| 0x83-0x88 | 131-136 | Additional decorations | Static decoration |
+| 0xFE | 254 | Wave spawn point | Spawn |
+| 0xFF | 255 | Border respawn point | Spawn |
+
+**Static Object Ranges (no team/level/flags data):**
+- 0x60-0x7b (96-123): Main decorations
+- 0x83-0x88 (131-136): Additional decorations
+- 0xe0-0xe4, 0xe7 (224-228, 231): Special decorations
+
+### Phase 2.4: Map Object Spawning ✅ PARTIALLY COMPLETE
+- [x] Spawn buildings from map data (renderMapBuildings)
+- [x] Spawn decorations (terrain-aware via Package 27)
+- [ ] Spawn units/monsters at spawn points (TYPE_TROLL etc.)
+- [x] Connect to existing Building.js entity
+
+**Current Implementation:**
+- `renderMapDecorations()`: 2,239 decorations rendered using Package 27
+- `renderMapBuildings()`: 2 castles rendered using Package 1
+- `renderTerrainFromMap()`: 6,400 terrain tiles rendered (80x80 area)
+
+**Monster Spawning System (Discovered):**
+- Type 87 (TYPE_TROLL) objects in map data have invalid coordinates - these are NOT pre-placed units
+- Enemies spawn from **respawn points** (type 0xFF/255) and **wave spawns** (type 0xFE/254)
+- Respawn points contain: position, time window, pause, monster type list
+- Map0 has 9 respawn points and 3 wave spawns
+- TODO: Implement spawn point system to create enemies dynamically
+
+**Terrain Tile System (Discovered & Documented):**
+
+The map has a rich terrain tile system that we've fully reverse-engineered:
+
+*Tileset (anims45/0.png):*
+- 64 isometric tiles (8×8 grid), each 128×64 pixels
+- Contains: grass variants, flower patches, water ponds, dirt paths, stone roads
+- Frame 8 = base grass (57.2% of map)
+- Frames 9-11 = water features
+- Frames 32-55 = cobblestone roads and paths
+- 50 unique frames used in map0
+
+*Why tiles are currently DISABLED:*
+- 200×200 map = 40,000 tiles (performance concern)
+- Partial rendering (80×80 area) creates visible diagonal boundary
+- Tiles have textured patterns; background is solid green → color mismatch at boundary
+- See `TERRAIN-BUGS.md` for full visual explanation
+
+*Current approach:*
+- Solid green background (0x5a7828)
+- Decorations from map data (trees, rocks, ruins, etc.)
+- Consistent, clean appearance
+
+*Future: Viewport culling*
+- Only render tiles visible in camera viewport
+- Update on camera pan
+- Would enable roads, paths, water features
+- Tile dimensions ready: 64×32 (exact 0.5× scale from 128×64)
 
 ### Phase 2.5: Game UI (Original Style)
 - [ ] Analyze original UI from Package 0 (portraits, buttons, icons)

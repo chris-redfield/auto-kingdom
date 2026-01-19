@@ -322,12 +322,20 @@ export class Grid {
         this.tilesContainer.removeChildren();
         this.backgroundContainer.removeChildren();
 
-        // Use solid green background for grass
-        // Decorations and terrain features will come from map object data
+        // Use solid green background for consistent appearance
+        // Terrain tiles are DISABLED until viewport culling is implemented
+        // (rendering all 40,000 tiles causes performance issues,
+        //  rendering partial area causes visible boundary artifacts)
         this.renderGrassBackground();
 
-        // TODO: Render special terrain (water, paths) from map objects
-        // TODO: Render decorations (rocks, trees) from map objects
+        // TODO: Implement viewport-based terrain tile rendering
+        // - Only render tiles visible in camera viewport
+        // - Update on camera pan/zoom
+        // - Would enable proper roads, paths, water features
+        //
+        // if (this.mapLoader && this.terrainTiles.length > 0) {
+        //     this.renderTerrainFromMap();
+        // }
     }
 
     /**
@@ -336,11 +344,32 @@ export class Grid {
      */
     renderTerrainFromMap() {
         // For 200x200 maps, rendering all 40,000 tiles is too slow
-        // Render a center portion for testing, then implement viewport culling
+        // Render a larger center portion for better visibility
 
-        // Debug: count frame index distribution
+        // Debug: count frame index distribution across ENTIRE map
         const frameCounts = {};
-        const renderRadius = 30;
+        for (let j = 0; j < this.height; j++) {
+            for (let i = 0; i < this.width; i++) {
+                const frame = this.mapLoader.getTerrainFrame(i, j);
+                frameCounts[frame] = (frameCounts[frame] || 0) + 1;
+            }
+        }
+
+        // Log frame distribution (sorted by count)
+        const total = this.width * this.height;
+        const sortedFrames = Object.entries(frameCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 15);
+        console.log('Terrain frame distribution (top 15):');
+        sortedFrames.forEach(([frame, count]) => {
+            const pct = ((count / total) * 100).toFixed(1);
+            console.log(`  Frame ${frame}: ${count} tiles (${pct}%)`);
+        });
+        console.log(`Total unique frames: ${Object.keys(frameCounts).length}`);
+
+        // Render a 80x80 area around center (6,400 tiles)
+        // Render ALL tiles for seamless appearance
+        const renderRadius = 40;
         const centerI = Math.floor(this.width / 2);
         const centerJ = Math.floor(this.height / 2);
         const startI = Math.max(0, centerI - renderRadius);
@@ -348,22 +377,10 @@ export class Grid {
         const startJ = Math.max(0, centerJ - renderRadius);
         const endJ = Math.min(this.height, centerJ + renderRadius);
 
-        for (let j = startJ; j < endJ; j++) {
-            for (let i = startI; i < endI; i++) {
-                const frame = this.mapLoader.getTerrainFrame(i, j);
-                frameCounts[frame] = (frameCounts[frame] || 0) + 1;
-            }
-        }
-
-        // Log frame distribution (sorted by count)
-        const sortedFrames = Object.entries(frameCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
-        console.log('Top 10 terrain frame indices:', sortedFrames.map(([f, c]) => `${f}:${c}`).join(', '));
-
         let tilesRendered = 0;
 
-        // Render tiles in correct isometric order (back to front)
+        // Render ALL tiles in correct isometric order (back to front)
+        // This gives seamless terrain appearance
         for (let j = startJ; j < endJ; j++) {
             for (let i = startI; i < endI; i++) {
                 this.renderTerrainTile(i, j);
@@ -371,7 +388,7 @@ export class Grid {
             }
         }
 
-        console.log(`Rendered ${tilesRendered} terrain tiles (center ${renderRadius * 2}x${renderRadius * 2} area)`);
+        console.log(`Terrain: ${tilesRendered} tiles rendered (${renderRadius * 2}x${renderRadius * 2} area)`);
     }
 
     /**
@@ -379,6 +396,8 @@ export class Grid {
      *
      * Renders terrain tiles from the tileset. Frame 0 is basic grass,
      * higher frames are variations (flowers, water, paths, etc.)
+     *
+     * Tileset tiles are 128x64, scaled to 64x32 (exact 0.5x scale)
      */
     renderTerrainTile(i, j) {
         // Get frame index from map data
@@ -397,19 +416,15 @@ export class Grid {
         // Create sprite for this tile
         const sprite = new PIXI.Sprite(tileTexture);
 
-        // Terrain tile sprites are 128x64, but our grid uses 66x36 tiles
-        // Scale tiles to match the grid coordinate system
-        const tileTextureWidth = 128;
-        const tileTextureHeight = 64;
-        const scaleX = IsoMath.TILE_WIDTH / tileTextureWidth;
-        const scaleY = IsoMath.TILE_HEIGHT / tileTextureHeight;
-        sprite.scale.set(scaleX, scaleY);
+        // Exact 0.5x scale: 128x64 tileset → 64x32 grid cells
+        // Using exact scale avoids fractional pixel rendering artifacts
+        sprite.scale.set(0.5, 0.5);
 
         // Convert grid position to world position
         const worldPos = IsoMath.gridToWorld(i, j);
 
         // Position sprite - center on the tile position
-        // After scaling, the tile size is TILE_WIDTH x TILE_HEIGHT
+        // Tile dimensions after scaling: 64x32
         sprite.x = worldPos.x - IsoMath.TILE_HALF_WIDTH;
         sprite.y = worldPos.y - IsoMath.TILE_HALF_HEIGHT;
 

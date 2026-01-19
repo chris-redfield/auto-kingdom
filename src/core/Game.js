@@ -576,6 +576,7 @@ export class Game {
             if (this.mapLoader && this.mapLoader.objects.length > 0) {
                 this.renderMapDecorations();
                 this.renderMapBuildings();
+                this.spawnMapUnits();
             }
 
             // Update existing entities to use animations
@@ -808,19 +809,9 @@ export class Game {
         // Based on Script.getAnimID() and Import.smali constants
         // Animation IDs for Package 27 (grass decorations):
         // TREE_GREEN1=45, TREE_GREEN2=49, TREE_GREEN3=52, TREE_GREEN4=56, TREE_GREEN5=60
-        // RUINS_GRASS_PART1=65, RUINS_GRASS_PART2=66, RUINS_GRASS_PART3=67, etc.
-        // DECOR_GRASS decorations: HOLM=68, IDOL=69, KOLONNA1=70, KOLONNA2=71, etc.
+        // RUINS_GRASS: PART1=17, PART2=18, PART3=19, PART4=20, PART5=21
+        // DECOR_GRASS: BIGROCK=0, BIGROCK2=1, HOLM=2, HOLM2=3, IDOL=4, KOLONNA1=5, KOLONNA2=6, etc.
         const typeToAnim = {
-            // Types 0-7 are basic terrain decorations
-            0: 0,    // BIGROCK
-            1: 1,    // BIGROCK2
-            2: 2,    // HOLM
-            3: 3,    // HOLM2
-            4: 4,    // IDOL
-            5: 5,    // KOLONNA1
-            6: 6,    // KOLONNA2
-            7: 7,    // KOLONNA3
-
             // Types 0x60-0x64 (96-100) are green trees
             96: 45,   // TREE_GREEN1
             97: 49,   // TREE_GREEN2
@@ -828,28 +819,45 @@ export class Game {
             99: 56,   // TREE_GREEN4
             100: 60,  // TREE_GREEN5
 
-            // Types 0x65-0x6a (101-106) are more grass decorations
-            101: 65,  // RUINS_GRASS_PART1
-            102: 66,  // RUINS_GRASS_PART2
-            103: 67,  // RUINS_GRASS_PART3
-            104: 68,  // DECOR_GRASS_HOLM
-            105: 69,  // DECOR_GRASS_IDOL
-            106: 70,  // DECOR_GRASS_KOLONNA1
+            // Types 0x65-0x69 (101-105) are RUINS_GRASS decorations
+            101: 17,  // RUINS_GRASS_PART1
+            102: 18,  // RUINS_GRASS_PART2
+            103: 19,  // RUINS_GRASS_PART3
+            104: 20,  // RUINS_GRASS_PART4
+            105: 21,  // RUINS_GRASS_PART5
 
-            // Types 0x6b-0x7b (107-123) - more decorations
-            107: 71,  // DECOR_GRASS_KOLONNA2
-            108: 72,  // DECOR_GRASS_KOLONNA3
-            109: 73,  // DECOR_GRASS_KOLISHEK1
-            110: 74,  // DECOR_GRASS_KOLISHEK2
-            111: 75,  // DECOR_GRASS_LAKE1
-            112: 76,  // DECOR_GRASS_LAKE2
-            113: 77,  // DECOR_GRASS_LAKE3
-            114: 78,  // DECOR_GRASS_ROCK
-            115: 79,  // DECOR_GRASS_WALL1
-            116: 80,  // DECOR_GRASS_WALL2
-            117: 81,  // DECOR_GRASS_WALL3
-            118: 82,  // DECOR_GRASS_WALL4
+            // Types 0x6a-0x6f (106-111) - more ruins/grave decorations
+            106: 22,  // RUINS_GRASS_GRAVE1
+            107: 23,  // RUINS_GRASS_GRAVE2
+            108: 24,  // RUINS_GRASS_GRAVE3
+            109: 25,  // RUINS_GRASS_GRAVE4
+            110: 26,  // RUINS_GRASS_GRAVE5
+            111: 27,  // RUINS_GRASS_GRAVE6
+
+            // Types 0x70-0x7b (112-123) - DECOR_GRASS decorations
+            112: 0,   // DECOR_GRASS_BIGROCK
+            113: 1,   // DECOR_GRASS_BIGROCK2
+            114: 2,   // DECOR_GRASS_HOLM
+            115: 3,   // DECOR_GRASS_HOLM2
+            116: 4,   // DECOR_GRASS_IDOL
+            117: 5,   // DECOR_GRASS_KOLONNA1
+            118: 6,   // DECOR_GRASS_KOLONNA2
+            119: 7,   // DECOR_GRASS_KOLONNA3
+            120: 8,   // DECOR_GRASS_KOLISHEK1
+            121: 9,   // DECOR_GRASS_KOLISHEK2
+            122: 10,  // DECOR_GRASS_LAKE
+            123: 11,  // DECOR_GRASS_ROCK
+
+            // Types 0x83-0x88 (131-136) - additional decorations
+            131: 28,  // Additional decoration 1
+            132: 29,  // Additional decoration 2
+            133: 30,  // Additional decoration 3
+            134: 31,  // Additional decoration 4
+            135: 32,  // Additional decoration 5
+            136: 33,  // Additional decoration 6
         };
+
+        const unmappedTypes = new Set();
 
         for (const obj of objects) {
             // Skip spawn points and buildings
@@ -857,7 +865,13 @@ export class Game {
 
             // Only render decorations (types we know about)
             const animId = typeToAnim[obj.type];
-            if (animId === undefined) continue;
+            if (animId === undefined) {
+                // Track unmapped decoration types for debugging
+                if (obj.isDecoration) {
+                    unmappedTypes.add(obj.type);
+                }
+                continue;
+            }
 
             // Use createFrameContainer which handles multi-layer sprites properly
             // Trees and complex decorations have multiple layers that need to be combined
@@ -880,6 +894,9 @@ export class Game {
         }
 
         console.log(`Rendered ${decorationsRendered} map decorations`);
+        if (unmappedTypes.size > 0) {
+            console.log(`Unmapped decoration types: ${Array.from(unmappedTypes).sort((a,b) => a-b).join(', ')}`);
+        }
     }
 
     /**
@@ -944,6 +961,48 @@ export class Game {
         }
 
         console.log(`Rendered ${buildingsRendered} map buildings`);
+    }
+
+    /**
+     * Spawn units from parsed map objects
+     *
+     * NOTE: Type 0x57 (87) = TYPE_TROLL in Const.smali, but the objects
+     * with this type in map data have invalid positions (e.g., 22279, 577
+     * for a 200x200 map). These are likely not pre-placed units but rather
+     * spawn configuration data that was misinterpreted.
+     *
+     * Actual enemies should spawn from:
+     * - Type 0xFF (255) = Border respawn points
+     * - Type 0xFE (254) = Wave spawn points
+     */
+    spawnMapUnits() {
+        if (!this.mapLoader || !this.grid || !this.animationsLoaded) return;
+
+        // TODO: Implement proper spawn point handling
+        // The map has 9 border respawn points (type 255) and 3 wave spawns (type 254)
+        // These contain monster type lists (including TYPE_TROLL = 0x57)
+        // For now, enemies are created manually in createTestUnit()
+
+        const objects = this.mapLoader.objects;
+        let spawnPoints = 0;
+        let waveSpawns = 0;
+
+        for (const obj of objects) {
+            if (obj.isRespawn) {
+                spawnPoints++;
+                // Log spawn point info for future implementation
+                if (spawnPoints <= 3) {
+                    console.log(`Spawn point at (${obj.gridI}, ${obj.gridJ}): ` +
+                        `monsters=[${obj.monsterTypes?.join(', ') || 'none'}], ` +
+                        `time=${obj.startTime}-${obj.endTime}, pause=${obj.pause}`);
+                }
+            }
+            if (obj.isWaveSpawn) {
+                waveSpawns++;
+            }
+        }
+
+        console.log(`Map has ${spawnPoints} respawn points and ${waveSpawns} wave spawns (not yet implemented)`);
     }
 
     /**

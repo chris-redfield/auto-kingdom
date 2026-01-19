@@ -268,6 +268,66 @@ From `Buffer.smali` - grassColor array (8 colors, for minimap coloring):
 
 **Future enhancement:** Add DECOR_GRASS_* decorations from Package 27 for more visual richness.
 
+## Map Object Type → Animation Mapping
+
+Map files (.m) contain objects with TYPE codes that map to animation IDs.
+The mapping is done in `Script.getAnimID(type, terrainType)`.
+
+### Decoration Types (Package 27 - Grass Terrain)
+
+| Type Hex | Type Dec | Animation ID | Constant |
+|----------|----------|--------------|----------|
+| 0x60 | 96 | 45 | TREE_GREEN1 |
+| 0x61 | 97 | 49 | TREE_GREEN2 |
+| 0x62 | 98 | 52 | TREE_GREEN3 |
+| 0x63 | 99 | 56 | TREE_GREEN4 |
+| 0x64 | 100 | 60 | TREE_GREEN5 |
+| 0x65 | 101 | 17 | RUINS_GRASS_PART1 |
+| 0x66 | 102 | 18 | RUINS_GRASS_PART2 |
+| 0x67 | 103 | 19 | RUINS_GRASS_PART3 |
+| 0x68 | 104 | 20 | RUINS_GRASS_PART4 |
+| 0x69 | 105 | 21 | RUINS_GRASS_PART5 |
+| 0x6a | 106 | 22 | RUINS_GRASS_GRAVE1 |
+| 0x70 | 112 | 0 | DECOR_GRASS_BIGROCK |
+| 0x71 | 113 | 1 | DECOR_GRASS_BIGROCK2 |
+| 0x72 | 114 | 2 | DECOR_GRASS_HOLM |
+| 0x73 | 115 | 3 | DECOR_GRASS_HOLM2 |
+| 0x74 | 116 | 4 | DECOR_GRASS_IDOL |
+| 0x75 | 117 | 5 | DECOR_GRASS_KOLONNA1 |
+| 0x76 | 118 | 6 | DECOR_GRASS_KOLONNA2 |
+
+Trees have 5 layers each and must be rendered using `createFrameContainer()`.
+
+### Building Types (Package 1)
+
+| Type Hex | Type Dec | Animation ID | Name |
+|----------|----------|--------------|------|
+| 0x20 | 32 | 17 | Castle (level 1) |
+| 0x21 | 33 | 24 | Warrior Guild |
+| 0x22 | 34 | 1 | Blacksmith |
+| 0x23 | 35 | 32 | Ranger Guild |
+| 0x24 | 36 | 40 | Wizard Guild |
+| 0x25 | 37 | 48 | Marketplace |
+| 0x26 | 38 | 56 | Guardtower |
+
+### Unit Types (NOT decorations)
+
+| Type Hex | Type Dec | Constant | Notes |
+|----------|----------|----------|-------|
+| 0x57 | 87 | TYPE_TROLL | Enemy unit, spawn as DynamicEntity |
+
+These are dynamic entities, not static decorations. They should be spawned
+as game entities (DynamicEntity) using the appropriate animation package.
+
+### Static Object Ranges
+
+Types in these ranges have NO extra data (team/level/flags) in map files:
+- 0x60-0x7b (96-123): Main decorations
+- 0x83-0x88 (131-136): Additional decorations
+- 0xe0-0xe4, 0xe7 (224-228, 231): Special decorations
+
+All other types are "regular objects" with 3 extra bytes: team, level, flags.
+
 ## Notes
 
 - Sprite sheet sizes vary (512x512 or 1024x1024)
