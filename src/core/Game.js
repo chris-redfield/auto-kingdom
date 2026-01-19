@@ -147,10 +147,14 @@ export class Game {
             console.log(`Dimensions: ${this.mapLoader.mapWidth}x${this.mapLoader.mapHeight}`);
             console.log(`Cell size: ${this.mapLoader.cellWidth}x${this.mapLoader.cellHeight}`);
             console.log(`Packages needed: ${this.mapLoader.packagesToLoad.join(', ')}`);
+            console.log(`Terrain package: ${this.mapLoader.getTerrainPackage()}`);
 
             // Use map dimensions for grid
             this.gridWidth = this.mapLoader.mapWidth;
             this.gridHeight = this.mapLoader.mapHeight;
+
+            // Load terrain tileset texture
+            await this.loadTerrainTileset();
 
             // Now create the world with correct dimensions
             this.createTestContent();
@@ -159,6 +163,61 @@ export class Game {
             // Fallback to default grid size
             this.createTestContent();
         }
+    }
+
+    /**
+     * Load terrain tileset from the terrain package
+     * Package 45 = grass, 46 = necro, 47 = snow
+     */
+    async loadTerrainTileset() {
+        if (!this.mapLoader) return;
+
+        const terrainPackage = this.mapLoader.getTerrainPackage();
+        const tilesetPath = `assets/sprites/anims/anims${terrainPackage}/0.png`;
+
+        try {
+            this.terrainTexture = await PIXI.Assets.load(tilesetPath);
+            console.log(`Loaded terrain tileset: ${tilesetPath}`);
+
+            // Create tile textures from the spritesheet
+            // Terrain tiles are 128x64 isometric diamonds arranged in a grid
+            this.terrainTiles = this.createTerrainTileTextures(this.terrainTexture);
+            console.log(`Created ${this.terrainTiles.length} terrain tile textures`);
+        } catch (error) {
+            console.warn(`Failed to load terrain tileset: ${tilesetPath}`, error);
+            this.terrainTexture = null;
+            this.terrainTiles = [];
+        }
+    }
+
+    /**
+     * Create individual tile textures from the terrain spritesheet
+     * The tileset has isometric tiles arranged in a grid
+     */
+    createTerrainTileTextures(texture) {
+        const tiles = [];
+        const tileWidth = 128;  // Isometric tile width
+        const tileHeight = 64;  // Isometric tile height
+        const cols = 8;         // 8 columns in spritesheet (1024 / 128)
+        const rows = 8;         // 8 rows of main tiles (512 / 64)
+
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const frame = new PIXI.Rectangle(
+                    col * tileWidth,
+                    row * tileHeight,
+                    tileWidth,
+                    tileHeight
+                );
+                const tileTexture = new PIXI.Texture({
+                    source: texture.source,
+                    frame: frame
+                });
+                tiles.push(tileTexture);
+            }
+        }
+
+        return tiles;
     }
 
     /**
@@ -392,7 +451,17 @@ export class Game {
     createTestContent() {
         // Create isometric grid (pass app for texture generation)
         this.grid = new Grid(this.gridWidth, this.gridHeight, this.app);
-        this.grid.generateTestMap();
+
+        // If map data is loaded, pass it to the grid for terrain rendering
+        if (this.mapLoader && this.terrainTiles && this.terrainTiles.length > 0) {
+            this.grid.setMapData(this.mapLoader, this.terrainTiles);
+            console.log('Using real terrain tiles from map data');
+        } else {
+            // Fallback: generate test map
+            this.grid.generateTestMap();
+            console.log('Using procedural test map (no terrain tiles)');
+        }
+
         this.grid.render();
 
         // Add grid to world container
@@ -430,8 +499,10 @@ export class Game {
         // Create test unit on the grid
         this.createTestUnit();
 
-        // Create test building
-        this.createTestBuilding();
+        // Create test building (only if not loading from map)
+        if (!this.mapLoader || this.mapLoader.objects.length === 0) {
+            this.createTestBuilding();
+        }
 
         // Center camera on the grid center
         const center = this.grid.getCenter();
@@ -462,10 +533,8 @@ export class Game {
         const basePath = 'assets/sprites/anims/anims';
 
         try {
-            // Generate procedural grass texture
-            // (Original game also generates on-the-fly using grassColor palette
-            // from Buffer.smali - no pre-made grass texture exists in the assets!)
-            if (this.grid) {
+            // Only generate procedural grass if we don't have real terrain tiles
+            if (this.grid && !this.grid.mapLoader) {
                 if (this.grid.generateGrassTexture()) {
                     this.grid.render();
                     console.log('Procedural grass background generated');
@@ -503,9 +572,10 @@ export class Game {
 
             this.animationsLoaded = true;
 
-            // Add grass decorations to the map
-            if (this.grid) {
-                this.grid.addGrassDecorations(this.animLoader);
+            // Render map decorations and buildings from parsed map data
+            if (this.mapLoader && this.mapLoader.objects.length > 0) {
+                this.renderMapDecorations();
+                this.renderMapBuildings();
             }
 
             // Update existing entities to use animations
@@ -722,6 +792,158 @@ export class Game {
                 console.log(`Updated building to use animation package ${animConfig.package}, anim ${animConfig.idle}`);
             }
         }
+    }
+
+    /**
+     * Render decorations from parsed map objects
+     * Uses Package 27 (grass decorations) for decoration sprites
+     */
+    renderMapDecorations() {
+        if (!this.mapLoader || !this.grid || !this.animationsLoaded) return;
+
+        const objects = this.mapLoader.objects;
+        let decorationsRendered = 0;
+
+        // Type → animation mapping for decoration types
+        // Based on Script.getAnimID() and Import.smali constants
+        // Animation IDs for Package 27 (grass decorations):
+        // TREE_GREEN1=45, TREE_GREEN2=49, TREE_GREEN3=52, TREE_GREEN4=56, TREE_GREEN5=60
+        // RUINS_GRASS_PART1=65, RUINS_GRASS_PART2=66, RUINS_GRASS_PART3=67, etc.
+        // DECOR_GRASS decorations: HOLM=68, IDOL=69, KOLONNA1=70, KOLONNA2=71, etc.
+        const typeToAnim = {
+            // Types 0-7 are basic terrain decorations
+            0: 0,    // BIGROCK
+            1: 1,    // BIGROCK2
+            2: 2,    // HOLM
+            3: 3,    // HOLM2
+            4: 4,    // IDOL
+            5: 5,    // KOLONNA1
+            6: 6,    // KOLONNA2
+            7: 7,    // KOLONNA3
+
+            // Types 0x60-0x64 (96-100) are green trees
+            96: 45,   // TREE_GREEN1
+            97: 49,   // TREE_GREEN2
+            98: 52,   // TREE_GREEN3
+            99: 56,   // TREE_GREEN4
+            100: 60,  // TREE_GREEN5
+
+            // Types 0x65-0x6a (101-106) are more grass decorations
+            101: 65,  // RUINS_GRASS_PART1
+            102: 66,  // RUINS_GRASS_PART2
+            103: 67,  // RUINS_GRASS_PART3
+            104: 68,  // DECOR_GRASS_HOLM
+            105: 69,  // DECOR_GRASS_IDOL
+            106: 70,  // DECOR_GRASS_KOLONNA1
+
+            // Types 0x6b-0x7b (107-123) - more decorations
+            107: 71,  // DECOR_GRASS_KOLONNA2
+            108: 72,  // DECOR_GRASS_KOLONNA3
+            109: 73,  // DECOR_GRASS_KOLISHEK1
+            110: 74,  // DECOR_GRASS_KOLISHEK2
+            111: 75,  // DECOR_GRASS_LAKE1
+            112: 76,  // DECOR_GRASS_LAKE2
+            113: 77,  // DECOR_GRASS_LAKE3
+            114: 78,  // DECOR_GRASS_ROCK
+            115: 79,  // DECOR_GRASS_WALL1
+            116: 80,  // DECOR_GRASS_WALL2
+            117: 81,  // DECOR_GRASS_WALL3
+            118: 82,  // DECOR_GRASS_WALL4
+        };
+
+        for (const obj of objects) {
+            // Skip spawn points and buildings
+            if (obj.isRespawn || obj.isWaveSpawn || obj.type === 0x20) continue;
+
+            // Only render decorations (types we know about)
+            const animId = typeToAnim[obj.type];
+            if (animId === undefined) continue;
+
+            // Use createFrameContainer which handles multi-layer sprites properly
+            // Trees and complex decorations have multiple layers that need to be combined
+            const frameContainer = this.animLoader.createFrameContainer(27, animId, 0);
+            if (!frameContainer) continue;
+
+            // Convert grid position to world position
+            const worldPos = IsoMath.gridToWorld(obj.gridI, obj.gridJ);
+
+            // Position container at world position
+            frameContainer.x = worldPos.x;
+            frameContainer.y = worldPos.y;
+
+            // Set depth for sorting
+            frameContainer.zIndex = worldPos.y;
+
+            // Add to grid container
+            this.grid.decorationsContainer.addChild(frameContainer);
+            decorationsRendered++;
+        }
+
+        console.log(`Rendered ${decorationsRendered} map decorations`);
+    }
+
+    /**
+     * Render buildings from parsed map objects
+     * Uses Package 1 (buildings) for building sprites
+     */
+    renderMapBuildings() {
+        if (!this.mapLoader || !this.grid || !this.animationsLoaded) return;
+
+        const objects = this.mapLoader.objects;
+        let buildingsRendered = 0;
+
+        // Building type → [packageId, animId] mapping
+        // Based on Script.getAnimID() and Import.smali constants
+        // AnimId format: packageId << 10 | animIndex
+        // CASTLE_1_OFF = 0x411 → Package 1, anim 17
+        // BLACKSMITH_1_OFF = 0x401 → Package 1, anim 1
+        const buildingAnims = {
+            0x20: { pkg: 1, anim: 17 },   // Castle (level 1)
+            0x21: { pkg: 1, anim: 24 },   // Warrior Guild
+            0x22: { pkg: 1, anim: 1 },    // Blacksmith
+            0x23: { pkg: 1, anim: 32 },   // Ranger Guild
+            0x24: { pkg: 1, anim: 40 },   // Wizard Guild
+            0x25: { pkg: 1, anim: 48 },   // Marketplace
+            0x26: { pkg: 1, anim: 56 },   // Guardtower
+            0x27: { pkg: 1, anim: 64 },   // Library
+            0x28: { pkg: 1, anim: 72 },   // Inn
+            0x29: { pkg: 1, anim: 80 },   // Temple of Krypta
+            0x2a: { pkg: 1, anim: 88 },   // Temple of Agrela
+            0x2b: { pkg: 1, anim: 96 },   // Palace
+        };
+
+        for (const obj of objects) {
+            // Only process building objects (not decorations or spawn points)
+            if (obj.isRespawn || obj.isWaveSpawn || obj.isDecoration) continue;
+
+            const buildingAnim = buildingAnims[obj.type];
+            if (!buildingAnim) continue;
+
+            // Use createFrameContainer which handles multi-layer sprites properly
+            const frameContainer = this.animLoader.createFrameContainer(buildingAnim.pkg, buildingAnim.anim, 0);
+            if (!frameContainer) {
+                console.log(`No frame for building type ${obj.type} (pkg ${buildingAnim.pkg}, anim ${buildingAnim.anim})`);
+                continue;
+            }
+
+            // Convert grid position to world position
+            const worldPos = IsoMath.gridToWorld(obj.gridI, obj.gridJ);
+
+            // Position container at world position
+            frameContainer.x = worldPos.x;
+            frameContainer.y = worldPos.y;
+
+            // Set depth for sorting (buildings should appear behind units at same position)
+            frameContainer.zIndex = worldPos.y;
+
+            // Add to grid container
+            this.grid.decorationsContainer.addChild(frameContainer);
+            buildingsRendered++;
+
+            console.log(`Building type ${obj.type} at (${obj.gridI}, ${obj.gridJ}) - team: ${obj.team}, level: ${obj.level}`);
+        }
+
+        console.log(`Rendered ${buildingsRendered} map buildings`);
     }
 
     /**

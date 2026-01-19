@@ -304,17 +304,95 @@ This means decorations should be loaded from map data, not scattered randomly.
 
 ## MILESTONE 2: First Mission (IN PROGRESS)
 
-### 🎯 Current Focus: Map Loading + Game UI
+### 🎯 Current Focus: Map Loading → Terrain Rendering → Objects → UI
 
-Building both systems in parallel since UI is needed to interact with loaded maps.
+Taking it step by step - walk before run!
 
-### Phase 2.1: Map File Parsing
-- [ ] Reverse-engineer .m file format (binary analysis)
-- [ ] Create MapLoader.js to parse map files
-- [ ] Extract: dimensions, terrain types, object positions, spawn points
-- [ ] Load map0.m as first test case
+### Phase 2.1: Map File Parsing ✅ COMPLETE
+- [x] Reverse-engineer .m file format (binary analysis)
+- [x] Create MapLoader.js to parse map files
+- [x] Extract: dimensions, terrain types, animation packages
+- [x] Load map0.m successfully (200x200 grid)
+- [x] Grid now uses map dimensions for hover cursor
 
-### Phase 2.2: Game UI (Original Style)
+**Map File Format (Discovered 2024-01-18):**
+```
+Byte 0:      Version byte (0x2D = 45)
+Bytes 1-2:   animId (terrain theme, big-endian) - e.g., 46080 = pkg 45, anim 0
+Bytes 3-4:   mapWidth (big-endian) - e.g., 200
+Bytes 5-6:   mapHeight (big-endian) - e.g., 200
+Bytes 7-8:   cellWidth in pixels (big-endian) - e.g., 64
+Bytes 9-10:  cellHeight in pixels (big-endian) - e.g., 32
+Bytes 11-12: numPackages (count of animation packages to load)
+Next N bytes: package IDs (1 byte each)
+Then:        Terrain grid (mapWidth * mapHeight * 2 bytes, shorts)
+Then:        Object data (buildings, decorations, spawn points)
+```
+
+**map0.m parsed values:**
+- Version: 45
+- Terrain theme: package 45, animation 0
+- Dimensions: 200x200 tiles
+- Cell size: 64x32 pixels
+- Packages needed: 1 (buildings), 11 (unknown)
+- Terrain grid: 80,000 bytes (200*200*2)
+- Object data: 11,921 bytes remaining
+
+### Phase 2.2: Terrain Rendering (IN PROGRESS)
+- [x] Understand terrain data format (what do the short values mean?)
+- [x] Identify terrain packages (GRASS=45, NECRO=46, SNOW=47)
+- [x] Load terrain tileset from correct package
+- [x] Implement terrain tile rendering from map data
+- [ ] Test terrain rendering and verify frame indices
+- [ ] Implement viewport culling for performance
+
+**Terrain System (Discovered 2026-01-18):**
+
+The map's VERSION BYTE is actually the terrain theme ID:
+- Version 0x2D (45) = GRASS_ID → Package 45 (green grass terrain)
+- Version 0x2E (46) = NECRO_ID → Package 46 (volcanic/necro terrain)
+- Version 0x2F (47) = SNOW_ID → Package 47 (snow/ice terrain)
+
+**Terrain Tilesets:**
+- Package 45: Grass (green grass, water, dirt, stone paths)
+- Package 46: Necro (dark volcanic, lava cracks, dead ground)
+- Package 47: Snow (ice, snow, frozen water)
+
+Each package has a main tileset image (0.png) with isometric tiles:
+- Tile size: 128x64 pixels (before scaling to grid)
+- Arranged in 8x8 grid = 64 main tiles
+- Small decorations on the right side
+
+**Frame Index Extraction:**
+```javascript
+// Raw value from map file
+const raw = view.getInt16(offset, false);  // big-endian
+
+// Transform (Location.smali lines 12840-12856)
+const transformed = ((raw << 2) & 0xFFF8) | ((raw & 1) << 1) | 4;
+
+// Frame index (Location.smali lines 4085-4087)
+const frame = (transformed >> 3) & 0x7F;  // 0-127
+```
+
+**Files Modified:**
+- `src/world/MapLoader.js`: Added getTerrainFrame() and getTerrainPackage()
+- `src/world/Grid.js`: Added setMapData() and renderTerrainFromMap()
+- `src/core/Game.js`: Added loadTerrainTileset() and createTerrainTileTextures()
+
+### Phase 2.3: Map Object Parsing
+- [ ] Parse the 11,921 bytes of object data
+- [ ] Identify object types (buildings, decorations, spawn points)
+- [ ] Extract positions and properties
+- [ ] Document object format
+
+### Phase 2.4: Map Object Spawning
+- [ ] Spawn buildings from map data
+- [ ] Spawn decorations (terrain-aware: grass/snow/necro)
+- [ ] Spawn units/monsters at spawn points
+- [ ] Connect to existing Building.js entity
+
+### Phase 2.5: Game UI (Original Style)
 - [ ] Analyze original UI from Package 0 (portraits, buttons, icons)
 - [ ] Bottom action bar (build, recruit, spells)
 - [ ] Building interaction menus
@@ -322,35 +400,21 @@ Building both systems in parallel since UI is needed to interact with loaded map
 - [ ] Resource display (gold, mana)
 - [ ] Minimap
 
-### Phase 2.3: Map Object Spawning
-- [ ] Spawn buildings from map data
-- [ ] Spawn decorations (terrain-aware: grass/snow/necro)
-- [ ] Spawn units/monsters at spawn points
-- [ ] Connect to existing Building.js entity
-
-### Phase 2.4: Building System
+### Phase 2.6: Building System
 - [ ] Castle (player HQ)
 - [ ] Guild buildings (Warrior, Ranger, Wizard)
 - [ ] Marketplace, Blacksmith
 - [ ] Building placement from UI
 
-### Phase 2.5: Unit Recruitment
+### Phase 2.7: Unit Recruitment
 - [ ] Recruit units from guild buildings
 - [ ] Gold cost system
 - [ ] Unit spawn at building location
 
-### Phase 2.6: Mission System
+### Phase 2.8: Mission System
 - [ ] Mission objectives (defeat enemies, protect castle)
 - [ ] Win/lose conditions
 - [ ] Mission complete screen
-
-### Map File Format (Needs Reverse Engineering)
-
-Map files are located at `assets/s3/map0.m` through `map29.m`:
-- Binary format, 20KB - 96KB per map
-- Contains: map dimensions, terrain types, object positions, spawn points
-- Objects include: buildings, decorations (TYPE_BIGROCK, TYPE_GRASS_TREE, etc.), spawn zones
-- See `TERRAIN-BUGS.md` for decoration type mappings
 
 ---
 
@@ -400,7 +464,8 @@ Map files are located at `assets/s3/map0.m` through `map29.m`:
     │   └── Missile.js      # Projectile entity
     ├── /world
     │   ├── Grid.js         # Isometric grid system
-    │   └── IsoMath.js      # Coordinate conversions
+    │   ├── IsoMath.js      # Coordinate conversions
+    │   └── MapLoader.js    # Parses .m map files
     ├── /ui
     │   └── HUD.js          # Heads-up display
     ├── /audio

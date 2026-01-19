@@ -127,33 +127,179 @@ export class MapLoader {
 
     /**
      * Parse map objects (buildings, decorations, units, etc.)
+     * Based on Location.smali lines 12984+
+     *
      * @param {DataView} view - Data view
      * @param {number} offset - Current offset
      * @returns {number} New offset after parsing
      */
     parseObjects(view, offset) {
-        // Object parsing is complex - there are multiple object types
-        // For now, just log how much data remains
         const remaining = view.byteLength - offset;
         console.log(`Object data: ${remaining} bytes remaining`);
 
-        // TODO: Parse object data based on Location.smali lines 12984+
-        // Each object has: type, position, flags, etc.
+        try {
+            // Read objectsOnLevel count (byte)
+            const objectsOnLevelCount = view.getUint8(offset);
+            offset += 1;
+
+            // Skip objectsOnLevel entries (2 bytes each)
+            offset += objectsOnLevelCount * 2;
+
+            // Read 3 shorts: counts for different object categories
+            const count1 = view.getInt16(offset, false); offset += 2;
+            const count2 = view.getInt16(offset, false); offset += 2;
+            const count3 = view.getInt16(offset, false); offset += 2;
+            const totalObjects = count1 + count2 + count3;
+            console.log(`Object counts: ${count1} + ${count2} + ${count3} = ${totalObjects}`);
+
+            // Parse objects
+            const typeCounts = {};
+
+            for (let i = 0; i < totalObjects && offset < view.byteLength - 4; i++) {
+                const type = view.getUint8(offset); offset += 1;
+                const gridI = view.getInt16(offset, false); offset += 2;
+                const gridJ = view.getInt16(offset, false); offset += 2;
+
+                // Count types
+                typeCounts[type] = (typeCounts[type] || 0) + 1;
+
+                // Create object entry
+                const obj = { type, gridI, gridJ };
+
+                // Type 0xFF (255) = border respawn point
+                if (type === 0xFF) {
+                    obj.isRespawn = true;
+                    obj.startTime = view.getUint8(offset); offset += 1;
+                    obj.endTime = view.getUint8(offset); offset += 1;
+                    obj.pause = view.getUint8(offset); offset += 1;
+                    const numMonsters = view.getUint8(offset); offset += 1;
+                    obj.monsterTypes = [];
+                    for (let m = 0; m < numMonsters && offset < view.byteLength; m++) {
+                        obj.monsterTypes.push(view.getUint8(offset)); offset += 1;
+                    }
+                    obj.group = view.getUint8(offset); offset += 1;
+                }
+                // Type 0xFE (254) = wave spawn point
+                else if (type === 0xFE) {
+                    obj.isWaveSpawn = true;
+                    const numWaves = view.getUint8(offset); offset += 1;
+                    obj.waves = [];
+                    for (let w = 0; w < numWaves && offset < view.byteLength - 1; w++) {
+                        const wavePause = view.getUint8(offset); offset += 1;
+                        const numInWave = view.getUint8(offset); offset += 1;
+                        const types = [];
+                        for (let t = 0; t < numInWave && offset < view.byteLength; t++) {
+                            types.push(view.getUint8(offset)); offset += 1;
+                        }
+                        obj.waves.push({ pause: wavePause, types });
+                    }
+                    obj.group = view.getUint8(offset); offset += 1;
+                }
+                // Check if this is a "static object" (decoration) - no extra data
+                else if (this.isStaticObject(type)) {
+                    obj.isDecoration = true;
+                    // Static objects have NO extra data - just type + position
+                }
+                // Regular objects (buildings, etc.) - have team, level, flags
+                else {
+                    obj.team = view.getUint8(offset); offset += 1;
+                    obj.level = view.getUint8(offset); offset += 1;
+                    obj.flags = view.getUint8(offset); offset += 1;
+
+                    // Type 0x20 (32) = Castle - has extra gold data
+                    if (type === 0x20 && offset + 5 <= view.byteLength) {
+                        obj.gold = view.getInt32(offset, false); offset += 4;
+                        obj.numBuildings = view.getUint8(offset); offset += 1;
+                        obj.taxLevel = view.getUint8(offset); offset += 1;
+                    }
+                }
+
+                this.objects.push(obj);
+            }
+
+            // Log type distribution
+            this.logObjectTypes(typeCounts);
+
+        } catch (e) {
+            console.warn('Error parsing objects:', e.message);
+            // Still log what we found before the error
+            console.log(`Parsed ${this.objects.length} objects before error`);
+        }
+
+        // Log summary of what we parsed
+        this.logObjectSummary();
 
         return offset;
+    }
+
+    /**
+     * Log object type distribution
+     */
+    logObjectTypes(typeCounts) {
+        const sortedTypes = Object.entries(typeCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 15);  // Top 15 types
+        console.log('Object types:', sortedTypes.map(([t, c]) => `type${t}:${c}`).join(', '));
+    }
+
+    /**
+     * Log summary of parsed objects
+     */
+    logObjectSummary() {
+        // Count by category
+        let buildings = 0, decorations = 0, spawns = 0, waves = 0, other = 0;
+
+        const typeCounts = {};
+        for (const obj of this.objects) {
+            typeCounts[obj.type] = (typeCounts[obj.type] || 0) + 1;
+
+            if (obj.isRespawn) spawns++;
+            else if (obj.isWaveSpawn) waves++;
+            else if (obj.type === 0x20) buildings++;  // Castle
+            else if (obj.type >= 0x01 && obj.type <= 0x1F) decorations++;  // Decoration types
+            else buildings++;
+        }
+
+        console.log(`Objects summary: ${buildings} buildings, ${decorations} decorations, ${spawns} spawns, ${waves} waves`);
+
+        // Log top types
+        const sorted = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        console.log('Top object types:', sorted.map(([t, c]) => `${t}:${c}`).join(', '));
     }
 
     /**
      * Get terrain value at grid position
      * @param {number} i - Grid column
      * @param {number} j - Grid row
-     * @returns {number} Terrain value
+     * @returns {number} Terrain value (transformed)
      */
     getTerrain(i, j) {
         if (i < 0 || i >= this.mapWidth || j < 0 || j >= this.mapHeight) {
             return 0;
         }
         return this.terrainData[i][j];
+    }
+
+    /**
+     * Get terrain frame index at grid position
+     * Frame index is used to select which tile to draw from the tileset
+     * @param {number} i - Grid column
+     * @param {number} j - Grid row
+     * @returns {number} Frame index (0-127)
+     */
+    getTerrainFrame(i, j) {
+        const terrainValue = this.getTerrain(i, j);
+        // Extract frame: (value >> 3) & 0x7F as per Location.smali line 4085-4087
+        return (terrainValue >> 3) & 0x7F;
+    }
+
+    /**
+     * Get terrain package ID (theme)
+     * The map version byte indicates which terrain package to use
+     * @returns {number} Package ID (45=grass, 46=necro, 47=snow)
+     */
+    getTerrainPackage() {
+        return this.version;  // version byte = terrain theme = package ID
     }
 
     /**
@@ -166,5 +312,22 @@ export class MapLoader {
             packageId: (packedId >> 10) & 0x3FF,
             animId: packedId & 0x3FF
         };
+    }
+
+    /**
+     * Check if type is a "static object" (decoration with no extra data)
+     * Based on Location.typeIsStaticObject() - these types have NO team/level/flags
+     * @param {number} type - Object type byte
+     * @returns {boolean} True if static object
+     */
+    isStaticObject(type) {
+        // Types 0x60-0x7b (96-123) - decorations
+        if (type >= 0x60 && type <= 0x7b) return true;
+        // Types 0x83-0x88 (131-136) - more decorations
+        if (type >= 0x83 && type <= 0x88) return true;
+        // Types 0xe0-0xe4, 0xe7 (224-228, 231) - special decorations
+        if (type >= 0xe0 && type <= 0xe4) return true;
+        if (type === 0xe7) return true;
+        return false;
     }
 }
