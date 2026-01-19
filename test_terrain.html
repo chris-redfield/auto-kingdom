@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Terrain Texture Test - Majesty JS</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            margin-bottom: 10px;
+        }
+        .texture-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .texture-item {
+            background: #223344;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .texture-item canvas {
+            border: 2px solid #446688;
+            display: block;
+            margin: 0 auto 8px auto;
+        }
+        .texture-item.selected {
+            border: 3px solid #44ff44;
+            background: #334455;
+        }
+        .texture-label {
+            font-size: 12px;
+            color: #88aacc;
+        }
+        .texture-info {
+            font-size: 10px;
+            color: #668899;
+            margin-top: 4px;
+        }
+        h2 {
+            color: #88aacc;
+            border-bottom: 1px solid #446688;
+            padding-bottom: 8px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            cursor: pointer;
+            background: #446688;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #5588aa;
+        }
+        button.active {
+            background: #44aa66;
+        }
+        #preview-area {
+            margin-top: 20px;
+            padding: 20px;
+            background: #334455;
+            border-radius: 8px;
+        }
+        #preview-canvas {
+            border: 1px solid #446688;
+        }
+    </style>
+</head>
+<body>
+    <h1>Terrain Texture Viewer</h1>
+    <div id="info">Loading Package 0...</div>
+
+    <div class="section">
+        <h2>DD_WINDOW_TILE (Animation 66) - Tiled Background Textures</h2>
+        <p>These are 84x84 pixel tiles used for the game background. Click to select for preview.</p>
+        <div id="anim66-textures" class="texture-grid"></div>
+    </div>
+
+    <div class="section">
+        <h2>Other 84x84 Terrain Candidates (Anim 74, 76)</h2>
+        <p>These animations have 84x84 textures at different sprite sheet locations - could be grass!</p>
+        <div id="terrain-candidates" class="texture-grid"></div>
+    </div>
+
+    <div class="section">
+        <h2>Other Animations (60-75 range)</h2>
+        <p>Exploring other nearby animations.</p>
+        <div id="other-textures" class="texture-grid"></div>
+    </div>
+
+    <div class="section">
+        <h2>Tiled Preview</h2>
+        <p>Selected texture tiled 4x4:</p>
+        <div id="preview-area">
+            <canvas id="preview-canvas" width="336" height="336"></canvas>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
+    <script type="module">
+        import { AnimationLoader } from './src/graphics/AnimationLoader.js';
+
+        let app;
+        let loader;
+        let selectedTexture = null;
+        let previewApp;
+
+        const DD_WINDOW_TILE = 66;  // From Import.smali: 0x42 = 66
+
+        // Other potential terrain animations found with 84x84 textures:
+        const OTHER_TERRAIN_ANIMS = [74, 76];
+
+        async function init() {
+            // Create main PixiJS app (hidden, just for texture generation)
+            app = new PIXI.Application();
+            await app.init({
+                width: 100,
+                height: 100,
+                backgroundColor: 0x000000
+            });
+
+            // Create preview app
+            previewApp = new PIXI.Application();
+            await previewApp.init({
+                width: 336,
+                height: 336,
+                backgroundColor: 0x000000,
+                canvas: document.getElementById('preview-canvas')
+            });
+
+            // Create loader
+            loader = new AnimationLoader();
+
+            // Load package 0
+            try {
+                await loader.loadPackage('assets/sprites/anims/anims', 0);
+                document.getElementById('info').textContent =
+                    `Package 0 loaded: ${loader.animationData[0].length} animations`;
+
+                // Display Animation 66 textures (DD_WINDOW_TILE)
+                displayAnim66Textures();
+
+                // Display terrain candidates (74, 76)
+                displayTerrainCandidates();
+
+                // Display other nearby animations
+                displayOtherTextures();
+
+            } catch (e) {
+                document.getElementById('info').textContent = `Error: ${e.message}`;
+                console.error(e);
+            }
+        }
+
+        function displayAnim66Textures() {
+            const container = document.getElementById('anim66-textures');
+            const anim = loader.getAnimation(0, DD_WINDOW_TILE);
+
+            if (!anim) {
+                container.innerHTML = '<p>Animation 66 not found!</p>';
+                return;
+            }
+
+            console.log(`Animation 66: ${anim.frameCount} frames`);
+
+            for (let frameId = 0; frameId < anim.frameCount; frameId++) {
+                const frame = loader.getFrame(0, DD_WINDOW_TILE, frameId);
+                if (!frame || frame.layers.length === 0) continue;
+
+                const layer = frame.layers[0];
+                const rect = frame.rects[0];
+
+                // Create texture item
+                const item = document.createElement('div');
+                item.className = 'texture-item';
+                item.dataset.pkg = 0;
+                item.dataset.anim = DD_WINDOW_TILE;
+                item.dataset.frame = frameId;
+
+                // Create mini canvas to show the texture
+                const canvas = document.createElement('canvas');
+                canvas.width = 84;
+                canvas.height = 84;
+                item.appendChild(canvas);
+
+                // Label
+                const label = document.createElement('div');
+                label.className = 'texture-label';
+                label.textContent = `Frame ${frameId}`;
+                item.appendChild(label);
+
+                // Info
+                const info = document.createElement('div');
+                info.className = 'texture-info';
+                info.textContent = `rect(${rect.x},${rect.y},${rect.width},${rect.height})`;
+                item.appendChild(info);
+
+                // Sprite info
+                const sprInfo = document.createElement('div');
+                sprInfo.className = 'texture-info';
+                sprInfo.textContent = `sprite=${layer.spriteIndex}, offset=(${layer.xOffset},${layer.yOffset})`;
+                item.appendChild(sprInfo);
+
+                container.appendChild(item);
+
+                // Render texture to canvas
+                renderTextureToCanvas(canvas, 0, DD_WINDOW_TILE, frameId);
+
+                // Click handler
+                item.onclick = () => selectTexture(item, 0, DD_WINDOW_TILE, frameId);
+            }
+        }
+
+        function displayTerrainCandidates() {
+            const container = document.getElementById('terrain-candidates');
+
+            // Animations 74 and 76 have 84x84ish terrain textures
+            const candidateAnims = [74, 76];
+
+            for (const animId of candidateAnims) {
+                const anim = loader.getAnimation(0, animId);
+                if (!anim) continue;
+
+                for (let frameId = 0; frameId < anim.frameCount; frameId++) {
+                    const frame = loader.getFrame(0, animId, frameId);
+                    if (!frame || frame.layers.length === 0) continue;
+
+                    const layer = frame.layers[0];
+                    const rect = frame.rects[0];
+
+                    const item = document.createElement('div');
+                    item.className = 'texture-item';
+                    item.dataset.pkg = 0;
+                    item.dataset.anim = animId;
+                    item.dataset.frame = frameId;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.min(rect.width, 100);
+                    canvas.height = Math.min(rect.height, 100);
+                    item.appendChild(canvas);
+
+                    const label = document.createElement('div');
+                    label.className = 'texture-label';
+                    label.textContent = `Anim ${animId} Frame ${frameId}`;
+                    item.appendChild(label);
+
+                    const info = document.createElement('div');
+                    info.className = 'texture-info';
+                    info.textContent = `${rect.width}x${rect.height} at (${rect.x},${rect.y})`;
+                    item.appendChild(info);
+
+                    container.appendChild(item);
+                    renderTextureToCanvas(canvas, 0, animId, frameId);
+                    item.onclick = () => selectTexture(item, 0, animId, frameId);
+                }
+            }
+        }
+
+        function displayOtherTextures() {
+            const container = document.getElementById('other-textures');
+
+            // Check animations 60-70 (around DD_WINDOW_TILE)
+            for (let animId = 60; animId <= 75; animId++) {
+                if (animId === DD_WINDOW_TILE) continue;  // Skip 66, already shown above
+
+                const anim = loader.getAnimation(0, animId);
+                if (!anim || anim.frameCount === 0) continue;
+
+                // Show first frame of each animation
+                const frame = loader.getFrame(0, animId, 0);
+                if (!frame || frame.layers.length === 0) continue;
+
+                const layer = frame.layers[0];
+                const rect = frame.rects[0];
+
+                // Skip very small textures (probably not terrain)
+                if (rect.width < 20 || rect.height < 20) continue;
+
+                const item = document.createElement('div');
+                item.className = 'texture-item';
+                item.dataset.pkg = 0;
+                item.dataset.anim = animId;
+                item.dataset.frame = 0;
+
+                // Create mini canvas
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.min(rect.width, 100);
+                canvas.height = Math.min(rect.height, 100);
+                item.appendChild(canvas);
+
+                // Label
+                const label = document.createElement('div');
+                label.className = 'texture-label';
+                label.textContent = `Anim ${animId} (${anim.frameCount} frames)`;
+                item.appendChild(label);
+
+                // Info
+                const info = document.createElement('div');
+                info.className = 'texture-info';
+                info.textContent = `${rect.width}x${rect.height}`;
+                item.appendChild(info);
+
+                container.appendChild(item);
+
+                // Render texture to canvas
+                renderTextureToCanvas(canvas, 0, animId, 0);
+
+                // Click handler
+                item.onclick = () => selectTexture(item, 0, animId, 0);
+            }
+        }
+
+        function renderTextureToCanvas(canvas, packageId, animId, frameId) {
+            const frame = loader.getFrame(packageId, animId, frameId);
+            if (!frame || frame.layers.length === 0) return;
+
+            const layer = frame.layers[0];
+            const rect = frame.rects[0];
+            const spriteTexture = loader.getSprite(packageId, layer.spriteIndex);
+
+            if (!spriteTexture) return;
+
+            const ctx = canvas.getContext('2d');
+
+            // Get the source image
+            const source = spriteTexture.source.resource;
+            if (source && source.complete) {
+                // Draw the specific region
+                ctx.drawImage(
+                    source,
+                    rect.x, rect.y, rect.width, rect.height,
+                    0, 0, canvas.width, canvas.height
+                );
+            }
+        }
+
+        function selectTexture(item, packageId, animId, frameId) {
+            // Remove previous selection
+            document.querySelectorAll('.texture-item.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+
+            // Select this one
+            item.classList.add('selected');
+
+            // Update preview
+            updatePreview(packageId, animId, frameId);
+        }
+
+        function updatePreview(packageId, animId, frameId) {
+            // Clear preview
+            previewApp.stage.removeChildren();
+
+            const frame = loader.getFrame(packageId, animId, frameId);
+            if (!frame || frame.layers.length === 0) return;
+
+            const layer = frame.layers[0];
+            const rect = frame.rects[0];
+            const spriteTexture = loader.getSprite(packageId, layer.spriteIndex);
+
+            if (!spriteTexture) return;
+
+            // Create sub-texture
+            const subTexture = new PIXI.Texture({
+                source: spriteTexture.source,
+                frame: new PIXI.Rectangle(rect.x, rect.y, rect.width, rect.height)
+            });
+
+            // Tile 4x4
+            for (let y = 0; y < 4; y++) {
+                for (let x = 0; x < 4; x++) {
+                    const sprite = new PIXI.Sprite(subTexture);
+                    sprite.x = x * rect.width;
+                    sprite.y = y * rect.height;
+                    previewApp.stage.addChild(sprite);
+                }
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

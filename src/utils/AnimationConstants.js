@@ -38,6 +38,54 @@ export const GAME_DIR_TO_ANIM_DIR = [
  * Each entry contains: { package, attack, death, walk, idle }
  * Values are base animation IDs (add direction offset 0-7)
  */
+/**
+ * Building animation configurations
+ * Package 1 contains all building sprites
+ * Buildings typically have: idle (normal), damaged, destroyed states
+ * Note: These IDs need verification against actual package 1 contents
+ */
+export const BUILDING_ANIMS = {
+    // Castle - player starting building
+    CASTLE: {
+        package: 1,
+        idle: 0,        // Normal state
+        damaged: 1,     // Damaged visual
+        destroyed: 2    // Destroyed/ruins
+    },
+
+    // Warrior Guild - trains warriors
+    WARRIOR_GUILD: {
+        package: 1,
+        idle: 3,
+        damaged: 4,
+        destroyed: 5
+    },
+
+    // Ranger Guild - trains rangers
+    RANGER_GUILD: {
+        package: 1,
+        idle: 6,
+        damaged: 7,
+        destroyed: 8
+    },
+
+    // Marketplace - generates gold
+    MARKETPLACE: {
+        package: 1,
+        idle: 9,
+        damaged: 10,
+        destroyed: 11
+    },
+
+    // Blacksmith - upgrades weapons
+    BLACKSMITH: {
+        package: 1,
+        idle: 12,
+        damaged: 13,
+        destroyed: 14
+    }
+};
+
 export const UNIT_ANIMS = {
     // Package 7: Rangers (green units, ranged)
     RANGER: {

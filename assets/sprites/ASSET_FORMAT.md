@@ -207,6 +207,67 @@ but testing revealed the actual sprites are rotated +45° clockwise from that do
 - Walk East = 17 + 2 = animation 19
 - Walk South = 17 + 5 = animation 22
 
+## Terrain / Background Textures
+
+### DD_WINDOW_TILE (Package 0, Animation 66)
+
+From `Import.smali`: `DD_WINDOW_TILE = 0x42` (decimal 66)
+
+This animation contains **84x84 pixel tiled textures** used for backgrounds:
+
+| Frame | Content | Rect |
+|-------|---------|------|
+| 0 | Water (blue) | (836, 329, 84, 84) |
+| 1 | Red terrain | (426, 331, 84, 84) |
+| 2 | Yellow terrain | (510, 332, 84, 84) |
+
+**Note:** Green grass texture is NOT in Animation 66. Still searching for it.
+
+### Isometric Tiles (Package 25, Animation 59)
+
+`TILESET_COMMON` - Simple 66x36 isometric diamond tiles for minimap/UI (NOT detailed terrain):
+
+| Frame | Content |
+|-------|---------|
+| 0 | Empty/transparent |
+| 1 | Dirt (red/brown) |
+| 2 | Water (blue) |
+| 3 | Stone (purple/gray) |
+| 4 | Sand (yellow) |
+| 5 | Grass (green) |
+| 6 | Light grass |
+
+### Grass Background (PROCEDURAL)
+
+**Discovery:** The original game does NOT have a pre-made grass texture!
+
+**Key Findings:**
+1. `GRASS_ID` (Animation 45) sprites are **BLUE**, not green - they're used for
+   patterns/masks, not as the actual grass color
+2. The grass background is likely a **solid color fill**
+3. The "textured" look comes from **decorations** (DECOR_GRASS_* items from Package 27)
+   layered on top, not from a complex grass texture
+
+From `Buffer.smali` - grassColor array (8 colors, for minimap coloring):
+```
+0x596d29  - Olive green
+0x617c1f  - Green (base color)
+0x479d2d  - Bright green
+0x5e8fd7  - Blue (water, not grass)
+0x628a24  - Green
+0x263b05  - Dark green (shadows)
+0x4e6d1d  - Green
+0x54681e  - Green
+```
+
+**Implementation:** Our port generates an 84x84 procedural grass texture with:
+- Solid yellowish-green base (0x5d7a28)
+- Subtle circular color variations
+- Very light diagonal grain
+- Tiny light specks
+
+**Future enhancement:** Add DECOR_GRASS_* decorations from Package 27 for more visual richness.
+
 ## Notes
 
 - Sprite sheet sizes vary (512x512 or 1024x1024)

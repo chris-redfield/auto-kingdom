@@ -4,15 +4,16 @@
  * Manages game states, entities, and coordinates all systems
  */
 
-import { GameState, SCREEN_WIDTH, SCREEN_HEIGHT } from '../utils/Constants.js';
+import { GameState, SCREEN_WIDTH, SCREEN_HEIGHT, BuildingType } from '../utils/Constants.js';
 import { Camera } from '../graphics/Camera.js';
 import { Grid } from '../world/Grid.js';
 import * as IsoMath from '../world/IsoMath.js';
 import { DynamicEntity } from '../entities/DynamicEntity.js';
+import { Building } from '../entities/Building.js';
 import { Missile, MissileType, createMissile } from '../entities/Missile.js';
 import { HUD } from '../ui/HUD.js';
 import { AnimationLoader } from '../graphics/AnimationLoader.js';
-import { UNIT_ANIMS } from '../utils/AnimationConstants.js';
+import { UNIT_ANIMS, BUILDING_ANIMS } from '../utils/AnimationConstants.js';
 import { getSoundManager } from '../audio/SoundManager.js';
 import { SOUNDS, MUSIC } from '../audio/SoundConstants.js';
 
@@ -33,6 +34,9 @@ export class Game {
 
         // Entities
         this.entities = [];
+
+        // Buildings (static structures)
+        this.buildings = [];
 
         // Missiles (projectiles)
         this.missiles = [];
@@ -358,8 +362,8 @@ export class Game {
      * Create placeholder content for testing
      */
     createTestContent() {
-        // Create isometric grid
-        this.grid = new Grid(this.gridWidth, this.gridHeight);
+        // Create isometric grid (pass app for texture generation)
+        this.grid = new Grid(this.gridWidth, this.gridHeight, this.app);
         this.grid.generateTestMap();
         this.grid.render();
 
@@ -398,6 +402,9 @@ export class Game {
         // Create test unit on the grid
         this.createTestUnit();
 
+        // Create test building
+        this.createTestBuilding();
+
         // Center camera on the grid center
         const center = this.grid.getCenter();
         this.camera.centerOn(
@@ -427,6 +434,24 @@ export class Game {
         const basePath = 'assets/sprites/anims/anims';
 
         try {
+            // Generate procedural grass texture
+            // (Original game also generates on-the-fly using grassColor palette
+            // from Buffer.smali - no pre-made grass texture exists in the assets!)
+            if (this.grid) {
+                if (this.grid.generateGrassTexture()) {
+                    this.grid.render();
+                    console.log('Procedural grass background generated');
+                }
+            }
+
+            // Package 0 MUST be loaded first (initializes animation arrays)
+            await this.animLoader.loadPackage(basePath, 0);
+            console.log('Loaded base package 0 (UI elements)');
+
+            // Package 1: Buildings (castle, guilds, marketplace, etc.)
+            await this.animLoader.loadPackage(basePath, 1);
+            console.log('Loaded building animations (package 1)');
+
             // Load packages for all unit types we use
             // Package 7: Rangers (ranged friendly units)
             await this.animLoader.loadPackage(basePath, 7);
@@ -444,10 +469,22 @@ export class Game {
             await this.animLoader.loadPackage(basePath, 14);
             console.log('Loaded troll animations (package 14)');
 
+            // Package 27: Grass decorations (rocks, bushes, trees, etc.)
+            await this.animLoader.loadPackage(basePath, 27);
+            console.log('Loaded grass decoration animations (package 27)');
+
             this.animationsLoaded = true;
+
+            // Add grass decorations to the map
+            if (this.grid) {
+                this.grid.addGrassDecorations(this.animLoader);
+            }
 
             // Update existing entities to use animations
             this.applyAnimationsToEntities();
+
+            // Update buildings to use real animations
+            this.updateBuildingAnimations();
 
         } catch (error) {
             console.warn('Failed to load animations, using placeholder graphics:', error);
@@ -597,6 +634,66 @@ export class Game {
         }
 
         console.log(`Created ${this.entities.length} entities`);
+    }
+
+    /**
+     * Create test buildings to verify building rendering
+     */
+    createTestBuilding() {
+        // Place a castle near the center
+        const centerI = Math.floor(this.gridWidth / 2) - 5;
+        const centerJ = Math.floor(this.gridHeight / 2) - 5;
+
+        const castle = new Building(centerI, centerJ, BuildingType.CASTLE);
+        castle.team = 0;  // Player team
+
+        // Initialize with placeholder sprite first
+        castle.initSprite();
+
+        // Add to grid container
+        this.grid.container.addChild(castle.sprite);
+
+        // Lock the cells the building occupies
+        castle.lockCells(this.grid);
+
+        // Store building
+        this.buildings.push(castle);
+
+        console.log(`Created test building (Castle) at (${centerI}, ${centerJ})`);
+
+        // When animations are loaded, update the building sprite
+        // This happens in the callback after loadAnimations completes
+    }
+
+    /**
+     * Update buildings to use real animations (called after animations load)
+     */
+    updateBuildingAnimations() {
+        for (const building of this.buildings) {
+            // Get animation config for this building type
+            let animConfig = null;
+
+            if (building.buildingType === 0x1) {  // CASTLE
+                animConfig = BUILDING_ANIMS.CASTLE;
+            } else if (building.buildingType === 0x2) {  // WARRIOR_GUILD
+                animConfig = BUILDING_ANIMS.WARRIOR_GUILD;
+            } else if (building.buildingType === 0x4) {  // RANGER_GUILD
+                animConfig = BUILDING_ANIMS.RANGER_GUILD;
+            } else if (building.buildingType === 0x100) {  // MARKETPLACE
+                animConfig = BUILDING_ANIMS.MARKETPLACE;
+            } else if (building.buildingType === 0x80) {  // BLACKSMITH
+                animConfig = BUILDING_ANIMS.BLACKSMITH;
+            }
+
+            if (animConfig && this.animLoader.animationData[animConfig.package]) {
+                building.initAnimatedSprite(
+                    this.animLoader,
+                    animConfig.package,
+                    animConfig.idle
+                );
+                console.log(`Updated building to use animation package ${animConfig.package}, anim ${animConfig.idle}`);
+            }
+        }
     }
 
     /**

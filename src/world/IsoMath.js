@@ -9,9 +9,9 @@
  * Uses standard 2:1 isometric projection (tiles are 2x wide as tall)
  */
 
-// Tile dimensions (standard isometric 2:1 ratio)
-export const TILE_WIDTH = 64;   // Width of a tile in pixels
-export const TILE_HEIGHT = 32;  // Height of a tile in pixels (half of width)
+// Tile dimensions (from original game tileset - 66x36 tiles)
+export const TILE_WIDTH = 66;   // Width of a tile in pixels
+export const TILE_HEIGHT = 36;  // Height of a tile in pixels (slightly less than 2:1)
 
 // Half dimensions for calculations
 export const TILE_HALF_WIDTH = TILE_WIDTH / 2;

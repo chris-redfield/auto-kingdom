@@ -6,13 +6,14 @@
  */
 
 import { TileType } from '../world/Grid.js';
+import { TILE_WIDTH, TILE_HEIGHT } from '../world/IsoMath.js';
 
 export class TileRenderer {
     constructor(app) {
         this.app = app;
         this.textures = {};
-        this.tileWidth = 64;   // Isometric tile width
-        this.tileHeight = 32;  // Isometric tile height (half of width for 2:1 ratio)
+        this.tileWidth = TILE_WIDTH;   // Isometric tile width (66)
+        this.tileHeight = TILE_HEIGHT; // Isometric tile height (36)
     }
 
     /**

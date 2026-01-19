@@ -181,9 +181,32 @@ Goal: Replace placeholder graphics with proper sprites and add sound effects.
 - Documented in assets/sprites/ASSET_FORMAT.md
 
 ### Phase 1.12: Tile & Building Textures
-- [ ] Identify tile/terrain assets in animation packages
-- [ ] Update Grid.js to use proper terrain sprites
+- [x] Identify tile/terrain assets in animation packages (Package 25, Animation 59 = TILESET_COMMON)
+- [x] Update Grid.js to use proper terrain sprites from original tileset
+- [x] Added loadTileset() method to Grid.js for loading from AnimationLoader
+- [x] Updated IsoMath.js tile dimensions to match original (66x36 pixels)
+- [x] **FIXED terrain decoration bug** - was loading shadow sprites (anims 21-30) instead of decorations (0-15)
 - [ ] Add building placeholders from anims1 package
+
+**Tileset Implementation Notes:**
+- TILESET_COMMON = Package 25, Animation 59 (7 frames, each 66x36 pixels)
+- Frame mapping (IMPORTANT - Frame 0 is empty/transparent!):
+  - Frame 0: Empty/transparent (unused)
+  - Frame 1: Dirt (red/brown paths)
+  - Frame 2: Water (blue)
+  - Frame 3: Stone (purple/gray)
+  - Frame 4: Sand (yellow)
+  - Frame 5: Grass (green) - used as main grass
+  - Frame 6: Light grass (lighter green)
+- All tiles from sprite sheet 3.png in anims25/
+- Tiles load asynchronously; fallback to TileRenderer until loaded
+- Tile dimensions: 66x36 pixels (updated IsoMath.js to match)
+
+**Terrain Background (Fixed 2026-01-18):**
+- Original game uses **solid green background** (0x5a7828), not textured tiles
+- DECOR_GRASS_* items are **large map decorations** (rocks, walls, columns), NOT grass texture
+- Decorations should be loaded from map data, not scattered randomly
+- See `TERRAIN-BUGS.md` for full investigation details
 
 ### Phase 1.13: Visual Effects
 - [ ] Improved missile sprites (arrows, fireballs)
@@ -201,7 +224,7 @@ Goal: Replace placeholder graphics with proper sprites and add sound effects.
 - AnimationLoader: ✅ Created, parses .dat files correctly
 - Unit sprites: ✅ Integrated with DynamicEntity, direction mapping fixed
 - Direction system: ✅ Corrected +45° offset in animation files (see ASSET_FORMAT.md)
-- Tiles: Programmatic textures (TileRenderer.js) - working placeholder
+- Tiles: ✅ Real tileset from package 25 (TILESET_COMMON, anim 59)
 - Effects: Basic graphics (slash lines, circle missiles)
 - Sound: ✅ SoundManager created, OGG files ready
 
@@ -217,8 +240,49 @@ Goal: Replace placeholder graphics with proper sprites and add sound effects.
 | 6 | Dragon parts, dwarf/barbarian body parts | Dwarves |
 | 7 | Nature (trees, huts) + ranger body parts | Rangers |
 | 8 | Castle/fort, knight body parts (armor) | Knights |
+| 25 | Terrain tilesets (grass, water, dirt, etc.) | Map tiles |
+| 27 | Map decorations (see detailed breakdown below) | Props |
 
-See `assets/sprites/ASSET_FORMAT.md` for full documentation.
+### Package 27 Detailed Breakdown (Map Decorations):
+
+**IMPORTANT:** Animation IDs 21+ are SHADOW sprites, not actual decorations!
+
+| Anim ID | Constant | Description |
+|---------|----------|-------------|
+| 0-15 | DECOR_GRASS_* | Grass terrain decorations (rocks, walls, columns, lakes) |
+| 16-20 | RUINS_GRASS_PART* | Ruin pieces for grass terrain |
+| 21-35 | SHADOW_DECOR_GRASS_* | **SHADOWS** of grass decorations |
+| 36+ | DECOR_SNOW_*, DECOR_NECRO_* | Snow/necro terrain decorations + shadows |
+
+**Grass Decorations (Anims 0-15):**
+- 0-1: BIGROCK, BIGROCK2 (large rocks)
+- 2-3: HOLM, HOLM2 (hills/mounds)
+- 4: IDOL (stone statue)
+- 5-6: KOLONNA1-2 (columns)
+- 7-9: LAKE1-3 (water features)
+- 10-11: UKOZATEL1-2 (signposts)
+- 12-15: WALL1-4 (stone walls)
+
+These are **large map decorations** placed by level design, NOT small grass texture elements.
+
+See `TERRAIN-BUGS.md` for full terrain rendering documentation.
+See `assets/sprites/ASSET_FORMAT.md` for animation format documentation.
+
+### Decoration System Architecture (from smali analysis)
+
+The original game's decoration system is **map-driven, not procedural**:
+
+1. **Map Files** (`map0.m` - `map29.m`) contain object positions with TYPE codes
+2. **Type → Animation Mapping** (`Script.getAnimID(type, terrainType)`):
+   - Same TYPE code maps to different animations based on terrain
+   - Example: `TYPE_BIGROCK` → `DECOR_GRASS_BIGROCK` (grass) or `DECOR_SNOW_BIGROCK` (snow)
+3. **Terrain-Aware Packages**:
+   - Package 27: Grass decorations (DECOR_GRASS_*)
+   - Package 28: Snow decorations (DECOR_SNOW_*)
+   - Package 29: Necro decorations (DECOR_NECRO_*)
+4. **Decoration Objects** have `GO_FLAG_IS_DECOR` (0x10) flag
+
+This means decorations should be loaded from map data, not scattered randomly.
 
 ### Available Assets (from original game):
 - 48 animation packages (.dat + sprite sheets)
@@ -230,12 +294,21 @@ See `assets/sprites/ASSET_FORMAT.md` for full documentation.
 ## MILESTONE 2: First Mission (Future)
 
 After visual polish is done:
+- **Map Loading** (parse .m files, load objects/decorations from map data)
 - Building system (Castle, Guilds)
 - Unit recruitment
 - Resource management (gold, taxes)
 - Mission objectives
 - Win/lose conditions
 - Full UI dialogs
+
+### Map File Format (Needs Reverse Engineering)
+
+Map files are located at `assets/s3/map0.m` through `map29.m`:
+- Binary format, 20KB - 96KB per map
+- Contains: map dimensions, terrain types, object positions, spawn points
+- Objects include: buildings, decorations (TYPE_BIGROCK, TYPE_GRASS_TREE, etc.), spawn zones
+- See `TERRAIN-BUGS.md` for decoration type mappings
 
 ---
 
@@ -322,6 +395,29 @@ const FLD_BUSY = 0x7f;     // Occupied cell
 const FLD_LOCK = 0x80;     // Locked cell
 const ATTACK_RANGE = 15;   // Cells for combat detection
 ```
+
+## Animation ID Format
+
+Animation IDs in Import.smali are packed as: `(packageId << 10) | animId`
+
+```javascript
+// Example: DECOR_GRASS_BIGROCK = 0x6c00
+// Unpacking:
+const packageId = (0x6c00 >> 10) & 0x3FF;  // = 27
+const animId = 0x6c00 & 0x3FF;              // = 0
+// Result: Package 27, Animation 0
+
+// Helper functions in AnimationLoader.js:
+AnimationLoader.unpackId(id)  // Returns { packageId, animId }
+AnimationLoader.packId(packageId, animId)  // Returns packed ID
+```
+
+**Common ID ranges:**
+- `0x0000-0x03FF`: Package 0 (UI, icons)
+- `0x0400-0x07FF`: Package 1 (Buildings)
+- `0x6C00-0x6FFF`: Package 27 (Decorations)
+- `0x7000-0x73FF`: Package 28 (Snow decorations)
+- `0x7400-0x77FF`: Package 29 (Necro decorations)
 
 ---
 

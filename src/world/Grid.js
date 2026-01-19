@@ -18,17 +18,47 @@ export const TileType = {
     DIRT: 1,
     WATER: 2,
     STONE: 3,
-    SAND: 4
+    SAND: 4,
+    GRASS_DARK: 5,
+    GRASS_LIGHT: 6
 };
 
-// Tile colors for rendering (temporary until we have sprites)
+// Tile colors for rendering (fallback when no tileset loaded)
 const TILE_COLORS = {
     [TileType.GRASS]: 0x4a7c3f,
     [TileType.DIRT]: 0x8b6b4a,
     [TileType.WATER]: 0x3a6ea5,
     [TileType.STONE]: 0x6b6b6b,
-    [TileType.SAND]: 0xc4a84b
+    [TileType.SAND]: 0xc4a84b,
+    [TileType.GRASS_DARK]: 0x3d6b32,
+    [TileType.GRASS_LIGHT]: 0x5a9c4f
 };
+
+// Background textures (from Import.smali DD_WINDOW_TILE = 0x42)
+// Package 0, Animation 66 - tiled 84x84 textures (water, red, yellow terrain)
+// NOTE: Green grass is NOT in Animation 66 - it's procedurally generated!
+const GRASS_TILE_SIZE = 84;  // Each tile is 84x84 pixels
+
+// Animation 66 frame mapping (from test_terrain.html):
+// Frame 0: Water texture (blue)
+// Frame 1: Red terrain
+// Frame 2: Yellow terrain
+const TILE_FRAME_WATER = 0;
+const TILE_FRAME_RED = 1;
+const TILE_FRAME_YELLOW = 2;
+
+// Grass color palette from Buffer.smali grassColor array
+// Used for procedural grass generation (original game approach)
+const GRASS_COLORS = [
+    0x596d29,  // Olive green
+    0x617c1f,  // Green
+    0x479d2d,  // Bright green
+    // 0x5e8fd7 - Blue (skipped - for water)
+    0x628a24,  // Green
+    0x263b05,  // Dark green
+    0x4e6d1d,  // Green
+    0x54681e   // Green
+];
 
 export class Grid {
     /**
@@ -66,6 +96,60 @@ export class Grid {
 
         // Use textured rendering by default
         this.useTextures = true;
+
+        // Grass background texture (tiled 84x84 texture)
+        this.grassTexture = null;
+        this.grassLoaded = false;
+
+        // Background container for tiled grass
+        this.backgroundContainer = new PIXI.Container();
+        this.container.addChildAt(this.backgroundContainer, 0);  // Add behind tiles
+
+        // Decorations container (bushes, rocks, trees on top of grass)
+        this.decorationsContainer = new PIXI.Container();
+        this.container.addChild(this.decorationsContainer);
+    }
+
+    /**
+     * Generate grass texture
+     * Original game has NO visible grid - just smooth continuous grass.
+     * Use pure solid color - the "texture" comes from decorations on top.
+     */
+    generateGrassTexture() {
+        if (!this.app) {
+            console.warn('Cannot generate grass texture: missing app');
+            return false;
+        }
+
+        const size = GRASS_TILE_SIZE;
+        const graphics = new PIXI.Graphics();
+
+        // Pure solid grass color - NO patterns, NO grid lines
+        // Match original's yellowish-green hue
+        const baseColor = 0x5a7828;
+        graphics.rect(0, 0, size, size);
+        graphics.fill(baseColor);
+
+        // Generate texture from graphics
+        this.grassTexture = this.app.renderer.generateTexture(graphics);
+        this.grassLoaded = this.grassTexture !== null;
+
+        if (this.grassLoaded) {
+            console.log(`Solid grass texture generated: ${size}x${size}`);
+        }
+
+        return this.grassLoaded;
+    }
+
+    /**
+     * Load grass texture from animation loader (legacy method)
+     * Falls back to procedural generation
+     * @param {AnimationLoader} animationLoader - Optional loader
+     */
+    loadTileset(animationLoader) {
+        // Generate procedural grass instead of loading from animation
+        // Original game also uses procedural approach with grassColor palette
+        return this.generateGrassTexture();
     }
 
     /**
@@ -217,24 +301,108 @@ export class Grid {
      * Render using textured sprites
      */
     renderTextured() {
-        // Clear previous sprites
+        // Clear previous
         this.tilesContainer.removeChildren();
+        this.backgroundContainer.removeChildren();
 
-        // Draw tiles in correct order (back to front)
-        for (let j = 0; j < this.height; j++) {
-            for (let i = 0; i < this.width; i++) {
-                const tileType = this.getTile(i, j);
-                const texture = this.tileRenderer.getTexture(tileType);
-                const pos = IsoMath.gridToWorld(i, j);
+        // Render solid grass background (single rectangle, no tiling)
+        this.renderGrassBackground();
 
-                const sprite = new PIXI.Sprite(texture);
-                sprite.anchor.set(0.5, 0.5);
-                sprite.x = pos.x;
-                sprite.y = pos.y;
+        // TODO: Add grass decorations from Package 27 for visual richness
+        // TODO: Add terrain overlays (water, paths) as isometric diamond tiles
+    }
 
-                this.tilesContainer.addChild(sprite);
-            }
-        }
+    /**
+     * Render grass background as a SINGLE solid rectangle
+     * NO tiling - avoids the square grid pattern problem
+     */
+    renderGrassBackground() {
+        // Get the world bounds
+        const bounds = this.getWorldBounds();
+
+        // Add padding around the world
+        const padding = 200;
+        const x = bounds.minX - padding;
+        const y = bounds.minY - padding;
+        const width = (bounds.maxX - bounds.minX) + padding * 2;
+        const height = (bounds.maxY - bounds.minY) + padding * 2;
+
+        // Draw ONE solid rectangle - no tiling, no seams
+        const graphics = new PIXI.Graphics();
+        graphics.rect(x, y, width, height);
+        graphics.fill(0x5a7828);  // Grass green color
+
+        this.backgroundContainer.addChild(graphics);
+    }
+
+    /**
+     * Add grass decorations from Package 27
+     *
+     * NOTE: The original game does NOT scatter random decorations on grass.
+     * The grass is a solid green background. DECOR_GRASS_* items (BIGROCK, WALL,
+     * KOLONNA, etc.) are LARGE map decorations placed by level design, not grass texture.
+     *
+     * Previous implementation was broken - it used animations 21-30 which are
+     * SHADOW sprites (dark silhouettes), not actual decorations (0-15).
+     *
+     * This method is now disabled. Decorations should be loaded from map data.
+     *
+     * @param {AnimationLoader} animLoader - Animation loader with Package 27 loaded
+     */
+    addGrassDecorations(animLoader) {
+        // Clear existing decorations
+        this.decorationsContainer.removeChildren();
+
+        // DISABLED: The original game uses solid green grass without random decorations.
+        // Grass decorations (DECOR_GRASS_*) are large map objects placed by level design.
+        // They are NOT meant to be scattered randomly for grass texture.
+        //
+        // Package 27 animation mapping (from Import.smali):
+        // - Anim 0-15: DECOR_GRASS_* (BIGROCK, HOLM, IDOL, KOLONNA, LAKE, UKOZATEL, WALL)
+        // - Anim 16-20: RUINS_GRASS_PART*
+        // - Anim 21-35: SHADOW_DECOR_GRASS_* (shadow sprites - what was being loaded before!)
+        //
+        // TODO: Load decorations from actual map data when map loading is implemented.
+
+        console.log('Grass decorations disabled - original game uses solid green background');
+    }
+
+    /**
+     * Add a single decoration sprite at a grid position
+     */
+    addDecorationSprite(animLoader, packageId, animId, gridI, gridJ, offsetSeed) {
+        const frame = animLoader.getFrame(packageId, animId, 0);
+        if (!frame || frame.layers.length === 0) return;
+
+        const layer = frame.layers[0];
+        const rect = frame.rects[0];
+        const spriteTexture = animLoader.getSprite(packageId, layer.spriteIndex);
+
+        if (!spriteTexture) return;
+
+        // Create sub-texture for this decoration
+        const subTexture = new PIXI.Texture({
+            source: spriteTexture.source,
+            frame: new PIXI.Rectangle(rect.x, rect.y, rect.width, rect.height)
+        });
+
+        const sprite = new PIXI.Sprite(subTexture);
+
+        // Convert grid position to world position
+        const worldPos = IsoMath.gridToWorld(gridI, gridJ);
+
+        // Add small random offset within the cell for natural look
+        const offsetX = (offsetSeed - 0.5) * 20;
+        const offsetY = (Math.sin(offsetSeed * 100) * 0.5) * 20;
+
+        // Position sprite (center on the tile, account for sprite size)
+        sprite.x = worldPos.x + offsetX - rect.width / 2;
+        sprite.y = worldPos.y + offsetY - rect.height + 10;  // Offset up so base sits on ground
+
+        // Slight alpha variation for depth
+        sprite.alpha = 0.85 + offsetSeed * 0.15;
+
+        this.decorationsContainer.addChild(sprite);
     }
 
     /**

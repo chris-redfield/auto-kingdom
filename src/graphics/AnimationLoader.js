@@ -318,6 +318,56 @@ export class AnimationLoader {
     }
 
     /**
+     * Create a static texture from a single animation frame
+     * Useful for terrain tiles which are single-layer static images
+     * @param {PIXI.Application} app - For generating texture
+     * @param {number} packageId
+     * @param {number} animId
+     * @param {number} frameId
+     * @returns {PIXI.Texture|null}
+     */
+    createFrameTexture(app, packageId, animId, frameId) {
+        const frame = this.getFrame(packageId, animId, frameId);
+        if (!frame || frame.layers.length === 0) return null;
+
+        // For simple tiles, just return the texture region directly
+        const layer = frame.layers[0];
+        const rect = frame.rects[0];
+        const texture = this.getSprite(packageId, layer.spriteIndex);
+
+        if (!texture || !rect || rect.width <= 0 || rect.height <= 0) {
+            return null;
+        }
+
+        // Create sub-texture from the sprite sheet
+        const subTexture = new PIXI.Texture({
+            source: texture.source,
+            frame: new PIXI.Rectangle(rect.x, rect.y, rect.width, rect.height)
+        });
+
+        return subTexture;
+    }
+
+    /**
+     * Create array of tile textures from a tileset animation
+     * @param {PIXI.Application} app
+     * @param {number} packageId
+     * @param {number} animId - Base animation ID for tileset
+     * @returns {PIXI.Texture[]}
+     */
+    createTilesetTextures(app, packageId, animId) {
+        const anim = this.getAnimation(packageId, animId);
+        if (!anim) return [];
+
+        const textures = [];
+        for (let i = 0; i < anim.frameCount; i++) {
+            const tex = this.createFrameTexture(app, packageId, animId, i);
+            textures.push(tex);
+        }
+        return textures;
+    }
+
+    /**
      * Get animation ID from packed format (used in original game)
      * ID format: (packageId << 10) | animId
      */

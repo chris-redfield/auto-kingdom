@@ -165,21 +165,23 @@ export class Missile extends Entity {
         flash.x = this.worldX;
         flash.y = this.worldY;
 
-        this.sprite.parent.addChild(flash);
+        const parent = this.sprite.parent;
+        parent.addChild(flash);
 
-        // Fade out and remove the flash
+        // Fade out using PIXI ticker (better than setInterval)
         let alpha = 0.8;
-        const fadeInterval = setInterval(() => {
+        const fadeCallback = () => {
             alpha -= 0.1;
             flash.alpha = alpha;
             if (alpha <= 0) {
-                clearInterval(fadeInterval);
+                PIXI.Ticker.shared.remove(fadeCallback);
                 if (flash.parent) {
                     flash.parent.removeChild(flash);
                 }
                 flash.destroy();
             }
-        }, 30);
+        };
+        PIXI.Ticker.shared.add(fadeCallback);
     }
 
     /**

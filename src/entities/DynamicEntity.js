@@ -795,19 +795,20 @@ export class DynamicEntity extends Entity {
 
         this.sprite.parent.addChild(slash);
 
-        // Fade out and remove
+        // Fade out using PIXI ticker (better than setInterval)
         let alpha = 1.0;
-        const fadeInterval = setInterval(() => {
-            alpha -= 0.15;
+        const fadeCallback = () => {
+            alpha -= 0.08;  // Slightly slower for smoother fade at 60fps
             slash.alpha = alpha;
             if (alpha <= 0) {
-                clearInterval(fadeInterval);
+                PIXI.Ticker.shared.remove(fadeCallback);
                 if (slash.parent) {
                     slash.parent.removeChild(slash);
                 }
                 slash.destroy();
             }
-        }, 40);
+        };
+        PIXI.Ticker.shared.add(fadeCallback);
     }
 
     /**
