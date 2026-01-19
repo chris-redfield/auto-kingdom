@@ -314,6 +314,12 @@ export class DynamicEntity extends Entity {
      * Update entity (called each game tick)
      */
     update(deltaTime) {
+        // Skip processing for dead/dying entities (except animation updates)
+        if (!this.isAlive()) {
+            this.updateAnimation();  // Still update death animation
+            return;
+        }
+
         super.update(deltaTime);
 
         // Update animation
@@ -825,6 +831,11 @@ export class DynamicEntity extends Entity {
     clearAttackTarget() {
         this.attackTarget = null;
         this.target = null;
+        // Reset state to IDLE so entity can move/find new targets
+        if (this.state === EntityState.ATTACKING) {
+            this.state = EntityState.IDLE;
+            this.setAnimState('idle');
+        }
     }
 
     /**
@@ -881,11 +892,6 @@ export class DynamicEntity extends Entity {
         if (this.useAnimations && this.animSprite) {
             this.setAnimState('death');
             this.animSprite.loop = false;  // Don't loop death animation
-        }
-
-        // Fade out the sprite
-        if (this.sprite) {
-            this.sprite.alpha = 0.5;
         }
     }
 
