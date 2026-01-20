@@ -92,7 +92,8 @@ export class Entity {
         if (this.sprite) {
             this.sprite.x = this.worldX;
             this.sprite.y = this.worldY;
-            this.sprite.zIndex = IsoMath.getDepthAtWorld(this.worldX, this.worldY);
+            // Add small offset so entities render on top of buildings/decorations at same depth
+            this.sprite.zIndex = IsoMath.getDepthAtWorld(this.worldX, this.worldY) + 0.5;
         }
     }
 

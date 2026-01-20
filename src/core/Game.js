@@ -876,11 +876,11 @@ export class Game {
             frameContainer.x = worldPos.x;
             frameContainer.y = worldPos.y;
 
-            // Set depth for sorting
-            frameContainer.zIndex = worldPos.y;
+            // Set depth for sorting - use same calculation as entities (i + j)
+            frameContainer.zIndex = IsoMath.getDepthAtWorld(worldPos.x, worldPos.y);
 
-            // Add to grid container
-            this.grid.decorationsContainer.addChild(frameContainer);
+            // Add to main grid container for proper z-sorting with entities
+            this.grid.container.addChild(frameContainer);
             decorationsRendered++;
         }
 
@@ -941,17 +941,35 @@ export class Game {
             frameContainer.x = worldPos.x;
             frameContainer.y = worldPos.y;
 
-            // Set depth for sorting (buildings should appear behind units at same position)
-            frameContainer.zIndex = worldPos.y;
+            // Set depth for sorting - use same calculation as entities (i + j)
+            frameContainer.zIndex = IsoMath.getDepthAtWorld(worldPos.x, worldPos.y);
 
-            // Add to grid container
-            this.grid.decorationsContainer.addChild(frameContainer);
+            // Add to main grid container (same as entities) for proper z-sorting
+            this.grid.container.addChild(frameContainer);
             buildingsRendered++;
 
-            console.log(`Building type ${obj.type} at (${obj.gridI}, ${obj.gridJ}) - team: ${obj.team}, level: ${obj.level}`);
+            // Lock grid cells so units can't walk through buildings
+            // Buildings are typically 2x2 or 3x3 tiles
+            const buildingSize = this.getBuildingSize(obj.type);
+            for (let di = 0; di < buildingSize; di++) {
+                for (let dj = 0; dj < buildingSize; dj++) {
+                    this.grid.lock(obj.gridI + di, obj.gridJ + dj);
+                }
+            }
+
+            console.log(`Building type ${obj.type} at (${obj.gridI}, ${obj.gridJ}) - size: ${buildingSize}x${buildingSize}`);
         }
 
         console.log(`Rendered ${buildingsRendered} map buildings`);
+    }
+
+    /**
+     * Get building size in grid cells based on type
+     */
+    getBuildingSize(buildingType) {
+        // Most buildings are 2x2, larger ones are 3x3
+        const largeBuildingTypes = [0x20, 0x2b]; // Castle, Palace
+        return largeBuildingTypes.includes(buildingType) ? 3 : 2;
     }
 
     /**

@@ -150,8 +150,10 @@ export class Building extends Entity {
         if (this.sprite) {
             this.sprite.x = this.worldX;
             this.sprite.y = this.worldY;
-            // Buildings need higher z-index since they're taller
-            this.sprite.zIndex = IsoMath.getDepthAtWorld(this.worldX, this.worldY) + 100;
+            // Use y position for z-index - same as entities for proper sorting
+            // Units at higher y (in front of building) will render on top
+            // Units at lower y (behind building) will render behind
+            this.sprite.zIndex = IsoMath.getDepthAtWorld(this.worldX, this.worldY);
         }
     }
 
