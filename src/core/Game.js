@@ -1332,6 +1332,19 @@ export class Game {
         const centerI = Math.floor(this.gridWidth / 2);
         const centerJ = Math.floor(this.gridHeight / 2);
 
+        // Castle (center) - important for win/lose conditions
+        const castle = new Building(centerI, centerJ - 3, BuildingType.CASTLE);
+        castle.team = 0;
+        castle.maxHealth = 1000;  // Castle has more HP
+        castle.health = castle.maxHealth;
+        castle.sizeI = 3;  // Castle is bigger
+        castle.sizeJ = 3;
+        castle.initSprite();
+        this.grid.container.addChild(castle.sprite);
+        castle.lockCells(this.grid);
+        this.buildings.push(castle);
+        this.playerCastle = castle;  // Set as player castle for defeat condition
+
         // Warrior Guild
         const warriorGuild = new Building(centerI - 8, centerJ - 3, BuildingType.WARRIOR_GUILD);
         warriorGuild.team = 0;
@@ -1353,10 +1366,11 @@ export class Game {
             this.updateBuildingAnimations();
         }
 
-        console.log('Created test guilds: Warrior Guild and Ranger Guild');
+        console.log('Created Castle and test guilds: Warrior Guild and Ranger Guild');
+        console.log('Castle destroyed = DEFEAT | All enemies killed = VICTORY');
         console.log('Click on a guild to recruit heroes (Warrior: 450g, Ranger: 350g)');
         if (this.hud) {
-            this.hud.showMessage('Guilds created! Click to recruit.', 3000);
+            this.hud.showMessage('Castle + Guilds created!', 3000);
         }
     }
 
@@ -1439,10 +1453,27 @@ export class Game {
 
     /**
      * Check if game has ended (victory or defeat)
+     *
+     * Win/Lose conditions based on original Majesty game:
+     * - DEFEAT: Castle is destroyed (primary condition)
+     * - DEFEAT: All player units dead (fallback if no castle)
+     * - VICTORY: All enemies dead (simple mode - can be extended per-level)
+     *
+     * Note: Original game has level-specific objectives (questState system)
+     * which can be added later for individual mission goals.
      */
     checkGameEnd() {
         // Don't check if game already ended
         if (this.gameEnded) return;
+
+        // Don't check during early game (allow spawning to complete)
+        if (this.ticks < 300) return; // ~5 seconds grace period
+
+        // Check castle destruction (primary defeat condition)
+        if (this.playerCastle && !this.playerCastle.isAlive()) {
+            this.onDefeat('Castle destroyed!');
+            return;
+        }
 
         let playerAlive = 0;
         let enemyAlive = 0;
@@ -1457,14 +1488,19 @@ export class Game {
             }
         }
 
-        // Victory - all enemies dead
+        // Victory - all enemies dead (only if enemies have spawned)
+        // Check that at least one enemy was ever present to avoid false victory
         if (enemyAlive === 0 && this.state === GameState.GAME) {
-            this.onVictory();
+            // Only trigger if we've actually had enemies (or it's a map without enemies)
+            const hasHadCombat = this.entities.some(e => e.team === 'enemy');
+            if (hasHadCombat) {
+                this.onVictory();
+            }
         }
 
-        // Defeat - all player units dead
-        if (playerAlive === 0 && this.state === GameState.GAME) {
-            this.onDefeat();
+        // Defeat - all player units dead (fallback if no castle)
+        if (!this.playerCastle && playerAlive === 0 && this.state === GameState.GAME) {
+            this.onDefeat('All allies lost!');
         }
     }
 
@@ -1487,8 +1523,9 @@ export class Game {
 
     /**
      * Handle defeat
+     * @param {string} reason - Optional reason for defeat
      */
-    onDefeat() {
+    onDefeat(reason = 'All allies lost!') {
         this.gameEnded = true;
         this.setState(GameState.GAME_PAUSE);
 
@@ -1496,9 +1533,9 @@ export class Game {
         this.playSound(SOUNDS.YOUR_BUILDING_DENIED);
 
         if (this.hud) {
-            this.hud.showMessage('DEFEAT!', 3000);
+            this.hud.showMessage(`DEFEAT! ${reason}`, 3000);
         }
-        console.log('Defeat! All allies lost.');
+        console.log(`Defeat! ${reason}`);
     }
 
     /**

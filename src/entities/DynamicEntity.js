@@ -401,23 +401,47 @@ export class DynamicEntity extends Entity {
 
     /**
      * Find nearest enemy within sight range
+     * Searches both units and buildings
      */
     findNearestEnemy() {
-        if (!this.game || !this.game.entities) return null;
+        if (!this.game) return null;
 
         let nearestEnemy = null;
         let nearestDist = this.sightRange;
 
-        for (const entity of this.game.entities) {
-            // Skip self, dead, and same team
-            if (entity === this) continue;
-            if (!entity.isAlive()) continue;
-            if (entity.team === this.team) continue;
+        // First, check enemy units
+        if (this.game.entities) {
+            for (const entity of this.game.entities) {
+                // Skip self, dead, and same team
+                if (entity === this) continue;
+                if (!entity.isAlive()) continue;
+                if (entity.team === this.team) continue;
 
-            const dist = this.distanceTo(entity);
-            if (dist < nearestDist) {
-                nearestDist = dist;
-                nearestEnemy = entity;
+                const dist = this.distanceTo(entity);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestEnemy = entity;
+                }
+            }
+        }
+
+        // If no enemy units found, check enemy buildings (especially castle)
+        // Enemies (team='enemy') will attack player buildings (team=0)
+        // Player units (team='player') will attack enemy buildings (team=1)
+        if (!nearestEnemy && this.game.buildings) {
+            const targetTeam = this.team === 'enemy' ? 0 : 1;
+            // Use much larger range for buildings (will pathfind to them)
+            const buildingSearchRange = 50;  // Cells
+
+            for (const building of this.game.buildings) {
+                if (!building.isAlive()) continue;
+                if (building.team !== targetTeam) continue;
+
+                const dist = this.distanceTo(building);
+                if (dist < buildingSearchRange && (!nearestEnemy || dist < nearestDist)) {
+                    nearestDist = dist;
+                    nearestEnemy = building;
+                }
             }
         }
 
