@@ -17,6 +17,7 @@ import { UNIT_ANIMS, BUILDING_ANIMS } from '../utils/AnimationConstants.js';
 import { getSoundManager } from '../audio/SoundManager.js';
 import { SOUNDS, MUSIC } from '../audio/SoundConstants.js';
 import { MapLoader } from '../world/MapLoader.js';
+import { SpawnManager } from '../systems/SpawnManager.js';
 
 export class Game {
     constructor(app, input, assetLoader) {
@@ -43,7 +44,7 @@ export class Game {
         this.missiles = [];
 
         // Game data
-        this.gold = 100;
+        this.gold = 1000;  // DEBUG: High starting gold for testing
         this.ticks = 0;
 
         // Game end flag (prevent multiple victory/defeat triggers)
@@ -83,6 +84,12 @@ export class Game {
         // Sound system
         this.soundManager = getSoundManager();
         this.soundsLoaded = false;
+
+        // Spawn system
+        this.spawnManager = new SpawnManager(this);
+
+        // Player's castle reference (for win/lose conditions)
+        this.playerCastle = null;
 
         this.init();
     }
@@ -273,22 +280,160 @@ export class Game {
                     this.selectEntity(clickedEntity);
                     console.log(`Selected entity ${clickedEntity.id}`);
                 }
-            } else if (this.grid.isInBounds(gridPos.i, gridPos.j) &&
-                       this.grid.isWalkable(gridPos.i, gridPos.j) &&
-                       this.selectedUnit) {
-                // Clear attack target when moving to empty tile
-                this.selectedUnit.clearAttackTarget();
+            } else {
+                // Check if clicked on a building
+                const clickedBuilding = this.getBuildingAt(gridPos.i, gridPos.j);
 
-                // Move selected unit to clicked tile
-                const success = this.selectedUnit.moveTo(gridPos.i, gridPos.j, this.grid);
+                if (clickedBuilding && clickedBuilding.team === 0) {
+                    // Player building - try to recruit
+                    this.handleBuildingClick(clickedBuilding);
+                } else if (this.grid.isInBounds(gridPos.i, gridPos.j) &&
+                           this.grid.isWalkable(gridPos.i, gridPos.j) &&
+                           this.selectedUnit) {
+                    // Clear attack target when moving to empty tile
+                    this.selectedUnit.clearAttackTarget();
 
-                if (success) {
-                    console.log(`Moving to (${gridPos.i}, ${gridPos.j})`);
-                } else {
-                    console.log('No path found or already at destination');
+                    // Move selected unit to clicked tile
+                    const success = this.selectedUnit.moveTo(gridPos.i, gridPos.j, this.grid);
+
+                    if (success) {
+                        console.log(`Moving to (${gridPos.i}, ${gridPos.j})`);
+                    } else {
+                        console.log('No path found or already at destination');
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Get building at grid position
+     */
+    getBuildingAt(gridI, gridJ) {
+        for (const building of this.buildings) {
+            // Check if position is within building's occupied cells
+            if (gridI >= building.gridI && gridI < building.gridI + building.sizeI &&
+                gridJ >= building.gridJ && gridJ < building.gridJ + building.sizeJ) {
+                return building;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Handle click on a building
+     */
+    handleBuildingClick(building) {
+        // Recruitment costs (from original game)
+        const recruitmentCosts = {
+            [BuildingType.WARRIOR_GUILD]: { cost: 450, type: 'WARRIOR', name: 'Warrior' },
+            [BuildingType.RANGER_GUILD]: { cost: 350, type: 'RANGER', name: 'Ranger' },
+            [BuildingType.WIZARD_GUILD]: { cost: 500, type: 'WIZARD', name: 'Wizard' }
+        };
+
+        const recruitment = recruitmentCosts[building.buildingType];
+
+        if (recruitment) {
+            if (this.gold >= recruitment.cost) {
+                // Deduct gold
+                this.gold -= recruitment.cost;
+
+                // Find spawn position near building
+                const spawnPos = this.findSpawnPositionNearBuilding(building);
+
+                if (spawnPos) {
+                    // Spawn the hero
+                    this.spawnHero(recruitment.type, spawnPos.i, spawnPos.j);
+
+                    if (this.hud) {
+                        this.hud.showMessage(`${recruitment.name} recruited! -${recruitment.cost} gold`, 2000);
+                    }
+                    this.playSound(SOUNDS.GOLD);
+                    console.log(`Recruited ${recruitment.name} for ${recruitment.cost} gold`);
+                }
+            } else {
+                if (this.hud) {
+                    this.hud.showMessage(`Need ${recruitment.cost} gold for ${recruitment.name}`, 2000);
+                }
+                console.log(`Not enough gold for ${recruitment.name} (need ${recruitment.cost}, have ${this.gold})`);
+            }
+        } else {
+            // Non-guild building (like Castle)
+            console.log(`Clicked on ${building.getName()}`);
+        }
+    }
+
+    /**
+     * Find a spawn position near a building
+     */
+    findSpawnPositionNearBuilding(building) {
+        // Check positions around the building
+        const offsets = [
+            [0, -1], [1, -1], [2, -1],  // Top
+            [-1, 0], [-1, 1],           // Left
+            [2, 0], [2, 1],             // Right (building is 2 wide)
+            [0, 2], [1, 2], [2, 2]      // Bottom
+        ];
+
+        for (const [di, dj] of offsets) {
+            const i = building.gridI + di;
+            const j = building.gridJ + dj;
+            if (this.grid.isInBounds(i, j) && this.grid.isWalkable(i, j)) {
+                return { i, j };
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Spawn a player hero
+     */
+    spawnHero(configName, gridI, gridJ) {
+        const animConfig = UNIT_ANIMS[configName];
+        if (!animConfig) {
+            console.warn(`SpawnHero: Unknown config ${configName}`);
+            return null;
+        }
+
+        const hero = new DynamicEntity(gridI, gridJ);
+        hero.initSprite();
+        hero.setBodyColor(0x44ff44);  // Green for player heroes
+        hero.setGrid(this.grid);
+        hero.game = this;
+        hero.team = 'player';
+        hero.autoPlay = true;  // Heroes act autonomously
+        hero.sightRange = 12;
+
+        // Set unit type for sounds
+        hero.unitType = configName.toLowerCase();
+
+        // Apply animations if loaded
+        if (this.animationsLoaded && this.animLoader.animationData[animConfig.package]) {
+            hero.setAnimations(this.animLoader, animConfig);
+        }
+
+        // Set stats based on type
+        if (configName === 'WARRIOR') {
+            hero.maxHealth = 100;
+            hero.health = 100;
+            hero.damage = 15;
+            hero.isRanged = false;
+        } else if (configName === 'RANGER') {
+            hero.maxHealth = 60;
+            hero.health = 60;
+            hero.damage = 12;
+            hero.isRanged = true;
+            hero.rangedRange = 8;
+        }
+
+        // Add to grid container and entities
+        if (this.grid) {
+            this.grid.container.addChild(hero.sprite);
+        }
+        this.entities.push(hero);
+
+        console.log(`Spawned ${configName} hero at (${gridI}, ${gridJ})`);
+        return hero;
     }
 
     /**
@@ -567,7 +712,10 @@ export class Game {
             if (this.mapLoader && this.mapLoader.objects.length > 0) {
                 this.renderMapDecorations();
                 this.renderMapBuildings();
-                this.spawnMapUnits();
+
+                // Initialize spawn system from map data (disabled for now - causes lag)
+                // this.spawnManager.initFromMap(this.mapLoader);
+                // this.spawnManager.start();
             }
 
             // Update existing entities to use animations
@@ -1153,6 +1301,101 @@ export class Game {
         if (this.input.isKeyDown('arrowdown')) {
             this.camera.pan(0, -speed); // Move camera down (see content below)
         }
+
+        // Test spawn: Press T to spawn a random enemy near center
+        if (this.input.isKeyJustPressed('t')) {
+            this.testSpawn();
+        }
+
+        // Show spawn status: Press Y to log spawn manager status
+        if (this.input.isKeyJustPressed('y')) {
+            console.log('Spawn Status:', this.spawnManager.getStatus());
+            console.log('Spawn Points:', this.spawnManager.spawnPoints.length);
+            console.log('Wave Spawns:', this.spawnManager.waveSpawns.length);
+        }
+
+        // Create test guild buildings: Press G
+        if (this.input.isKeyJustPressed('g')) {
+            this.createTestGuilds();
+        }
+    }
+
+    /**
+     * Create test guild buildings for hero recruitment
+     */
+    createTestGuilds() {
+        if (this.buildings.length >= 3) {
+            console.log('Guilds already created');
+            return;
+        }
+
+        const centerI = Math.floor(this.gridWidth / 2);
+        const centerJ = Math.floor(this.gridHeight / 2);
+
+        // Warrior Guild
+        const warriorGuild = new Building(centerI - 8, centerJ - 3, BuildingType.WARRIOR_GUILD);
+        warriorGuild.team = 0;
+        warriorGuild.initSprite();
+        this.grid.container.addChild(warriorGuild.sprite);
+        warriorGuild.lockCells(this.grid);
+        this.buildings.push(warriorGuild);
+
+        // Ranger Guild
+        const rangerGuild = new Building(centerI + 5, centerJ - 3, BuildingType.RANGER_GUILD);
+        rangerGuild.team = 0;
+        rangerGuild.initSprite();
+        this.grid.container.addChild(rangerGuild.sprite);
+        rangerGuild.lockCells(this.grid);
+        this.buildings.push(rangerGuild);
+
+        // Update animations if loaded
+        if (this.animationsLoaded) {
+            this.updateBuildingAnimations();
+        }
+
+        console.log('Created test guilds: Warrior Guild and Ranger Guild');
+        console.log('Click on a guild to recruit heroes (Warrior: 450g, Ranger: 350g)');
+        if (this.hud) {
+            this.hud.showMessage('Guilds created! Click to recruit.', 3000);
+        }
+    }
+
+    /**
+     * Test spawn - spawn a random enemy near the selected unit or center
+     */
+    testSpawn() {
+        // Get spawn position near selected unit or center
+        let spawnI, spawnJ;
+        if (this.selectedUnit) {
+            spawnI = this.selectedUnit.gridI + Math.floor(Math.random() * 6) - 3;
+            spawnJ = this.selectedUnit.gridJ + Math.floor(Math.random() * 6) - 3;
+        } else {
+            spawnI = Math.floor(this.gridWidth / 2) + Math.floor(Math.random() * 10) - 5;
+            spawnJ = Math.floor(this.gridHeight / 2) + Math.floor(Math.random() * 10) - 5;
+        }
+
+        // Find walkable position
+        if (!this.grid.isWalkable(spawnI, spawnJ)) {
+            // Try nearby cells
+            for (let di = -2; di <= 2; di++) {
+                for (let dj = -2; dj <= 2; dj++) {
+                    if (this.grid.isWalkable(spawnI + di, spawnJ + dj)) {
+                        spawnI += di;
+                        spawnJ += dj;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Randomly pick enemy type
+        const enemyTypes = ['GIANT_RAT', 'TROLL'];
+        const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+
+        const enemy = this.spawnEnemy(type, spawnI, spawnJ);
+        if (enemy) {
+            console.log(`Test spawn: ${type} at (${spawnI}, ${spawnJ})`);
+        }
     }
 
     /**
@@ -1183,6 +1426,9 @@ export class Game {
                 entity.update(deltaTime);
             }
         }
+
+        // Update spawn system (disabled for now - causes lag with many enemies)
+        // this.spawnManager.update(deltaTime);
 
         // Update missiles
         this.updateMissiles(deltaTime);
@@ -1306,6 +1552,49 @@ export class Game {
                 this.worldContainer.removeChild(entity.sprite);
             }
         }
+    }
+
+    /**
+     * Spawn an enemy unit at the given grid position
+     * @param {string} configName - Name from UNIT_ANIMS (e.g., 'GIANT_RAT', 'TROLL')
+     * @param {number} gridI - Grid column
+     * @param {number} gridJ - Grid row
+     * @returns {DynamicEntity|null} The spawned enemy or null if spawn failed
+     */
+    spawnEnemy(configName, gridI, gridJ) {
+        // Get unit animation config
+        const animConfig = UNIT_ANIMS[configName];
+        if (!animConfig) {
+            console.warn(`SpawnEnemy: Unknown config ${configName}`);
+            return null;
+        }
+
+        // Create the enemy entity
+        const enemy = new DynamicEntity(gridI, gridJ);
+        enemy.initSprite();
+        enemy.setBodyColor(0xff4444);  // Red for enemies
+        enemy.setGrid(this.grid);
+        enemy.game = this;
+        enemy.team = 'enemy';
+        enemy.autoPlay = true;
+        enemy.sightRange = 10;
+
+        // Set unit type for sounds based on config name
+        enemy.unitType = configName.toLowerCase().replace('_', '');
+
+        // Apply animations if loaded
+        if (this.animationsLoaded && this.animLoader.animationData[animConfig.package]) {
+            enemy.setAnimations(this.animLoader, animConfig);
+        }
+
+        // Add to grid container and entities
+        if (this.grid) {
+            this.grid.container.addChild(enemy.sprite);
+        }
+        this.entities.push(enemy);
+
+        console.log(`Spawned ${configName} at (${gridI}, ${gridJ})`);
+        return enemy;
     }
 
     /**

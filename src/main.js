@@ -81,6 +81,7 @@ async function init() {
         window.input = input;
         window.app = app;
         window.assetLoader = assetLoader;
+        window.spawnManager = game.spawnManager;
 
         console.log('Majesty JS - Ready!');
         console.log('Game running at', SCREEN_WIDTH, 'x', SCREEN_HEIGHT);
@@ -90,7 +91,14 @@ async function init() {
         console.log('  - C: Center camera on unit');
         console.log('  - S: Test screen shake');
         console.log('  - D: Toggle debug info');
+        console.log('  - T: Test spawn enemy');
+        console.log('  - Y: Show spawn status');
+        console.log('  - G: Create test guilds');
         console.log('  - ESC: Pause/Resume');
+        console.log('');
+        console.log('Gameplay:');
+        console.log('  - Click guild to recruit hero (costs gold)');
+        console.log('  - Kill enemies to earn gold');
 
     } catch (error) {
         console.error('Failed to initialize game:', error);

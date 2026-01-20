@@ -882,6 +882,17 @@ export class DynamicEntity extends Entity {
         // Vacate the cell we're on
         this.vacateCell(this.gridI, this.gridJ);
 
+        // Award gold to player when enemy dies
+        if (this.team === 'enemy' && this.game) {
+            const goldReward = this.getGoldReward();
+            this.game.gold += goldReward;
+            console.log(`+${goldReward} gold (total: ${this.game.gold})`);
+            // Play gold sound (use SOUNDS.GOLD not string)
+            if (this.game.playSound) {
+                this.game.playSound(SOUNDS.GOLD);
+            }
+        }
+
         // Play death sound
         if (this.game && this.game.playSoundAt) {
             const deathSound = getDeathSoundForUnit(this.unitType);
@@ -893,6 +904,26 @@ export class DynamicEntity extends Entity {
             this.setAnimState('death');
             this.animSprite.loop = false;  // Don't loop death animation
         }
+    }
+
+    /**
+     * Get gold reward for killing this unit
+     */
+    getGoldReward() {
+        // DEBUG: High rewards for testing
+        return 100;
+
+        // Original rewards (uncomment when done testing):
+        // const rewards = {
+        //     'giantrat': 5,
+        //     'giant_rat': 5,
+        //     'rat': 5,
+        //     'troll': 15,
+        //     'goblin': 8,
+        //     'goblin_archer': 10
+        // };
+        // const baseReward = rewards[this.unitType] || 10;
+        // return Math.floor(baseReward * (1 + (this.level - 1) * 0.5));
     }
 
     /**

@@ -40,49 +40,49 @@ export const GAME_DIR_TO_ANIM_DIR = [
  */
 /**
  * Building animation configurations
- * Package 1 contains all building sprites
- * Buildings typically have: idle (normal), damaged, destroyed states
- * Note: These IDs need verification against actual package 1 contents
+ * Extracted from Import.smali - packed IDs decoded as: package = id >> 10, anim = id & 0x3FF
  */
 export const BUILDING_ANIMS = {
-    // Castle - player starting building
+    // Castle - CASTLE_1_ON = 0x412 -> package 1, anim 18
     CASTLE: {
         package: 1,
-        idle: 0,        // Normal state
-        damaged: 1,     // Damaged visual
-        destroyed: 2    // Destroyed/ruins
+        idle: 18,       // CASTLE_1_ON
+        off: 17,        // CASTLE_1_OFF
+        destroyed: 16   // CASTLE_1_DESTROY
     },
 
-    // Warrior Guild - trains warriors
+    // Warrior Guild - WARRIOR_GUILD_ON = 0x2024 -> package 8, anim 36
     WARRIOR_GUILD: {
-        package: 1,
-        idle: 3,
-        damaged: 4,
-        destroyed: 5
+        package: 8,
+        idle: 36,       // WARRIOR_GUILD_ON
+        off: 35,        // WARRIOR_GUILD_OFF
+        destroyed: 34,  // WARRIOR_GUILD_DESTROY
+        build: 33       // WARRIOR_GUILD_BUILD
     },
 
-    // Ranger Guild - trains rangers
+    // Ranger Guild - RANGER_GUILD_ON = 0x1c23 -> package 7, anim 35
     RANGER_GUILD: {
-        package: 1,
-        idle: 6,
-        damaged: 7,
-        destroyed: 8
+        package: 7,
+        idle: 35,       // RANGER_GUILD_ON
+        off: 34,        // RANGER_GUILD_OFF
+        destroyed: 33,  // RANGER_GUILD_DESTROY
+        build: 32       // RANGER_GUILD_BUILD
     },
 
-    // Marketplace - generates gold
+    // Marketplace - need to find correct IDs
     MARKETPLACE: {
         package: 1,
         idle: 9,
-        damaged: 10,
-        destroyed: 11
+        off: 8,
+        destroyed: 7
     },
 
-    // Blacksmith - upgrades weapons
+    // Blacksmith - BLACKSMITH_1_ON = 0x402 -> package 1, anim 2
     BLACKSMITH: {
         package: 1,
-        idle: 12,
-        damaged: 13,
-        destroyed: 14
+        idle: 2,        // BLACKSMITH_1_ON
+        off: 1,         // BLACKSMITH_1_OFF
+        destroyed: 0    // BLACKSMITH_1_DESTROY
     }
 };
 
