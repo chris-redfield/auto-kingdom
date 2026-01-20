@@ -152,6 +152,30 @@ export class Grid {
             }
         }
 
+        // Debug: Check overlay values in map data
+        if (this.mapLoader) {
+            let overlayCount = 0;
+            let totalChecked = 0;
+            const overlaySamples = [];
+
+            for (let j = 0; j < Math.min(50, this.height); j++) {
+                for (let i = 0; i < Math.min(50, this.width); i++) {
+                    const overlay = this.mapLoader.getTerrainOverlay(i, j);
+                    totalChecked++;
+                    if (overlay > 0) {
+                        overlayCount++;
+                        if (overlaySamples.length < 5) {
+                            overlaySamples.push(`(${i},${j})=${overlay}`);
+                        }
+                    }
+                }
+            }
+            console.log(`Overlay check: ${overlayCount}/${totalChecked} tiles have overlays`);
+            if (overlaySamples.length > 0) {
+                console.log(`  Samples: ${overlaySamples.join(', ')}`);
+            }
+        }
+
         // Clear existing terrain and re-render with new system
         this.clearTerrainSprites();
         console.log('Terrain animations set - will use AnimationLoader for rendering');
@@ -471,6 +495,7 @@ export class Grid {
     /**
      * Create a terrain sprite for a tile position
      * Uses AnimationLoader to get proper per-frame offsets
+     * Also adds overlay sprites for smooth terrain transitions
      * @returns {PIXI.Container|PIXI.Sprite|null} The sprite/container, or null if no texture
      */
     createTerrainSprite(i, j) {
@@ -479,29 +504,113 @@ export class Grid {
 
         // Use AnimationLoader if available (preferred - has offset data)
         if (this.terrainAnimLoader && this.terrainPackageId !== null) {
-            // Terrain tiles are in animation 0 of the terrain package
-            // Each frame is a different tile type
-            const container = this.terrainAnimLoader.createFrameContainer(
+            // Create a container to hold base tile + overlays
+            const tileContainer = new PIXI.Container();
+
+            // Get the TOP point of the tile for positioning
+            // Round to integers to avoid subpixel rendering artifacts (seams)
+            const topPos = IsoMath.getTileTop(i, j);
+            tileContainer.x = Math.round(topPos.x);
+            tileContainer.y = Math.round(topPos.y);
+
+            // Scale factors: tiles are 130x68, scale to 64x32 grid cells
+            // IMPORTANT: Use different X and Y scales because tile aspect ratio (1.91:1)
+            // doesn't match grid aspect ratio (2:1)
+            const scaleX = 64 / 130;   // 0.492 - scales width 130 → 64
+            const scaleY = 32 / 68;    // 0.471 - scales height 68 → 32
+
+            // Add base terrain tile
+            const baseTile = this.terrainAnimLoader.createFrameContainer(
                 this.terrainPackageId,
                 0,  // Animation 0 contains the terrain tiles
                 frameIndex
             );
 
-            if (container) {
-                // Tiles are 130x68 (from animation data), need to scale to 64x32 grid cells
-                // Using 64/130 ≈ 0.492 to match grid cell width
-                const scale = 64 / 130;
-                container.scale.set(scale, scale);
-
-                // Get the TOP point of the tile
-                const topPos = IsoMath.getTileTop(i, j);
-
-                // Position container - the offsets from animation data handle alignment
-                container.x = topPos.x;
-                container.y = topPos.y;
-
-                return container;
+            if (baseTile) {
+                baseTile.scale.set(scaleX, scaleY);
+                // Offset sprite so that the diamond's top vertex is at container position
+                // The sprite is 64px wide after scaling, so offset by -32 (half width)
+                baseTile.x = -IsoMath.TILE_HALF_WIDTH;
+                tileContainer.addChild(baseTile);
             }
+
+            // Add overlay tiles for smooth transitions (from Location.smali lines 4091-4174)
+            // Read overlay frames from 4 adjacent cells
+            const overlay1 = this.mapLoader.getTerrainOverlay(i, j);
+            const overlay2 = this.mapLoader.getTerrainOverlay(i + 1, j);
+            const overlay3 = this.mapLoader.getTerrainOverlay(i, j + 1);
+            const overlay4 = this.mapLoader.getTerrainOverlay(i + 1, j + 1);
+
+            // Draw overlays at offset positions (if non-zero)
+            // Offsets are in scaled coordinates (after 64/130 scale)
+            const halfWidth = IsoMath.TILE_HALF_WIDTH;
+            const halfHeight = IsoMath.TILE_HALF_HEIGHT;
+
+            // Debug: count overlays added (only log once)
+            if (!this._overlayLogDone && (overlay1 > 0 || overlay2 > 0 || overlay3 > 0 || overlay4 > 0)) {
+                console.log(`Tile (${i},${j}) overlays: o1=${overlay1}, o2=${overlay2}, o3=${overlay3}, o4=${overlay4}`);
+                this._overlayLogCount = (this._overlayLogCount || 0) + 1;
+                if (this._overlayLogCount >= 5) {
+                    this._overlayLogDone = true;
+                    console.log('(further overlay logs suppressed)');
+                }
+            }
+
+            // Draw overlays at offset positions (from Location.smali lines 4133-4174)
+            //
+            // Original game positions relative to base tile draw position:
+            // - overlay1: (x + halfWidth, y) - SHIFTED RIGHT by halfWidth!
+            // - overlay2: (x + fullWidth, y + halfHeight) - right edge
+            // - overlay3: (x, y + halfHeight) - left edge
+            // - overlay4: (x + halfWidth, y + fullHeight) - bottom center
+            //
+            // The overlays are positioned to cover the SEAMS between tiles, not
+            // drawn on top of the base tile. Each overlay covers a quarter of
+            // the current tile and a quarter of its neighbor.
+            //
+            // Since our container is at tile TOP (center-top of diamond), and
+            // Animation sprites are drawn from their top-left corner, we need
+            // to offset to match the original's seam-covering behavior.
+
+            // Overlay sprites also need the -halfWidth offset for proper centering
+            // Then add the position offsets from the original game
+            if (overlay1 > 0) {
+                const o1 = this.createOverlaySprite(overlay1, scaleX, scaleY);
+                if (o1) {
+                    o1.x = -halfWidth;  // Center on top vertex
+                    o1.y = 0;
+                    tileContainer.addChild(o1);
+                }
+            }
+
+            if (overlay2 > 0) {
+                const o2 = this.createOverlaySprite(overlay2, scaleX, scaleY);
+                if (o2) {
+                    o2.x = 0;  // -halfWidth + halfWidth = 0
+                    o2.y = Math.round(halfHeight);
+                    tileContainer.addChild(o2);
+                }
+            }
+
+            if (overlay3 > 0) {
+                const o3 = this.createOverlaySprite(overlay3, scaleX, scaleY);
+                if (o3) {
+                    o3.x = Math.round(-halfWidth * 2);  // -halfWidth + (-halfWidth) = -fullWidth
+                    o3.y = Math.round(halfHeight);
+                    tileContainer.addChild(o3);
+                }
+            }
+
+            if (overlay4 > 0) {
+                const o4 = this.createOverlaySprite(overlay4, scaleX, scaleY);
+                if (o4) {
+                    o4.x = -halfWidth;  // Center on bottom vertex
+                    o4.y = Math.round(IsoMath.TILE_HEIGHT);
+                    tileContainer.addChild(o4);
+                }
+            }
+
+            return tileContainer;
         }
 
         // Fallback: use old tile texture array (without offsets)
@@ -522,6 +631,33 @@ export class Grid {
         sprite.y = topPos.y;
 
         return sprite;
+    }
+
+    /**
+     * Create an overlay sprite for terrain transitions
+     * Overlays are semi-transparent tiles that blend terrain edges
+     * @param {number} frameIndex - Overlay frame index from terrain data
+     * @param {number} scaleX - X scale factor (64/130 for width)
+     * @param {number} scaleY - Y scale factor (32/68 for height)
+     * @returns {PIXI.Container|null} Overlay sprite container
+     */
+    createOverlaySprite(frameIndex, scaleX, scaleY) {
+        if (!this.terrainAnimLoader || this.terrainPackageId === null) {
+            return null;
+        }
+
+        // Overlays use the same animation (0) as base terrain tiles
+        const overlay = this.terrainAnimLoader.createFrameContainer(
+            this.terrainPackageId,
+            0,
+            frameIndex
+        );
+
+        if (overlay) {
+            overlay.scale.set(scaleX, scaleY);
+        }
+
+        return overlay;
     }
 
     /**

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Single Tile Test - Debug Rectangles</title>
+    <style>
+        body {
+            margin: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .test-container {
+            display: inline-block;
+            margin: 10px;
+            padding: 10px;
+            background: #333;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .test-container canvas {
+            display: block;
+            margin: 10px auto;
+        }
+        h3 {
+            margin: 5px 0;
+            color: #88aacc;
+        }
+        .info {
+            font-size: 12px;
+            color: #888;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Single Tile Rendering Test</h1>
+    <p>Testing if tiles render as diamonds or rectangles. Each tile is 130x68 pixels.</p>
+
+    <div id="controls">
+        <button onclick="setBackground('#1a1a2e')">Dark Blue BG</button>
+        <button onclick="setBackground('#ff00ff')">Magenta BG</button>
+        <button onclick="setBackground('#000000')">Black BG</button>
+        <button onclick="setBackground('repeating-conic-gradient(#808080 0% 25%, #404040 0% 50%) 50% / 20px 20px')">Checkerboard</button>
+    </div>
+
+    <div id="test-area"></div>
+
+    <h2>Observations</h2>
+    <ul>
+        <li>If corners show the background color = Alpha is working</li>
+        <li>If tile appears as full rectangle = Alpha NOT working</li>
+        <li>Check magenta background to clearly see transparent areas</li>
+    </ul>
+
+    <script src="https://pixijs.download/v8.2.5/pixi.min.js"></script>
+    <script>
+        const TILE_WIDTH = 130;
+        const TILE_HEIGHT = 68;
+
+        // Tiles to test (frame index, name)
+        const testTiles = [
+            { frame: 8, name: "Grass (base)", row: 1, col: 0 },
+            { frame: 9, name: "Water 1", row: 1, col: 1 },
+            { frame: 10, name: "Water 2", row: 1, col: 2 },
+            { frame: 32, name: "Road 1", row: 4, col: 0 },
+            { frame: 38, name: "Road (overlay)", row: 4, col: 6 },
+            { frame: 56, name: "Road variant", row: 7, col: 0 },
+        ];
+
+        let apps = [];
+        let currentBgColor = '#1a1a2e';
+
+        async function init() {
+            const testArea = document.getElementById('test-area');
+
+            // Load the terrain tileset
+            const texture = await PIXI.Assets.load('assets/sprites/anims/anims45/0.png');
+            console.log('Loaded texture:', texture.width, 'x', texture.height);
+
+            for (const tile of testTiles) {
+                // Create container
+                const container = document.createElement('div');
+                container.className = 'test-container';
+                container.innerHTML = `
+                    <h3>Frame ${tile.frame}: ${tile.name}</h3>
+                    <div class="info">Row ${tile.row}, Col ${tile.col}</div>
+                `;
+                testArea.appendChild(container);
+
+                // Create PIXI app for this tile
+                const app = new PIXI.Application();
+                await app.init({
+                    width: 150,
+                    height: 90,
+                    backgroundAlpha: 0,  // Transparent background
+                });
+                container.appendChild(app.canvas);
+                app.canvas.style.background = currentBgColor;
+                apps.push(app);
+
+                // Calculate tile position in spritesheet
+                const tilesPerRow = 8;  // Approximate
+                const col = tile.frame % tilesPerRow;
+                const row = Math.floor(tile.frame / tilesPerRow);
+                const x = col * TILE_WIDTH;
+                const y = row * TILE_HEIGHT;
+
+                console.log(`Frame ${tile.frame}: position (${x}, ${y})`);
+
+                // Create sub-texture for this tile
+                const frame = new PIXI.Rectangle(x, y, TILE_WIDTH, TILE_HEIGHT);
+                const subTexture = new PIXI.Texture({
+                    source: texture.source,
+                    frame: frame
+                });
+
+                // Create sprite
+                const sprite = new PIXI.Sprite(subTexture);
+                sprite.x = 10;
+                sprite.y = 11;
+
+                app.stage.addChild(sprite);
+
+                // Add frame info
+                const frameInfo = document.createElement('div');
+                frameInfo.className = 'info';
+                frameInfo.textContent = `Pos: (${x}, ${y}) Size: ${TILE_WIDTH}x${TILE_HEIGHT}`;
+                container.appendChild(frameInfo);
+            }
+
+            // Also show raw tileset section
+            showRawTileset(texture);
+        }
+
+        async function showRawTileset(texture) {
+            const testArea = document.getElementById('test-area');
+
+            const container = document.createElement('div');
+            container.className = 'test-container';
+            container.style.width = '100%';
+            container.innerHTML = `<h3>Raw Tileset (first 4 rows)</h3>`;
+            testArea.appendChild(container);
+
+            const app = new PIXI.Application();
+            await app.init({
+                width: 1040,
+                height: 280,
+                backgroundAlpha: 0,
+            });
+            container.appendChild(app.canvas);
+            app.canvas.style.background = currentBgColor;
+            apps.push(app);
+
+            // Show top portion of tileset
+            const frame = new PIXI.Rectangle(0, 0, 1024, 272);
+            const subTexture = new PIXI.Texture({
+                source: texture.source,
+                frame: frame
+            });
+            const sprite = new PIXI.Sprite(subTexture);
+            sprite.x = 8;
+            sprite.y = 4;
+            app.stage.addChild(sprite);
+        }
+
+        function setBackground(color) {
+            currentBgColor = color;
+            for (const app of apps) {
+                app.canvas.style.background = color;
+            }
+        }
+
+        init().catch(err => {
+            document.getElementById('test-area').innerHTML =
+                `<p style="color:red">Error: ${err.message}</p>
+                 <p>Make sure you're running from a web server (not file://)</p>`;
+            console.error(err);
+        });
+    </script>
+</body>
+</html>

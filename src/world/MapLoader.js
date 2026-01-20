@@ -294,6 +294,19 @@ export class MapLoader {
     }
 
     /**
+     * Get terrain overlay frame at grid position
+     * Overlay frames are used for smooth transitions between terrain types
+     * @param {number} i - Grid column
+     * @param {number} j - Grid row
+     * @returns {number} Overlay frame index (0-63), 0 means no overlay
+     */
+    getTerrainOverlay(i, j) {
+        const terrainValue = this.getTerrain(i, j);
+        // Extract overlay: (value >> 10) & 0x3F as per Location.smali line 4091-4105
+        return (terrainValue >> 10) & 0x3F;
+    }
+
+    /**
      * Get terrain package ID (theme)
      * The map version byte indicates which terrain package to use
      * @returns {number} Package ID (45=grass, 46=necro, 47=snow)

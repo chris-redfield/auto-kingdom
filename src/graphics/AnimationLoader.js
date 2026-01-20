@@ -240,10 +240,10 @@ export class AnimationLoader {
 
             if (rect && rect.width > 0 && rect.height > 0) {
                 // Use the rect data to create a sub-texture
-                const frame = new PIXI.Rectangle(rect.x, rect.y, rect.width, rect.height);
+                const frameRect = new PIXI.Rectangle(rect.x, rect.y, rect.width, rect.height);
                 const subTexture = new PIXI.Texture({
                     source: texture.source,
-                    frame: frame
+                    frame: frameRect
                 });
                 sprite = new PIXI.Sprite(subTexture);
             } else {

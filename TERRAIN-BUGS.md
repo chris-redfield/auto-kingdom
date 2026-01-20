@@ -1,6 +1,6 @@
 # Terrain Rendering - Problems and Challenges
 
-## Current Status: ~90% WORKING (2026-01-19)
+## Current Status: WORKING (2026-01-19)
 
 **Terrain rendering is now functional!** Tiles render correctly with roads, paths, grass variations, and water visible.
 
@@ -824,3 +824,271 @@ This creates smooth grass-to-road, road-to-water transitions. Without it, edges 
 2. **Use AnimationLoader** - It handles frame rects, offsets, and transforms properly
 3. **Viewport culling is essential** - 40,000 sprites = bad, 400 sprites = good
 4. **Check the original** - Location.smali revealed the overlay system we're missing
+
+---
+
+## CURRENT ISSUE: Rectangular Tiles (2026-01-19)
+
+### Problem Description
+
+Road and water tiles render as **visible rectangles** instead of seamless isometric diamonds. The blue water areas show obvious rectangular/square shapes around each tile.
+
+### Visual Symptoms
+
+- Water tiles appear as blue squares/rectangles
+- Road tiles have visible rectangular boundaries
+- Grass tiles look mostly OK (subtle seams)
+- The grid pattern is clearly visible on roads/water
+
+### What We Tried
+
+| Attempt | Change | Result |
+|---------|--------|--------|
+| 1. Round positions | `Math.round(topPos.x)` | No visible change |
+| 2. Non-uniform scale | scaleX=64/130, scaleY=32/68 | No visible change |
+| 3. Overlay system | Read bits 10-15, draw 4 overlays per tile | Overlays render but don't fix rectangles |
+| 4. Aspect ratio fix | Tiles are 130x68 not 128x64 | Helped slightly |
+
+### Root Cause Analysis
+
+The tileset PNG (anims45/0.png) contains proper isometric diamonds with **transparent corners**. The PNG is RGBA format. Yet in-game, tiles appear as rectangles.
+
+**Possible causes:**
+
+1. **PIXI not respecting alpha** - WebGL texture settings might ignore transparency
+2. **Background bleeding through** - Some container or background showing behind tiles
+3. **Sprite anchor/position issue** - Tiles drawn at wrong position relative to their transparency
+4. **Texture atlas problem** - How AnimationLoader creates sub-textures might lose alpha
+
+### What the Tileset Actually Contains
+
+Looking at `anims45/0.png`:
+- 1024×512 pixels, RGBA format
+- Isometric diamond tiles with transparent corners
+- Water tiles (frames 9-11) are blue diamonds, NOT rectangles
+- Road tiles (frames 32-55) are stone diamonds, NOT rectangles
+
+### What Needs Investigation
+
+1. **Check AnimationLoader texture creation** - Does `createFrameContainer()` preserve alpha?
+2. **Check PIXI renderer settings** - Is premultiplied alpha correct?
+3. **Check if background is visible** - Is there a solid color behind terrain?
+4. **Compare with test_terrain.html** - Does standalone test show same issue?
+
+### Suspected Issue: Sprite Rectangle vs Diamond Content
+
+The sprite's **bounding rectangle** is 130×68 pixels. Inside that rectangle, the actual diamond content has transparent corners. When PIXI renders the sprite, it might be:
+
+1. Drawing the full rectangle with a background color
+2. Not properly compositing the alpha channel
+3. Having blend mode issues
+
+### Key Observation
+
+Looking at the screenshot:
+- **Grass tiles look OK** - proper isometric diamond shapes
+- **Water/road tiles look rectangular** - clear blue/gray rectangles visible
+
+This suggests the grass tiles have working alpha in corners, but water/road tiles might have different alpha handling or the tile content itself is rectangular.
+
+### Possible Root Cause: Tile Content vs Alpha
+
+The tileset shows isometric diamonds, but maybe:
+1. Water tiles have semi-transparent BLUE in corners (not fully transparent)
+2. Road tiles have semi-transparent GRAY in corners
+3. This creates visible rectangular color bleeding
+
+Or the tiles were extracted/converted incorrectly and lost their alpha channel.
+
+### Next Steps to Try
+
+1. **Inspect actual tileset pixels** - Check if corners of water tiles have alpha=0 or some color
+2. **Test single tile** - Create test HTML that draws ONE water tile on transparent background
+3. **Check PNG alpha channel** - Use image editor to verify corners are truly transparent
+4. **Try different tiles** - Do ALL water frames (9-11) show this issue?
+5. **Compare with original game** - Does the Android APK version have same rectangular appearance?
+
+### Code Locations
+
+| File | Line | Purpose |
+|------|------|---------|
+| `Grid.js` | 501-608 | `createTerrainSprite()` - creates tile containers |
+| `Grid.js` | 631-656 | `createOverlaySprite()` - creates overlay sprites |
+| `AnimationLoader.js` | 225-265 | `createFrameContainer()` - creates sprites from texture |
+| `MapLoader.js` | 290-307 | `getTerrainFrame()` and `getTerrainOverlay()` |
+
+### Verified Facts
+
+1. **PNG has alpha channel** - `color_type: 6` = RGBA (verified via Python)
+2. **PIXI loads via Assets.load()** - standard texture loading
+3. **Sub-textures created correctly** - using PIXI.Rectangle frame
+4. **WebGL warning present**: "Alpha-premult and y-flip are deprecated"
+
+### WebGL Warning - Potential Cause
+
+The console shows:
+```
+WebGL warning: texImage: Alpha-premult and y-flip are deprecated for non-DOM-Element uploads.
+```
+
+This **premultiplied alpha** warning could explain the rectangular artifacts. When alpha isn't handled correctly:
+- Semi-transparent edges might show unexpected colors
+- Transparent corners might blend incorrectly with background
+
+### Minimal Test Case (Recommended)
+
+Create a simple HTML file that renders ONE water tile to isolate the issue:
+
+```html
+<!DOCTYPE html>
+<html>
+<head><title>Single Tile Test</title></head>
+<body style="background:#333">
+<script src="https://pixijs.download/release/pixi.min.js"></script>
+<script>
+async function test() {
+    const app = new PIXI.Application();
+    await app.init({ width: 200, height: 200, backgroundAlpha: 0 });
+    document.body.appendChild(app.canvas);
+
+    const texture = await PIXI.Assets.load('assets/sprites/anims/anims45/0.png');
+
+    // Water tile: frame 9 = row 1, col 1 (each tile is 130x68)
+    const frame = new PIXI.Rectangle(130, 68, 130, 68);
+    const waterTex = new PIXI.Texture({ source: texture.source, frame });
+    const sprite = new PIXI.Sprite(waterTex);
+    sprite.x = 35;
+    sprite.y = 66;
+    app.stage.addChild(sprite);
+}
+test();
+</script>
+</body>
+</html>
+```
+
+If this test shows rectangles, the issue is in the tileset/PIXI. If it shows proper diamond, the issue is in our code.
+
+---
+
+## Summary: What's Working
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Viewport culling | ✅ Working | Only visible tiles rendered |
+| Sprite pooling | ✅ Working | Tiles added/removed dynamically |
+| Tile positioning | ✅ Working | Isometric coordinates correct |
+| Overlay system | ✅ Working | 4 overlays per tile rendered |
+| Base grass tiles | ✅ Working | No visible seams |
+| Water/road tiles | ✅ Working | Proper diamond shapes |
+| Sprite centering | ✅ Fixed | Tiles tessellate correctly |
+
+### Issue Resolved (2026-01-19)
+
+The "rectangular tiles" issue was caused by incorrect sprite positioning. Tiles were drawn from their top-left corner but positioned at the diamond's top vertex (center-top). Adding `-TILE_HALF_WIDTH` offset centers each sprite properly, allowing adjacent tiles to tessellate and hide transparent corners.
+
+---
+
+## PNG ANALYSIS RESULTS (2026-01-19)
+
+### Verified: Tiles ARE Diamond-Shaped in Source PNG
+
+Using Python PNG decoder, we verified the actual alpha values in the tileset:
+
+**Water Tile (Frame 9, Row 1 Col 1) - ASCII Visualization:**
+```
+..........................
+............###...........
+..........#######.........
+........###########.......
+......###############.....
+....###################...
+..#######################.
+.#########################
+...#####################..
+.....#################....
+.......#############......
+.........#########........
+...........#####..........
+.............#............
+
+Legend: . = transparent (alpha=0), # = opaque (alpha=255)
+```
+
+**Corner Alpha Values (Water Tile):**
+- top-left: TRANSPARENT (alpha=0)
+- top-right: TRANSPARENT (alpha=0)
+- bottom-left: TRANSPARENT (alpha=0)
+- bottom-right: TRANSPARENT (alpha=0)
+- center: OPAQUE (RGB varies)
+
+**Road Tile (Frame 32, Row 4 Col 0):**
+- Same diamond shape with transparent corners
+- Identical alpha pattern to water tile
+
+### Conclusion: Problem is NOT in the PNG
+
+The source tileset PNG has **correct diamond shapes with transparent corners**. The problem is in how PIXI.js renders the alpha channel.
+
+### Root Cause: Premultiplied Alpha
+
+PIXI.js v8 loads textures with **premultiplied alpha** by default. Our PNG has **straight alpha** (non-premultiplied). This mismatch causes:
+
+1. Transparent pixels (0,0,0,0) may render as black instead of transparent
+2. Alpha blending produces incorrect results at edges
+3. The "rectangular" appearance comes from incorrectly rendered transparent corners
+
+### Fix Applied: Non-Premultiplied Alpha Loading
+
+**AnimationLoader.js** - Changed texture loading:
+```javascript
+// OLD (broken):
+const texture = await PIXI.Assets.load(path);
+
+// NEW (fixed):
+const texture = await PIXI.Assets.load({
+    src: path,
+    data: {
+        alphaMode: 'no-premultiply-alpha'
+    }
+});
+```
+
+### Test File Updated
+
+`test_single_tile.html` now:
+1. Loads texture with `alphaMode: 'no-premultiply-alpha'`
+2. Has checkerboard background option to clearly show transparency
+3. Tests multiple tile types (grass, water, road)
+
+### Status
+
+- [x] Analyzed PNG with Python - confirmed diamond shapes with transparent corners
+- [x] Tried non-premultiplied alpha - REVERTED (made borders MORE visible)
+- [x] Found real issue: sprite positioning was wrong
+
+### Real Fix: Sprite Centering (2026-01-19)
+
+The actual problem was that tile sprites were positioned incorrectly. The sprite was drawing from its top-left corner, but the container was positioned at the diamond's TOP VERTEX (which is at the horizontal center of the sprite).
+
+**Before (wrong):**
+```
+Container position → ┌──────────┐
+                     │  ◇       │  ← Diamond offset to the right
+                     └──────────┘
+```
+
+**After (correct):**
+```
+                     ┌──────────┐
+Container position → │    ◇     │  ← Diamond centered
+                     └──────────┘
+```
+
+**Fix in Grid.js:**
+```javascript
+// Offset sprite so diamond's top vertex is at container position
+baseTile.x = -IsoMath.TILE_HALF_WIDTH;  // -32 pixels
+```
+
+This ensures adjacent tiles tessellate properly, hiding the transparent corners.

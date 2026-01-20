@@ -543,13 +543,22 @@ export class Game {
             // Load terrain package (45=grass, 46=necro, 47=snow)
             // MUST use AnimationLoader to get per-frame offset data!
             if (this.terrainPackage) {
-                await this.animLoader.loadPackage(basePath, this.terrainPackage);
-                console.log(`Loaded terrain animations (package ${this.terrainPackage})`);
+                console.log(`Attempting to load terrain package ${this.terrainPackage}...`);
+                try {
+                    await this.animLoader.loadPackage(basePath, this.terrainPackage);
+                    console.log(`SUCCESS: Loaded terrain animations (package ${this.terrainPackage})`);
 
-                // Pass the AnimationLoader to Grid for proper terrain rendering
-                if (this.grid) {
-                    this.grid.setTerrainAnimations(this.animLoader, this.terrainPackage);
+                    // Pass the AnimationLoader to Grid for proper terrain rendering
+                    if (this.grid) {
+                        console.log('Setting terrain animations on grid...');
+                        this.grid.setTerrainAnimations(this.animLoader, this.terrainPackage);
+                        console.log('Terrain animations set on grid');
+                    }
+                } catch (terrainError) {
+                    console.error(`FAILED to load terrain package ${this.terrainPackage}:`, terrainError);
                 }
+            } else {
+                console.warn('No terrain package set - skipping terrain AnimationLoader');
             }
 
             this.animationsLoaded = true;
