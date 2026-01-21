@@ -88,10 +88,16 @@
 
         #game-container {
             position: relative;
+            z-index: 1;
         }
 
         canvas {
             display: block;
+        }
+
+        /* Ensure overlays are above game canvas */
+        #game-wrapper > *:not(#game-container) {
+            z-index: 10;
         }
 
         #loading {
@@ -275,32 +281,40 @@
             display: block;
         }
 
-        /* Minimap placeholder */
+        /* Minimap container */
         #minimap {
             position: absolute;
             top: 10px;
             right: 10px;
-            width: 120px;
-            height: 80px;
-            background: rgba(26, 26, 46, 0.8);
+            background: rgba(26, 26, 46, 0.9);
             border: 2px solid #4a4a6a;
             border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #666;
-            font-size: 11px;
+            padding: 4px;
+            cursor: crosshair;
+            z-index: 100;
+        }
+
+        #minimap-canvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        #minimap-label {
+            display: none;
         }
 
         /* Keyboard hints */
         #hints {
             position: absolute;
-            bottom: 60px;
+            bottom: 10px;
             right: 10px;
             font-size: 11px;
             color: #666;
             text-align: right;
             line-height: 1.6;
+            pointer-events: none;
+            z-index: 50;
         }
 
         #hints kbd {
@@ -340,7 +354,10 @@
         </div>
 
         <!-- Overlays on game area -->
-        <div id="minimap">Minimap (TODO)</div>
+        <div id="minimap">
+            <canvas id="minimap-canvas"></canvas>
+            <div id="minimap-label">Click to scroll</div>
+        </div>
 
         <div id="selected-panel">
             <div class="unit-name" id="selected-name">Warrior</div>
@@ -423,6 +440,10 @@
 
     <!-- UI Controller -->
     <script type="module">
+        import { Minimap } from './src/ui/Minimap.js';
+
+        let minimap = null;
+
         // Wait for game to initialize
         window.addEventListener('load', () => {
             // Check for game periodically until it's ready
@@ -437,8 +458,17 @@
         function initUI() {
             const game = window.game;
 
+            // Initialize minimap
+            const minimapCanvas = document.getElementById('minimap-canvas');
+            minimap = new Minimap(minimapCanvas, game);
+
             // Update UI periodically
             setInterval(() => updateUI(game), 100);
+
+            // Render minimap at 10 FPS (doesn't need to be as fast as game)
+            setInterval(() => {
+                if (minimap) minimap.render();
+            }, 100);
 
             // Pause button
             document.getElementById('btn-pause').addEventListener('click', () => {

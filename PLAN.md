@@ -467,13 +467,68 @@ The map has a rich terrain tile system that we've fully reverse-engineered and i
 - Helps smooth grass→road, road→water transitions
 - See `TERRAIN-BUGS.md` for full technical details
 
-### Phase 2.5: Game UI (Original Style)
+### Phase 2.5: Game UI (External HTML/CSS) 🔄 IN PROGRESS
+- [x] External HTML UI (outside canvas for max game screen space)
+- [x] Header bar: Gold display, allies/enemies count, game status
+- [x] Bottom action bar: Build dropdown, Recruit dropdown, Pause, Speed buttons
+- [x] Selected unit panel (health bar, stats)
+- [x] Minimap with isometric rendering
 - [ ] Analyze original UI from Package 0 (portraits, buttons, icons)
-- [ ] Bottom action bar (build, recruit, spells)
-- [ ] Building interaction menus
-- [ ] Unit recruitment dialogs
-- [ ] Resource display (gold, mana)
-- [ ] Minimap
+- [ ] Building interaction menus (Build dropdown is placeholder)
+- [ ] Full spell system UI
+
+**External UI Implementation (2026-01-21):**
+- Moved UI outside the game canvas to maximize game screen space
+- Old canvas-based HUD.js disabled, replaced with HTML/CSS in index.html
+- UI updates via polling game state every 100ms
+- `window.showMessage()` exposed for in-game notifications
+
+**Minimap Implementation (2026-01-21):**
+- Created `src/ui/Minimap.js` - renders to separate canvas in HTML UI
+- Isometric rendering to match game perspective (diamond shape)
+- Click/drag to scroll camera to that position
+- Viewport rectangle shows current camera view
+- Red center marker for precise position reference
+
+*Minimap Coordinate System:*
+- `gridToMinimap(i, j)` - converts grid coords to isometric minimap pixels
+- `minimapToGrid(mx, my)` - inverse for click handling
+- Accounts for grid container offset in world coordinates
+
+*Terrain Color Coding:*
+- Grass: Green shades (#4a9c2d, #5db03e, etc.) - Frame 8 (base grass)
+- Water: Blue (#4499ff) - Frames 32-55 (streams)
+- Roads: Tan (#d4b896) - Frames 9-31, 56-63
+- Unwalkable: Dark green (#2d4a2d) - Trees, rocks (non-walkable tiles)
+
+**Known Issue:** Some cobblestone road tiles may use frame numbers in the 32-55 range (same as water), causing them to appear blue on the minimap. A future fix would require logging actual frame values to determine precise ranges, or using additional tile metadata to distinguish water from roads.
+
+*Minimap Settings:*
+- Scale: 0.975 pixels per tile
+- Canvas size: (gridWidth + gridHeight) × scale (isometric diamond)
+- Updates at 10 FPS (100ms interval)
+
+*Files Modified:*
+- `index.html`: External UI layout, minimap canvas, UI controller script
+- `src/ui/Minimap.js`: New file for minimap rendering
+- `src/core/Game.js`: Disabled old HUD, added showMessage() helper
+
+**Session Summary (2026-01-21):**
+1. Created external HTML/CSS UI outside the game canvas
+2. Implemented isometric minimap matching game perspective
+3. Added click-to-scroll functionality on minimap
+4. Fixed coordinate alignment (grid container offset)
+5. Terrain color coding (mostly working, minor water/road overlap issue)
+
+**⚠️ MINIMAP STATUS: STILL UNDER INVESTIGATION**
+The minimap is functional but terrain color detection needs refinement. Some road tiles incorrectly display as water due to overlapping frame number ranges.
+
+**Next Steps for Minimap:**
+- [ ] Debug frame values to fix water/road color overlap (log actual frame numbers)
+- [ ] Investigate if overlay data can help distinguish water from roads
+- [ ] Add unit markers (green dots for allies, red for enemies)
+- [ ] Consider adding building markers
+- [ ] Test click-to-scroll accuracy across entire map
 
 ### Phase 2.6: Building System
 - [ ] Castle (player HQ)
@@ -542,7 +597,8 @@ The map has a rich terrain tile system that we've fully reverse-engineered and i
     │   ├── IsoMath.js      # Coordinate conversions
     │   └── MapLoader.js    # Parses .m map files
     ├── /ui
-    │   └── HUD.js          # Heads-up display
+    │   ├── HUD.js          # Old canvas HUD (disabled, replaced by HTML UI)
+    │   └── Minimap.js      # Isometric minimap renderer
     ├── /audio
     │   ├── SoundManager.js     # Audio playback system
     │   └── SoundConstants.js   # Sound effect mappings
@@ -625,4 +681,14 @@ python -m http.server 8080
 - C: Center camera on selected unit
 - S: Screen shake test
 - D: Toggle debug overlay
+- T: Spawn test enemy
+- G: Create test guilds
+- M: Toggle music
 - ESC: Pause/Resume
+- Minimap: Click/drag to scroll camera
+
+**UI Elements:**
+- Header: Gold, allies/enemies count, game status
+- Bottom bar: Build, Recruit, Pause, Speed buttons
+- Minimap: Top-right corner (isometric diamond view)
+- Selected unit panel: Bottom-left (when unit selected)
