@@ -328,6 +328,56 @@ export class MapLoader {
     }
 
     /**
+     * Analyze overlay data in the map for debugging
+     * @returns {object} Statistics about overlay values
+     */
+    analyzeOverlays() {
+        const stats = {
+            total: 0,
+            withOverlay: 0,
+            overlayValues: {},
+            frameValues: {},
+            sampleTiles: []
+        };
+
+        for (let j = 0; j < this.mapHeight; j++) {
+            for (let i = 0; i < this.mapWidth; i++) {
+                stats.total++;
+                const frame = this.getTerrainFrame(i, j);
+                const overlay = this.getTerrainOverlay(i, j);
+
+                // Count frame distribution
+                stats.frameValues[frame] = (stats.frameValues[frame] || 0) + 1;
+
+                if (overlay > 0) {
+                    stats.withOverlay++;
+                    stats.overlayValues[overlay] = (stats.overlayValues[overlay] || 0) + 1;
+
+                    // Save first 10 samples
+                    if (stats.sampleTiles.length < 10) {
+                        stats.sampleTiles.push({ i, j, frame, overlay });
+                    }
+                }
+            }
+        }
+
+        // Sort overlay values by count
+        stats.overlayDistribution = Object.entries(stats.overlayValues)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 20);
+
+        console.log('=== OVERLAY ANALYSIS ===');
+        console.log(`Total tiles: ${stats.total}`);
+        console.log(`Tiles with overlay: ${stats.withOverlay} (${(stats.withOverlay / stats.total * 100).toFixed(2)}%)`);
+        console.log(`Unique overlay values: ${Object.keys(stats.overlayValues).length}`);
+        console.log('Top overlay values:', stats.overlayDistribution);
+        console.log('Sample tiles with overlays:', stats.sampleTiles);
+        console.log('========================');
+
+        return stats;
+    }
+
+    /**
      * Check if type is a "static object" (decoration with no extra data)
      * Based on Location.typeIsStaticObject() - these types have NO team/level/flags
      * @param {number} type - Object type byte

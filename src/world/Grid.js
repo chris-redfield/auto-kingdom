@@ -101,11 +101,16 @@ export class Grid {
         this.grassTexture = null;
         this.grassLoaded = false;
 
-        // Background container for tiled grass
+        // Background container for base terrain tiles (rendered first)
         this.backgroundContainer = new PIXI.Container();
-        this.container.addChildAt(this.backgroundContainer, 0);  // Add behind tiles
+        this.container.addChildAt(this.backgroundContainer, 0);  // Add behind everything
 
-        // Decorations container (bushes, rocks, trees on top of grass)
+        // Overlay container for terrain transition overlays (rendered ON TOP of base tiles)
+        // This ensures overlays from tile A aren't hidden by base tile B
+        this.overlayContainer = new PIXI.Container();
+        this.container.addChild(this.overlayContainer);  // Add after background
+
+        // Decorations container (bushes, rocks, trees on top of terrain)
         this.decorationsContainer = new PIXI.Container();
         this.container.addChild(this.decorationsContainer);
 
@@ -121,10 +126,17 @@ export class Grid {
         this.terrainPackageId = null;
 
         // Viewport-based terrain rendering
-        this.terrainSprites = new Map();  // "i,j" -> sprite/container (sprite pool)
+        this.terrainSprites = new Map();  // "i,j" -> { base, overlays[] } sprite pool
         this.lastCameraX = null;
         this.lastCameraY = null;
         this.visibleTileMargin = 3;  // Extra tiles beyond screen edge
+
+        // Overlay statistics for debugging
+        this.overlayStats = {
+            tilesRendered: 0,
+            overlaysAdded: 0,
+            overlaysFailed: 0
+        };
     }
 
     /**
@@ -474,29 +486,49 @@ export class Grid {
                 // Skip if already rendered
                 if (this.terrainSprites.has(key)) continue;
 
-                // Create new sprite for this tile
-                const sprite = this.createTerrainSprite(i, j);
-                if (sprite) {
-                    this.terrainSprites.set(key, sprite);
-                    this.backgroundContainer.addChild(sprite);
+                // Create sprites for this tile (base + overlays separate)
+                const tileData = this.createTerrainSprite(i, j);
+                if (tileData) {
+                    this.terrainSprites.set(key, tileData);
+
+                    // Add base tile to background container (rendered first)
+                    if (tileData.base) {
+                        this.backgroundContainer.addChild(tileData.base);
+                    }
+
+                    // Add overlays to overlay container (rendered ON TOP of all base tiles)
+                    for (const overlay of tileData.overlays) {
+                        this.overlayContainer.addChild(overlay);
+                    }
                 }
             }
         }
 
         // Remove tiles that are no longer visible
-        for (const [key, sprite] of this.terrainSprites) {
+        for (const [key, tileData] of this.terrainSprites) {
             if (!visibleKeys.has(key)) {
-                this.backgroundContainer.removeChild(sprite);
+                // Remove base tile
+                if (tileData.base) {
+                    this.backgroundContainer.removeChild(tileData.base);
+                }
+                // Remove all overlays
+                for (const overlay of tileData.overlays) {
+                    this.overlayContainer.removeChild(overlay);
+                }
                 this.terrainSprites.delete(key);
             }
         }
     }
 
     /**
-     * Create a terrain sprite for a tile position
-     * Uses AnimationLoader to get proper per-frame offsets
-     * Also adds overlay sprites for smooth terrain transitions
-     * @returns {PIXI.Container|PIXI.Sprite|null} The sprite/container, or null if no texture
+     * Create terrain sprites for a tile position
+     * Returns separate base tile and overlay sprites for proper z-ordering
+     *
+     * IMPORTANT: Base tiles go in backgroundContainer, overlays go in overlayContainer
+     * This ensures ALL base tiles render first, then ALL overlays render on top.
+     * Otherwise, a later tile's base could cover an earlier tile's overlay.
+     *
+     * @returns {object|null} { base: Container, overlays: Container[] } or null
      */
     createTerrainSprite(i, j) {
         // Get frame index from map data
@@ -504,22 +536,22 @@ export class Grid {
 
         // Use AnimationLoader if available (preferred - has offset data)
         if (this.terrainAnimLoader && this.terrainPackageId !== null) {
-            // Create a container to hold base tile + overlays
-            const tileContainer = new PIXI.Container();
-
             // Get the TOP point of the tile for positioning
-            // Round to integers to avoid subpixel rendering artifacts (seams)
             const topPos = IsoMath.getTileTop(i, j);
-            tileContainer.x = Math.round(topPos.x);
-            tileContainer.y = Math.round(topPos.y);
+            const tileX = Math.round(topPos.x);
+            const tileY = Math.round(topPos.y);
 
             // Scale factors: tiles are 130x68, scale to 64x32 grid cells
-            // IMPORTANT: Use different X and Y scales because tile aspect ratio (1.91:1)
-            // doesn't match grid aspect ratio (2:1)
-            const scaleX = 64 / 130;   // 0.492 - scales width 130 → 64
-            const scaleY = 32 / 68;    // 0.471 - scales height 68 → 32
+            const scaleX = 64 / 130;
+            const scaleY = 32 / 68;
 
-            // Add base terrain tile
+            const halfWidth = IsoMath.TILE_HALF_WIDTH;
+            const halfHeight = IsoMath.TILE_HALF_HEIGHT;
+
+            // Result object to track sprites for this tile
+            const result = { base: null, overlays: [] };
+
+            // Create base terrain tile
             const baseTile = this.terrainAnimLoader.createFrameContainer(
                 this.terrainPackageId,
                 0,  // Animation 0 contains the terrain tiles
@@ -528,89 +560,65 @@ export class Grid {
 
             if (baseTile) {
                 baseTile.scale.set(scaleX, scaleY);
-                // Offset sprite so that the diamond's top vertex is at container position
-                // The sprite is 64px wide after scaling, so offset by -32 (half width)
-                baseTile.x = -IsoMath.TILE_HALF_WIDTH;
-                tileContainer.addChild(baseTile);
+                baseTile.x = tileX - halfWidth;  // Center the diamond
+                baseTile.y = tileY;
+                result.base = baseTile;
             }
 
-            // Add overlay tiles for smooth transitions (from Location.smali lines 4091-4174)
             // Read overlay frames from 4 adjacent cells
             const overlay1 = this.mapLoader.getTerrainOverlay(i, j);
             const overlay2 = this.mapLoader.getTerrainOverlay(i + 1, j);
             const overlay3 = this.mapLoader.getTerrainOverlay(i, j + 1);
             const overlay4 = this.mapLoader.getTerrainOverlay(i + 1, j + 1);
 
-            // Draw overlays at offset positions (if non-zero)
-            // Offsets are in scaled coordinates (after 64/130 scale)
-            const halfWidth = IsoMath.TILE_HALF_WIDTH;
-            const halfHeight = IsoMath.TILE_HALF_HEIGHT;
+            // Track stats
+            this.overlayStats.tilesRendered++;
 
-            // Debug: count overlays added (only log once)
-            if (!this._overlayLogDone && (overlay1 > 0 || overlay2 > 0 || overlay3 > 0 || overlay4 > 0)) {
-                console.log(`Tile (${i},${j}) overlays: o1=${overlay1}, o2=${overlay2}, o3=${overlay3}, o4=${overlay4}`);
+            // Debug logging (first few tiles only)
+            const hasOverlays = overlay1 > 0 || overlay2 > 0 || overlay3 > 0 || overlay4 > 0;
+            if (!this._overlayLogDone && hasOverlays) {
+                console.log(`Tile (${i},${j}) base=${frameIndex} overlays: o1=${overlay1}, o2=${overlay2}, o3=${overlay3}, o4=${overlay4}`);
                 this._overlayLogCount = (this._overlayLogCount || 0) + 1;
-                if (this._overlayLogCount >= 5) {
+                if (this._overlayLogCount >= 10) {
                     this._overlayLogDone = true;
-                    console.log('(further overlay logs suppressed)');
+                    console.log('(further overlay logs suppressed - run grid.logOverlayStats() for summary)');
                 }
             }
 
-            // Draw overlays at offset positions (from Location.smali lines 4133-4174)
-            //
-            // Original game positions relative to base tile draw position:
-            // - overlay1: (x + halfWidth, y) - SHIFTED RIGHT by halfWidth!
-            // - overlay2: (x + fullWidth, y + halfHeight) - right edge
-            // - overlay3: (x, y + halfHeight) - left edge
-            // - overlay4: (x + halfWidth, y + fullHeight) - bottom center
-            //
-            // The overlays are positioned to cover the SEAMS between tiles, not
-            // drawn on top of the base tile. Each overlay covers a quarter of
-            // the current tile and a quarter of its neighbor.
-            //
-            // Since our container is at tile TOP (center-top of diamond), and
-            // Animation sprites are drawn from their top-left corner, we need
-            // to offset to match the original's seam-covering behavior.
+            // Helper to create positioned overlay sprite
+            const createOverlay = (overlayFrame, offsetX, offsetY) => {
+                if (overlayFrame <= 0) return null;
 
-            // Overlay sprites also need the -halfWidth offset for proper centering
-            // Then add the position offsets from the original game
-            if (overlay1 > 0) {
-                const o1 = this.createOverlaySprite(overlay1, scaleX, scaleY);
-                if (o1) {
-                    o1.x = -halfWidth;  // Center on top vertex
-                    o1.y = 0;
-                    tileContainer.addChild(o1);
+                const overlay = this.createOverlaySprite(overlayFrame, scaleX, scaleY);
+                if (overlay) {
+                    // Position: tile position + base offset (-halfWidth) + specific offset
+                    overlay.x = tileX - halfWidth + offsetX;
+                    overlay.y = tileY + offsetY;
+                    this.overlayStats.overlaysAdded++;
+                    return overlay;
+                } else {
+                    this.overlayStats.overlaysFailed++;
+                    return null;
                 }
-            }
+            };
 
-            if (overlay2 > 0) {
-                const o2 = this.createOverlaySprite(overlay2, scaleX, scaleY);
-                if (o2) {
-                    o2.x = 0;  // -halfWidth + halfWidth = 0
-                    o2.y = Math.round(halfHeight);
-                    tileContainer.addChild(o2);
-                }
-            }
+            // Create overlays at their world positions
+            // Positions from Location.smali lines 4133-4174:
+            // - overlay1: (x, y) - same as base
+            // - overlay2: (x + halfWidth, y + halfHeight) - right+down
+            // - overlay3: (x - halfWidth, y + halfHeight) - left+down
+            // - overlay4: (x, y + cellHeight) - down (full height)
+            const o1 = createOverlay(overlay1, 0, 0);
+            const o2 = createOverlay(overlay2, halfWidth, halfHeight);
+            const o3 = createOverlay(overlay3, -halfWidth, halfHeight);
+            const o4 = createOverlay(overlay4, 0, IsoMath.TILE_HEIGHT);
 
-            if (overlay3 > 0) {
-                const o3 = this.createOverlaySprite(overlay3, scaleX, scaleY);
-                if (o3) {
-                    o3.x = Math.round(-halfWidth * 2);  // -halfWidth + (-halfWidth) = -fullWidth
-                    o3.y = Math.round(halfHeight);
-                    tileContainer.addChild(o3);
-                }
-            }
+            if (o1) result.overlays.push(o1);
+            if (o2) result.overlays.push(o2);
+            if (o3) result.overlays.push(o3);
+            if (o4) result.overlays.push(o4);
 
-            if (overlay4 > 0) {
-                const o4 = this.createOverlaySprite(overlay4, scaleX, scaleY);
-                if (o4) {
-                    o4.x = -halfWidth;  // Center on bottom vertex
-                    o4.y = Math.round(IsoMath.TILE_HEIGHT);
-                    tileContainer.addChild(o4);
-                }
-            }
-
-            return tileContainer;
+            return result;
         }
 
         // Fallback: use old tile texture array (without offsets)
@@ -630,7 +638,23 @@ export class Grid {
         sprite.x = topPos.x;
         sprite.y = topPos.y;
 
-        return sprite;
+        return { base: sprite, overlays: [] };
+    }
+
+    /**
+     * Log overlay statistics (call from console for debugging)
+     */
+    logOverlayStats() {
+        console.log('=== OVERLAY RENDERING STATS ===');
+        console.log(`Tiles rendered: ${this.overlayStats.tilesRendered}`);
+        console.log(`Overlays added: ${this.overlayStats.overlaysAdded}`);
+        console.log(`Overlays failed: ${this.overlayStats.overlaysFailed}`);
+        if (this.overlayStats.tilesRendered > 0) {
+            const avgOverlays = this.overlayStats.overlaysAdded / this.overlayStats.tilesRendered;
+            console.log(`Avg overlays per tile: ${avgOverlays.toFixed(2)}`);
+        }
+        console.log('===============================');
+        return this.overlayStats;
     }
 
     /**
@@ -664,8 +688,17 @@ export class Grid {
      * Clear all terrain sprites (call when changing maps)
      */
     clearTerrainSprites() {
-        for (const sprite of this.terrainSprites.values()) {
-            this.backgroundContainer.removeChild(sprite);
+        for (const tileData of this.terrainSprites.values()) {
+            // Remove base tile
+            if (tileData.base) {
+                this.backgroundContainer.removeChild(tileData.base);
+            }
+            // Remove all overlays
+            if (tileData.overlays) {
+                for (const overlay of tileData.overlays) {
+                    this.overlayContainer.removeChild(overlay);
+                }
+            }
         }
         this.terrainSprites.clear();
         this.lastCameraX = null;

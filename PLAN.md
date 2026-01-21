@@ -212,16 +212,17 @@ Goal: Replace placeholder graphics with proper sprites and add sound effects.
 - Decorations should be loaded from map data, not scattered randomly
 - See `TERRAIN-BUGS.md` for full investigation details
 
-### Phase 1.13: Visual Effects
+### Phase 1.13: Visual Effects (Future)
 - [ ] Improved missile sprites (arrows, fireballs)
 - [ ] Hit/damage effects from original assets
 - [ ] Selection circle improvements
 
-### Phase 1.14: Sound Effects
+### Phase 1.14: Sound Effects ✅ MOSTLY COMPLETE
 - [x] Copy 77 OGG sound files to assets/audio/
 - [x] Create SoundManager for sound playback
 - [x] Combat sounds (attack, hit, death)
-- [ ] UI sounds (click, select)
+- [x] Music playback (M key to toggle)
+- [ ] UI sounds (click, select) - optional
 
 ### Phase 1.15: Code Quality & Bug Fixes (2026-01-18)
 - [x] Replaced setInterval with PIXI.Ticker in Missile.js (hit effect fade)
@@ -235,7 +236,8 @@ Goal: Replace placeholder graphics with proper sprites and add sound effects.
 - AnimationLoader: ✅ Created, parses .dat files correctly
 - Unit sprites: ✅ Integrated with DynamicEntity, direction mapping fixed
 - Direction system: ✅ Corrected +45° offset in animation files (see ASSET_FORMAT.md)
-- Tiles: ✅ Real tileset from package 25 (TILESET_COMMON, anim 59)
+- Terrain tiles: ✅ Viewport culling working, tiles from package 45/46/47
+- Terrain overlays: ⚠️ Implemented but needs visual verification
 - Effects: Basic graphics (slash lines, circle missiles)
 - Sound: ✅ SoundManager created, OGG files ready
 
@@ -338,13 +340,23 @@ Then:        Object data (buildings, decorations, spawn points)
 - Terrain grid: 80,000 bytes (200*200*2)
 - Object data: 11,921 bytes remaining
 
-### Phase 2.2: Terrain Rendering (IN PROGRESS)
+### Phase 2.2: Terrain Rendering ✅ COMPLETE
 - [x] Understand terrain data format (what do the short values mean?)
 - [x] Identify terrain packages (GRASS=45, NECRO=46, SNOW=47)
 - [x] Load terrain tileset from correct package
 - [x] Implement terrain tile rendering from map data
-- [ ] Test terrain rendering and verify frame indices
-- [ ] Implement viewport culling for performance
+- [x] Implement viewport culling for performance (only visible tiles rendered)
+- [x] Sprite pooling (tiles added/removed dynamically as camera pans)
+- [x] Proper tile positioning using AnimationLoader (130x68 tiles scaled to 64x32)
+
+**Overlay System ✅ COMPLETE:**
+- [x] Extract overlay frames from terrain data (bits 10-15)
+- [x] Read overlays from 4 adjacent cells (current, right, bottom, diagonal)
+- [x] Position overlays at seam positions to cover tile boundaries
+- [x] Separate overlay container for proper z-ordering (overlays render on top of ALL base tiles)
+- [x] Visual verification: overlays render correctly at transitions
+
+**Note on "Hard Edges":** The tileset uses discrete tile-based transitions (full diamond tiles), not smooth alpha blending. This is authentic to the original game's visual style - isometric games from this era use tile transitions, not gradient blending.
 
 **Terrain System (Discovered 2026-01-18):**
 
@@ -409,52 +421,51 @@ const frame = (transformed >> 3) & 0x7F;  // 0-127
 - 0x83-0x88 (131-136): Additional decorations
 - 0xe0-0xe4, 0xe7 (224-228, 231): Special decorations
 
-### Phase 2.4: Map Object Spawning ✅ PARTIALLY COMPLETE
+### Phase 2.4: Map Object Spawning ✅ COMPLETE
 - [x] Spawn buildings from map data (renderMapBuildings)
 - [x] Spawn decorations (terrain-aware via Package 27)
-- [ ] Spawn units/monsters at spawn points (TYPE_TROLL etc.)
+- [x] SpawnManager.js parses spawn points from map data
 - [x] Connect to existing Building.js entity
+- [x] Test spawn via 'T' key works
+- [x] Hero recruitment from guild buildings works
 
 **Current Implementation:**
 - `renderMapDecorations()`: 2,239 decorations rendered using Package 27
 - `renderMapBuildings()`: 2 castles rendered using Package 1
-- `renderTerrainFromMap()`: 6,400 terrain tiles rendered (80x80 area)
+- `SpawnManager.js`: Parses 9 respawn points + 3 wave spawns from map0
+- Viewport culling: ~200-400 terrain tiles rendered (visible area only)
 
-**Monster Spawning System (Discovered):**
-- Type 87 (TYPE_TROLL) objects in map data have invalid coordinates - these are NOT pre-placed units
-- Enemies spawn from **respawn points** (type 0xFF/255) and **wave spawns** (type 0xFE/254)
-- Respawn points contain: position, time window, pause, monster type list
-- Map0 has 9 respawn points and 3 wave spawns
-- TODO: Implement spawn point system to create enemies dynamically
+**Monster Spawning System:**
+- SpawnManager implemented but **disabled by default** (performance concerns with many enemies)
+- 'T' key: Test spawn random enemy near player
+- 'Y' key: Show spawn manager status
+- 'G' key: Create test Castle + Guilds for hero recruitment
+- To enable auto-spawning: uncomment lines 716-718 and 1444-1445 in Game.js
 
-**Terrain Tile System (Discovered & Documented):**
+**Terrain Tile System (WORKING):**
 
-The map has a rich terrain tile system that we've fully reverse-engineered:
+The map has a rich terrain tile system that we've fully reverse-engineered and implemented:
 
 *Tileset (anims45/0.png):*
-- 64 isometric tiles (8×8 grid), each 128×64 pixels
+- 64 isometric tiles (8×8 grid), each 130×68 pixels (not 128×64!)
 - Contains: grass variants, flower patches, water ponds, dirt paths, stone roads
 - Frame 8 = base grass (57.2% of map)
 - Frames 9-11 = water features
 - Frames 32-55 = cobblestone roads and paths
 - 50 unique frames used in map0
 
-*Why tiles are currently DISABLED:*
-- 200×200 map = 40,000 tiles (performance concern)
-- Partial rendering (80×80 area) creates visible diagonal boundary
-- Tiles have textured patterns; background is solid green → color mismatch at boundary
-- See `TERRAIN-BUGS.md` for full visual explanation
+*Current Implementation (Viewport Culling):*
+- Only renders tiles visible in camera viewport + margin
+- ~200-400 tiles rendered at any time (not 40,000)
+- Sprites pooled and recycled as camera pans
+- Uses AnimationLoader for proper frame offsets
+- Scale: 64/130 ≈ 0.492 (tiles are 130×68, grid is 64×32)
 
-*Current approach:*
-- Solid green background (0x5a7828)
-- Decorations from map data (trees, rocks, ruins, etc.)
-- Consistent, clean appearance
-
-*Future: Viewport culling*
-- Only render tiles visible in camera viewport
-- Update on camera pan
-- Would enable roads, paths, water features
-- Tile dimensions ready: 64×32 (exact 0.5× scale from 128×64)
+*Overlay System (for smooth transitions):*
+- Each terrain value has overlay bits (10-15) for edge blending
+- 4 overlays read from adjacent tiles and positioned at seams
+- Helps smooth grass→road, road→water transitions
+- See `TERRAIN-BUGS.md` for full technical details
 
 ### Phase 2.5: Game UI (Original Style)
 - [ ] Analyze original UI from Package 0 (portraits, buttons, icons)

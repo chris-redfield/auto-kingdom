@@ -12,12 +12,78 @@
         }
 
         body {
-            background: #1a1a2e;
+            background: #0d0d1a;
             overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header - Resources & Info */
+        #header {
+            background: linear-gradient(to bottom, #2a2a4a, #1a1a2e);
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #4a4a6a;
+            min-height: 44px;
+        }
+
+        .resource-group {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .resource {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .resource-icon {
+            font-size: 20px;
+        }
+
+        .resource-value {
+            color: #ffd700;
+            min-width: 50px;
+        }
+
+        .unit-counts {
+            display: flex;
+            gap: 16px;
+            font-size: 14px;
+        }
+
+        .unit-count {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .allies { color: #44ff44; }
+        .enemies { color: #ff4444; }
+
+        .game-status {
+            font-size: 14px;
+            color: #888;
+        }
+
+        /* Game Container - Fills remaining space */
+        #game-wrapper {
+            flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            background: #1a1a2e;
+            position: relative;
+            overflow: hidden;
         }
 
         #game-container {
@@ -34,7 +100,6 @@
             left: 50%;
             transform: translate(-50%, -50%);
             color: #e0e0e0;
-            font-family: Arial, sans-serif;
             font-size: 24px;
             text-align: center;
         }
@@ -42,17 +107,460 @@
         #loading.hidden {
             display: none;
         }
+
+        /* Bottom Action Bar */
+        #action-bar {
+            background: linear-gradient(to top, #2a2a4a, #1a1a2e);
+            padding: 8px 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            border-top: 2px solid #4a4a6a;
+            min-height: 52px;
+        }
+
+        .action-btn {
+            background: linear-gradient(to bottom, #3a3a5a, #2a2a4a);
+            border: 2px solid #5a5a7a;
+            border-radius: 6px;
+            color: #e0e0e0;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .action-btn:hover {
+            background: linear-gradient(to bottom, #4a4a6a, #3a3a5a);
+            border-color: #7a7a9a;
+            transform: translateY(-1px);
+        }
+
+        .action-btn:active {
+            transform: translateY(1px);
+        }
+
+        .action-btn.selected {
+            background: linear-gradient(to bottom, #4a6a4a, #3a5a3a);
+            border-color: #6a9a6a;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-btn .icon {
+            font-size: 18px;
+        }
+
+        .action-btn .cost {
+            color: #ffd700;
+            font-size: 12px;
+        }
+
+        /* Dropdown menus */
+        .dropdown {
+            position: relative;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2a2a4a;
+            border: 2px solid #5a5a7a;
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 8px;
+            min-width: 160px;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.4);
+            z-index: 100;
+        }
+
+        .dropdown:hover .dropdown-content,
+        .dropdown.open .dropdown-content {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dropdown-item:hover {
+            background: #3a3a5a;
+        }
+
+        .dropdown-item .name {
+            font-weight: 600;
+        }
+
+        .dropdown-item .cost {
+            color: #ffd700;
+            font-size: 13px;
+        }
+
+        /* Selected unit panel */
+        #selected-panel {
+            position: absolute;
+            bottom: 60px;
+            left: 10px;
+            background: rgba(26, 26, 46, 0.9);
+            border: 2px solid #4a4a6a;
+            border-radius: 8px;
+            padding: 10px;
+            min-width: 150px;
+            display: none;
+        }
+
+        #selected-panel.visible {
+            display: block;
+        }
+
+        #selected-panel .unit-name {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        #selected-panel .health-bar {
+            background: #333;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #selected-panel .health-fill {
+            background: linear-gradient(to right, #ff4444, #44ff44);
+            height: 100%;
+            transition: width 0.2s ease;
+        }
+
+        #selected-panel .unit-stats {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 4px;
+        }
+
+        /* Message display */
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #ffd700;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-size: 24px;
+            font-weight: bold;
+            display: none;
+            z-index: 200;
+        }
+
+        #message.visible {
+            display: block;
+        }
+
+        /* Minimap placeholder */
+        #minimap {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 120px;
+            height: 80px;
+            background: rgba(26, 26, 46, 0.8);
+            border: 2px solid #4a4a6a;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 11px;
+        }
+
+        /* Keyboard hints */
+        #hints {
+            position: absolute;
+            bottom: 60px;
+            right: 10px;
+            font-size: 11px;
+            color: #666;
+            text-align: right;
+            line-height: 1.6;
+        }
+
+        #hints kbd {
+            background: #333;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="loading">Loading Majesty...</div>
+    <!-- Header: Resources & Status -->
+    <div id="header">
+        <div class="resource-group">
+            <div class="resource">
+                <span class="resource-icon">&#x1F4B0;</span>
+                <span class="resource-value" id="gold-display">1000</span>
+            </div>
+            <div class="unit-counts">
+                <span class="unit-count allies">
+                    <span>&#x2694;</span>
+                    <span id="allies-count">0</span> Allies
+                </span>
+                <span class="unit-count enemies">
+                    <span>&#x1F47F;</span>
+                    <span id="enemies-count">0</span> Enemies
+                </span>
+            </div>
+        </div>
+        <div class="game-status" id="game-status">Playing</div>
     </div>
 
-    <!-- PixiJS from CDN - no npm needed! -->
+    <!-- Game Canvas -->
+    <div id="game-wrapper">
+        <div id="game-container">
+            <div id="loading">Loading Majesty...</div>
+        </div>
+
+        <!-- Overlays on game area -->
+        <div id="minimap">Minimap (TODO)</div>
+
+        <div id="selected-panel">
+            <div class="unit-name" id="selected-name">Warrior</div>
+            <div class="health-bar">
+                <div class="health-fill" id="selected-health" style="width: 100%"></div>
+            </div>
+            <div class="unit-stats" id="selected-stats">HP: 100/100</div>
+        </div>
+
+        <div id="message"></div>
+
+        <div id="hints">
+            <kbd>T</kbd> Spawn enemy &nbsp;
+            <kbd>G</kbd> Create guilds<br>
+            <kbd>M</kbd> Music &nbsp;
+            <kbd>D</kbd> Debug
+        </div>
+    </div>
+
+    <!-- Bottom Action Bar -->
+    <div id="action-bar">
+        <div class="dropdown" id="build-dropdown">
+            <button class="action-btn" id="btn-build">
+                <span class="icon">&#x1F3D7;</span>
+                Build
+            </button>
+            <div class="dropdown-content">
+                <div class="dropdown-item" data-building="warrior-guild">
+                    <span class="name">Warrior Guild</span>
+                    <span class="cost">500g</span>
+                </div>
+                <div class="dropdown-item" data-building="ranger-guild">
+                    <span class="name">Ranger Guild</span>
+                    <span class="cost">400g</span>
+                </div>
+                <div class="dropdown-item" data-building="marketplace">
+                    <span class="name">Marketplace</span>
+                    <span class="cost">350g</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="dropdown" id="recruit-dropdown">
+            <button class="action-btn" id="btn-recruit">
+                <span class="icon">&#x2694;</span>
+                Recruit
+            </button>
+            <div class="dropdown-content">
+                <div class="dropdown-item" data-unit="warrior">
+                    <span class="name">Warrior</span>
+                    <span class="cost">450g</span>
+                </div>
+                <div class="dropdown-item" data-unit="ranger">
+                    <span class="name">Ranger</span>
+                    <span class="cost">350g</span>
+                </div>
+                <div class="dropdown-item" data-unit="wizard">
+                    <span class="name">Wizard</span>
+                    <span class="cost">500g</span>
+                </div>
+            </div>
+        </div>
+
+        <button class="action-btn" id="btn-pause">
+            <span class="icon">&#x23F8;</span>
+            Pause
+        </button>
+
+        <button class="action-btn" id="btn-speed">
+            <span class="icon">&#x23E9;</span>
+            1x
+        </button>
+    </div>
+
+    <!-- PixiJS from CDN -->
     <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
 
     <!-- Our game (ES6 modules) -->
     <script type="module" src="src/main.js"></script>
+
+    <!-- UI Controller -->
+    <script type="module">
+        // Wait for game to initialize
+        window.addEventListener('load', () => {
+            // Check for game periodically until it's ready
+            const checkGame = setInterval(() => {
+                if (window.game) {
+                    clearInterval(checkGame);
+                    initUI();
+                }
+            }, 100);
+        });
+
+        function initUI() {
+            const game = window.game;
+
+            // Update UI periodically
+            setInterval(() => updateUI(game), 100);
+
+            // Pause button
+            document.getElementById('btn-pause').addEventListener('click', () => {
+                game.togglePause();
+            });
+
+            // Recruit dropdown items
+            document.querySelectorAll('#recruit-dropdown .dropdown-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const unitType = item.dataset.unit;
+                    recruitUnit(game, unitType);
+                });
+            });
+
+            // Build dropdown items
+            document.querySelectorAll('#build-dropdown .dropdown-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const buildingType = item.dataset.building;
+                    // TODO: Implement building placement mode
+                    showMessage('Building placement coming soon!');
+                });
+            });
+
+            console.log('External UI initialized');
+        }
+
+        function updateUI(game) {
+            // Update gold
+            document.getElementById('gold-display').textContent = game.gold;
+
+            // Count units
+            let allies = 0, enemies = 0;
+            for (const entity of game.entities) {
+                if (entity.isAlive && entity.isAlive()) {
+                    if (entity.team === 'player') allies++;
+                    else if (entity.team === 'enemy') enemies++;
+                }
+            }
+            document.getElementById('allies-count').textContent = allies;
+            document.getElementById('enemies-count').textContent = enemies;
+
+            // Update game status
+            const statusEl = document.getElementById('game-status');
+            if (game.gameEnded) {
+                statusEl.textContent = game.state === 1 ? 'VICTORY!' : 'DEFEAT';
+                statusEl.style.color = game.state === 1 ? '#44ff44' : '#ff4444';
+            } else if (game.state === 2) {  // GAME_PAUSE
+                statusEl.textContent = 'Paused';
+                statusEl.style.color = '#ffaa00';
+            } else {
+                statusEl.textContent = 'Playing';
+                statusEl.style.color = '#888';
+            }
+
+            // Update pause button
+            const pauseBtn = document.getElementById('btn-pause');
+            pauseBtn.querySelector('.icon').textContent = game.state === 2 ? '\u25B6' : '\u23F8';
+
+            // Update selected unit panel
+            updateSelectedPanel(game);
+        }
+
+        function updateSelectedPanel(game) {
+            const panel = document.getElementById('selected-panel');
+            const unit = game.selectedUnit;
+
+            if (unit && unit.isAlive && unit.isAlive()) {
+                panel.classList.add('visible');
+                document.getElementById('selected-name').textContent =
+                    unit.unitType ? unit.unitType.charAt(0).toUpperCase() + unit.unitType.slice(1) : 'Unit';
+
+                const healthPct = (unit.health / unit.maxHealth) * 100;
+                document.getElementById('selected-health').style.width = healthPct + '%';
+                document.getElementById('selected-stats').textContent =
+                    `HP: ${Math.ceil(unit.health)}/${unit.maxHealth}`;
+            } else {
+                panel.classList.remove('visible');
+            }
+        }
+
+        function recruitUnit(game, unitType) {
+            const costs = { warrior: 450, ranger: 350, wizard: 500 };
+            const cost = costs[unitType];
+
+            if (game.gold < cost) {
+                showMessage(`Need ${cost} gold!`);
+                return;
+            }
+
+            // Find a spawn position near center or castle
+            const centerI = Math.floor(game.gridWidth / 2);
+            const centerJ = Math.floor(game.gridHeight / 2);
+
+            // Find walkable position
+            let spawnI = centerI, spawnJ = centerJ;
+            for (let d = 0; d < 10; d++) {
+                for (let di = -d; di <= d; di++) {
+                    for (let dj = -d; dj <= d; dj++) {
+                        if (game.grid.isWalkable(centerI + di, centerJ + dj)) {
+                            spawnI = centerI + di;
+                            spawnJ = centerJ + dj;
+                            d = 10; // break all loops
+                            break;
+                        }
+                    }
+                }
+            }
+
+            game.gold -= cost;
+            game.spawnHero(unitType.toUpperCase(), spawnI, spawnJ);
+            showMessage(`${unitType} recruited!`);
+        }
+
+        function showMessage(text, duration = 1500) {
+            const msgEl = document.getElementById('message');
+            msgEl.textContent = text;
+            msgEl.classList.add('visible');
+            setTimeout(() => msgEl.classList.remove('visible'), duration);
+        }
+
+        // Expose for debugging
+        window.showMessage = showMessage;
+    </script>
 </body>
 </html>

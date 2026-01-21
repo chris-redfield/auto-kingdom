@@ -11,7 +11,8 @@ import * as IsoMath from '../world/IsoMath.js';
 import { DynamicEntity } from '../entities/DynamicEntity.js';
 import { Building } from '../entities/Building.js';
 import { Missile, MissileType, createMissile } from '../entities/Missile.js';
-import { HUD } from '../ui/HUD.js';
+// HUD disabled - using external HTML UI instead
+// import { HUD } from '../ui/HUD.js';
 import { AnimationLoader } from '../graphics/AnimationLoader.js';
 import { UNIT_ANIMS, BUILDING_ANIMS } from '../utils/AnimationConstants.js';
 import { getSoundManager } from '../audio/SoundManager.js';
@@ -74,7 +75,7 @@ export class Game {
         // Path visualization
         this.pathGraphics = null;
 
-        // HUD
+        // HUD disabled - using external HTML UI instead
         this.hud = null;
 
         // Animation system
@@ -116,10 +117,9 @@ export class Game {
         // Set up input callbacks
         this.setupInputCallbacks();
 
-        // Create HUD
-        this.hud = new HUD(this.uiContainer, this);
+        // HUD disabled - using external HTML UI instead
 
-        // Debug text (positioned after HUD elements)
+        // Debug text (positioned in corner)
         if (this.debugMode) {
             this.debugText = new PIXI.Text({
                 text: 'Majesty JS - Loading...',
@@ -130,7 +130,7 @@ export class Game {
                     stroke: { color: 0x000000, width: 2 }
                 }
             });
-            this.debugText.x = 220;  // Move right of HUD
+            this.debugText.x = 10;
             this.debugText.y = 10;
             this.uiContainer.addChild(this.debugText);
         }
@@ -155,6 +155,9 @@ export class Game {
             console.log(`Cell size: ${this.mapLoader.cellWidth}x${this.mapLoader.cellHeight}`);
             console.log(`Packages needed: ${this.mapLoader.packagesToLoad.join(', ')}`);
             console.log(`Terrain package: ${this.mapLoader.getTerrainPackage()}`);
+
+            // Analyze overlay data for debugging
+            this.mapLoader.analyzeOverlays();
 
             // Use map dimensions for grid
             this.gridWidth = this.mapLoader.mapWidth;
@@ -345,16 +348,12 @@ export class Game {
                     // Spawn the hero
                     this.spawnHero(recruitment.type, spawnPos.i, spawnPos.j);
 
-                    if (this.hud) {
-                        this.hud.showMessage(`${recruitment.name} recruited! -${recruitment.cost} gold`, 2000);
-                    }
+                    this.showMessage(`${recruitment.name} recruited! -${recruitment.cost} gold`);
                     this.playSound(SOUNDS.GOLD);
                     console.log(`Recruited ${recruitment.name} for ${recruitment.cost} gold`);
                 }
             } else {
-                if (this.hud) {
-                    this.hud.showMessage(`Need ${recruitment.cost} gold for ${recruitment.name}`, 2000);
-                }
+                this.showMessage(`Need ${recruitment.cost} gold for ${recruitment.name}`);
                 console.log(`Not enough gold for ${recruitment.name} (need ${recruitment.cost}, have ${this.gold})`);
             }
         } else {
@@ -1369,9 +1368,7 @@ export class Game {
         console.log('Created Castle and test guilds: Warrior Guild and Ranger Guild');
         console.log('Castle destroyed = DEFEAT | All enemies killed = VICTORY');
         console.log('Click on a guild to recruit heroes (Warrior: 450g, Ranger: 350g)');
-        if (this.hud) {
-            this.hud.showMessage('Castle + Guilds created!', 3000);
-        }
+        this.showMessage('Castle + Guilds created!');
     }
 
     /**
@@ -1515,9 +1512,7 @@ export class Game {
         // Play victory sound
         this.playSound(SOUNDS.GOLD);
 
-        if (this.hud) {
-            this.hud.showMessage('VICTORY! +100 Gold', 3000);
-        }
+        this.showMessage('VICTORY! +100 Gold');
         console.log('Victory! All enemies defeated.');
     }
 
@@ -1532,22 +1527,31 @@ export class Game {
         // Play defeat sound
         this.playSound(SOUNDS.YOUR_BUILDING_DENIED);
 
-        if (this.hud) {
-            this.hud.showMessage(`DEFEAT! ${reason}`, 3000);
-        }
+        this.showMessage(`DEFEAT! ${reason}`);
         console.log(`Defeat! ${reason}`);
+    }
+
+    /**
+     * Show a message using the external HTML UI
+     * @param {string} text - Message to display
+     * @param {number} duration - Duration in ms (default 1500)
+     */
+    showMessage(text, duration = 1500) {
+        // Use external UI's showMessage if available
+        if (window.showMessage) {
+            window.showMessage(text, duration);
+        } else {
+            console.log(`[MESSAGE] ${text}`);
+        }
     }
 
     /**
      * Render game (called as fast as possible)
      */
     render(alpha) {
-        // Update HUD
-        if (this.hud) {
-            this.hud.update();
-        }
+        // HUD update removed - using external HTML UI instead
 
-        // Update debug display (simplified - HUD shows most info now)
+        // Update debug display
         if (this.debugText && this.debugText.visible) {
             const gridInfo = `Tile: (${this.hoverTile.i}, ${this.hoverTile.j})`;
             const aliveCount = this.entities.filter(e => e.isAlive()).length;
