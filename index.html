@@ -161,6 +161,11 @@
             cursor: not-allowed;
         }
 
+        #btn-pause {
+            width: 90px;
+            justify-content: center;
+        }
+
         .action-btn .icon {
             font-size: 18px;
         }
@@ -423,7 +428,7 @@
 
         <button class="action-btn" id="btn-pause">
             <span class="icon">&#x23F8;</span>
-            Pause
+            <span class="label">Pause</span>
         </button>
 
         <button class="action-btn" id="btn-speed">
@@ -515,7 +520,7 @@
             if (game.gameEnded) {
                 statusEl.textContent = game.state === 1 ? 'VICTORY!' : 'DEFEAT';
                 statusEl.style.color = game.state === 1 ? '#44ff44' : '#ff4444';
-            } else if (game.state === 2) {  // GAME_PAUSE
+            } else if (game.state === 21) {  // GAME_PAUSE
                 statusEl.textContent = 'Paused';
                 statusEl.style.color = '#ffaa00';
             } else {
@@ -525,7 +530,9 @@
 
             // Update pause button
             const pauseBtn = document.getElementById('btn-pause');
-            pauseBtn.querySelector('.icon').textContent = game.state === 2 ? '\u25B6' : '\u23F8';
+            const isPaused = game.state === 21;
+            pauseBtn.querySelector('.icon').textContent = isPaused ? '\u25B6' : '\u23F8';
+            pauseBtn.querySelector('.label').textContent = isPaused ? 'Play' : 'Pause';
 
             // Update selected unit panel
             updateSelectedPanel(game);
