@@ -19,6 +19,7 @@ import { getSoundManager } from '../audio/SoundManager.js';
 import { SOUNDS, MUSIC } from '../audio/SoundConstants.js';
 import { MapLoader } from '../world/MapLoader.js';
 import { SpawnManager } from '../systems/SpawnManager.js';
+import { BuildingMenu } from '../ui/BuildingMenu.js';
 
 export class Game {
     constructor(app, input, assetLoader) {
@@ -91,6 +92,18 @@ export class Game {
 
         // Player's castle reference (for win/lose conditions)
         this.playerCastle = null;
+
+        // Building menu UI
+        this.buildingMenu = null;  // Initialized after DOM is ready
+
+        // Blacksmith upgrade levels
+        this.weaponUpgradeLevel = 0;
+        this.armorUpgradeLevel = 0;
+
+        // Building placement mode
+        this.placementMode = false;
+        this.pendingBuilding = null;  // Building info being placed
+        this.placementPreview = null; // Visual preview sprite
 
         this.init();
     }
@@ -227,6 +240,12 @@ export class Game {
     handleClick(screenX, screenY, button, worldX, worldY) {
         if (this.state !== GameState.GAME) return;
 
+        // Handle right-click to cancel placement mode
+        if (button === 2 && this.placementMode) {
+            this.cancelPlacementMode();
+            return;
+        }
+
         if (button === 0 && this.grid) {  // Left click
             // Convert to grid-local coordinates
             const localX = worldX - this.grid.container.x;
@@ -234,6 +253,12 @@ export class Game {
 
             // Convert to grid position
             const gridPos = IsoMath.worldToGridRounded(localX, localY);
+
+            // Handle building placement mode
+            if (this.placementMode && this.pendingBuilding) {
+                this.tryPlaceBuilding(gridPos.i, gridPos.j);
+                return;
+            }
 
             // Check if clicked on an entity first
             const clickedEntity = this.getEntityAt(localX, localY);
@@ -288,8 +313,8 @@ export class Game {
                 const clickedBuilding = this.getBuildingAt(gridPos.i, gridPos.j);
 
                 if (clickedBuilding && clickedBuilding.team === 0) {
-                    // Player building - try to recruit
-                    this.handleBuildingClick(clickedBuilding);
+                    // Player building - show building menu
+                    this.handleBuildingClick(clickedBuilding, screenX, screenY);
                 } else if (this.grid.isInBounds(gridPos.i, gridPos.j) &&
                            this.grid.isWalkable(gridPos.i, gridPos.j) &&
                            this.selectedUnit) {
@@ -324,42 +349,225 @@ export class Game {
     }
 
     /**
-     * Handle click on a building
+     * Handle click on a building - show building menu
      */
-    handleBuildingClick(building) {
-        // Recruitment costs (from original game)
-        const recruitmentCosts = {
-            [BuildingType.WARRIOR_GUILD]: { cost: 450, type: 'WARRIOR', name: 'Warrior' },
-            [BuildingType.RANGER_GUILD]: { cost: 350, type: 'RANGER', name: 'Ranger' },
-            [BuildingType.WIZARD_GUILD]: { cost: 500, type: 'WIZARD', name: 'Wizard' }
-        };
-
-        const recruitment = recruitmentCosts[building.buildingType];
-
-        if (recruitment) {
-            if (this.gold >= recruitment.cost) {
-                // Deduct gold
-                this.gold -= recruitment.cost;
-
-                // Find spawn position near building
-                const spawnPos = this.findSpawnPositionNearBuilding(building);
-
-                if (spawnPos) {
-                    // Spawn the hero
-                    this.spawnHero(recruitment.type, spawnPos.i, spawnPos.j);
-
-                    this.showMessage(`${recruitment.name} recruited! -${recruitment.cost} gold`);
-                    this.playSound(SOUNDS.GOLD);
-                    console.log(`Recruited ${recruitment.name} for ${recruitment.cost} gold`);
-                }
-            } else {
-                this.showMessage(`Need ${recruitment.cost} gold for ${recruitment.name}`);
-                console.log(`Not enough gold for ${recruitment.name} (need ${recruitment.cost}, have ${this.gold})`);
-            }
-        } else {
-            // Non-guild building (like Castle)
-            console.log(`Clicked on ${building.getName()}`);
+    handleBuildingClick(building, screenX, screenY) {
+        // Initialize building menu if not already done
+        if (!this.buildingMenu) {
+            this.buildingMenu = new BuildingMenu(this);
         }
+
+        // Show the building menu at click position
+        if (this.buildingMenu) {
+            this.buildingMenu.show(building, screenX, screenY);
+        }
+
+        console.log(`Clicked on ${building.getName()} - showing menu`);
+    }
+
+    /**
+     * Enter building placement mode
+     */
+    enterBuildingPlacementMode(buildingInfo) {
+        this.placementMode = true;
+        this.pendingBuilding = buildingInfo;
+
+        // Show placement message
+        this.showMessage(`Click to place ${buildingInfo.name} (Right-click to cancel)`);
+
+        // Create placement preview
+        this.createPlacementPreview(buildingInfo);
+
+        console.log(`Entering placement mode for ${buildingInfo.name}`);
+    }
+
+    /**
+     * Cancel building placement mode
+     */
+    cancelPlacementMode() {
+        this.placementMode = false;
+        this.pendingBuilding = null;
+
+        // Remove preview from grid container
+        if (this.placementPreview && this.grid) {
+            this.grid.container.removeChild(this.placementPreview);
+            this.placementPreview.destroy();
+            this.placementPreview = null;
+        }
+
+        this.showMessage('Building cancelled');
+        console.log('Placement mode cancelled');
+    }
+
+    /**
+     * Create visual preview for building placement
+     */
+    createPlacementPreview(buildingInfo) {
+        if (!this.grid) {
+            console.error('Cannot create placement preview - grid is null!');
+            return;
+        }
+
+        if (this.placementPreview) {
+            this.grid.container.removeChild(this.placementPreview);
+            this.placementPreview.destroy();
+        }
+
+        this.placementPreview = new PIXI.Graphics();
+        this.placementPreview.zIndex = 10000;
+        this.grid.container.addChild(this.placementPreview);
+    }
+
+    /**
+     * Update placement preview position (called from update loop)
+     */
+    updatePlacementPreview() {
+        if (!this.placementMode) return;
+        if (!this.placementPreview) {
+            console.warn('updatePlacementPreview: placementPreview is null');
+            return;
+        }
+        if (!this.grid) {
+            console.warn('updatePlacementPreview: grid is null');
+            return;
+        }
+
+        // Get mouse position in world coordinates
+        const worldPos = this.input.getWorldPosition();
+
+        // Convert to grid-local coordinates
+        const localX = worldPos.x - this.grid.container.x;
+        const localY = worldPos.y - this.grid.container.y;
+
+        // Snap to grid
+        const gridPos = IsoMath.worldToGridRounded(localX, localY);
+
+        // Clear and redraw
+        this.placementPreview.clear();
+
+        // Check validity
+        const isValid = this.isValidPlacement(gridPos.i, gridPos.j, 2, 2);
+
+        // Draw surrounding green tiles (1 tile border around the 2x2 building)
+        const greenColor = 0x00ff00;
+        for (let di = -1; di <= 2; di++) {
+            for (let dj = -1; dj <= 2; dj++) {
+                // Skip the center 2x2 (will be drawn in yellow)
+                if (di >= 0 && di < 2 && dj >= 0 && dj < 2) continue;
+
+                const corners = IsoMath.getTileCorners(gridPos.i + di, gridPos.j + dj);
+                this.placementPreview.moveTo(corners[0].x, corners[0].y);
+                this.placementPreview.lineTo(corners[1].x, corners[1].y);
+                this.placementPreview.lineTo(corners[2].x, corners[2].y);
+                this.placementPreview.lineTo(corners[3].x, corners[3].y);
+                this.placementPreview.lineTo(corners[0].x, corners[0].y);
+            }
+        }
+        this.placementPreview.fill({ color: greenColor, alpha: 0.25 });
+        this.placementPreview.stroke({ width: 1, color: greenColor, alpha: 0.6 });
+
+        // Draw center 2x2 building footprint in yellow (or red if invalid)
+        const centerColor = isValid ? 0xffff00 : 0xff0000;
+        for (let di = 0; di < 2; di++) {
+            for (let dj = 0; dj < 2; dj++) {
+                const corners = IsoMath.getTileCorners(gridPos.i + di, gridPos.j + dj);
+                this.placementPreview.moveTo(corners[0].x, corners[0].y);
+                this.placementPreview.lineTo(corners[1].x, corners[1].y);
+                this.placementPreview.lineTo(corners[2].x, corners[2].y);
+                this.placementPreview.lineTo(corners[3].x, corners[3].y);
+                this.placementPreview.lineTo(corners[0].x, corners[0].y);
+            }
+        }
+        this.placementPreview.fill({ color: centerColor, alpha: 0.4 });
+        this.placementPreview.stroke({ width: 2, color: centerColor, alpha: 0.9 });
+    }
+
+    /**
+     * Check if a building can be placed at the given position
+     */
+    isValidPlacement(gridI, gridJ, sizeI, sizeJ) {
+        // Check all cells the building would occupy
+        for (let di = 0; di < sizeI; di++) {
+            for (let dj = 0; dj < sizeJ; dj++) {
+                const i = gridI + di;
+                const j = gridJ + dj;
+
+                // Check bounds
+                if (!this.grid.isInBounds(i, j)) {
+                    return false;
+                }
+
+                // Check if cell is walkable (not blocked by terrain)
+                if (!this.grid.isWalkable(i, j)) {
+                    return false;
+                }
+
+                // Check if cell is occupied by another building
+                const existingBuilding = this.getBuildingAt(i, j);
+                if (existingBuilding) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Try to place building at the specified position
+     */
+    tryPlaceBuilding(gridI, gridJ) {
+        const buildingInfo = this.pendingBuilding;
+        const sizeI = 2;
+        const sizeJ = 2;
+
+        // Check if placement is valid
+        if (!this.isValidPlacement(gridI, gridJ, sizeI, sizeJ)) {
+            this.showMessage("Can't build here!");
+            if (this.playSound) {
+                this.playSound(SOUNDS.CLICK_DENY);
+            }
+            return;
+        }
+
+        // Check if we can afford it
+        if (this.gold < buildingInfo.cost) {
+            this.showMessage(`Need ${buildingInfo.cost} gold!`);
+            if (this.playSound) {
+                this.playSound(SOUNDS.CLICK_DENY);
+            }
+            return;
+        }
+
+        // Deduct cost and place building
+        this.gold -= buildingInfo.cost;
+
+        // Create the building
+        const building = new Building(gridI, gridJ, buildingInfo.type);
+        building.team = 0;  // Player building
+        building.initSprite();
+
+        // Lock cells on grid
+        building.lockCells(this.grid);
+
+        // Add to grid container (not worldContainer - grid has its own offset)
+        this.grid.container.addChild(building.sprite);
+        this.buildings.push(building);
+
+        // Initialize with animations if available
+        if (this.animationsLoaded && this.animLoader) {
+            this.initBuildingAnimation(building);
+        }
+
+        // Exit placement mode
+        this.cancelPlacementMode();
+
+        // Show success message
+        this.showMessage(`${buildingInfo.name} built!`);
+        if (this.playSound) {
+            this.playSound(SOUNDS.GOLD);
+        }
+
+        console.log(`Built ${buildingInfo.name} at (${gridI}, ${gridJ})`);
     }
 
     /**
@@ -615,11 +823,17 @@ export class Game {
             this.createTestBuilding();
         }
 
-        // Center camera on the grid center
-        const center = this.grid.getCenter();
+        // Center camera on the castle position (from map data) or grid center as fallback
+        let cameraTarget = this.grid.getCenter();
+        if (this.mapLoader && this.mapLoader.objects) {
+            const castleObj = this.mapLoader.objects.find(obj => obj.type === 0x20);
+            if (castleObj) {
+                cameraTarget = IsoMath.gridToWorld(castleObj.gridI, castleObj.gridJ);
+            }
+        }
         this.camera.centerOn(
-            center.x + this.grid.container.x,
-            center.y + this.grid.container.y,
+            cameraTarget.x + this.grid.container.x,
+            cameraTarget.y + this.grid.container.y,
             true
         );
 
@@ -679,6 +893,30 @@ export class Game {
             // Package 14: Trolls (enemy units)
             await this.animLoader.loadPackage(basePath, 14);
             console.log('Loaded troll animations (package 14)');
+
+            // Package 2: Agrella Temple
+            await this.animLoader.loadPackage(basePath, 2);
+            console.log('Loaded Agrella Temple animations (package 2)');
+
+            // Package 3: Crypta Temple
+            await this.animLoader.loadPackage(basePath, 3);
+            console.log('Loaded Crypta Temple animations (package 3)');
+
+            // Package 4: Dwarf buildings (Windmill, Tower)
+            await this.animLoader.loadPackage(basePath, 4);
+            console.log('Loaded Dwarf building animations (package 4)');
+
+            // Package 5: Elf Bungalow
+            await this.animLoader.loadPackage(basePath, 5);
+            console.log('Loaded Elf Bungalow animations (package 5)');
+
+            // Package 6: Krolm Temple
+            await this.animLoader.loadPackage(basePath, 6);
+            console.log('Loaded Krolm Temple animations (package 6)');
+
+            // Package 9: Wizard Guild, Library
+            await this.animLoader.loadPackage(basePath, 9);
+            console.log('Loaded Wizard Guild/Library animations (package 9)');
 
             // Package 27: Grass decorations (rocks, bushes, trees, etc.)
             await this.animLoader.loadPackage(basePath, 27);
@@ -799,11 +1037,20 @@ export class Game {
      * Create test units on the grid
      */
     createTestUnit() {
-        // Create player unit at grid center
-        const centerI = Math.floor(this.gridWidth / 2);
-        const centerJ = Math.floor(this.gridHeight / 2);
+        // Get castle position from map data, or use grid center as fallback
+        let castleI = Math.floor(this.gridWidth / 2);
+        let castleJ = Math.floor(this.gridHeight / 2);
 
-        const playerUnit = new DynamicEntity(centerI, centerJ);
+        if (this.mapLoader && this.mapLoader.objects) {
+            const castleObj = this.mapLoader.objects.find(obj => obj.type === 0x20);
+            if (castleObj) {
+                castleI = castleObj.gridI;
+                castleJ = castleObj.gridJ;
+            }
+        }
+
+        // Spawn player knight near castle (offset to the side)
+        const playerUnit = new DynamicEntity(castleI + 4, castleJ + 2);
         playerUnit.initSprite();
         playerUnit.setBodyColor(0x4488ff);  // Blue for player
         playerUnit.setGrid(this.grid);  // Link to grid for cell occupancy
@@ -845,11 +1092,11 @@ export class Game {
             }
         }
 
-        // Create some friendly units (green)
+        // Create some friendly units (green) - spawn near castle
         const friendlyPositions = [
-            { i: centerI - 2, j: centerJ },
-            { i: centerI + 2, j: centerJ },
-            { i: centerI, j: centerJ - 2 }
+            { i: castleI + 5, j: castleJ },
+            { i: castleI + 3, j: castleJ + 4 },
+            { i: castleI + 6, j: castleJ + 3 }
         ];
 
         for (const pos of friendlyPositions) {
@@ -910,15 +1157,15 @@ export class Game {
             // Get animation config for this building type
             let animConfig = null;
 
-            if (building.buildingType === 0x1) {  // CASTLE
+            if (building.buildingType === BuildingType.CASTLE) {  // 0x20
                 animConfig = BUILDING_ANIMS.CASTLE;
-            } else if (building.buildingType === 0x2) {  // WARRIOR_GUILD
+            } else if (building.buildingType === BuildingType.WARRIOR_GUILD) {  // 0x21
                 animConfig = BUILDING_ANIMS.WARRIOR_GUILD;
-            } else if (building.buildingType === 0x4) {  // RANGER_GUILD
+            } else if (building.buildingType === BuildingType.RANGER_GUILD) {  // 0x22
                 animConfig = BUILDING_ANIMS.RANGER_GUILD;
-            } else if (building.buildingType === 0x100) {  // MARKETPLACE
+            } else if (building.buildingType === BuildingType.MARKETPLACE) {  // 0x29
                 animConfig = BUILDING_ANIMS.MARKETPLACE;
-            } else if (building.buildingType === 0x80) {  // BLACKSMITH
+            } else if (building.buildingType === BuildingType.BLACKSMITH) {  // 0x27
                 animConfig = BUILDING_ANIMS.BLACKSMITH;
             }
 
@@ -930,6 +1177,59 @@ export class Game {
                 );
                 console.log(`Updated building to use animation package ${animConfig.package}, anim ${animConfig.idle}`);
             }
+        }
+    }
+
+    /**
+     * Initialize animation for a single building
+     */
+    initBuildingAnimation(building) {
+        if (!this.animationsLoaded || !this.animLoader) return;
+
+        // Get animation config for this building type
+        let animConfig = null;
+
+        if (building.buildingType === BuildingType.CASTLE) {
+            animConfig = BUILDING_ANIMS.CASTLE;
+        } else if (building.buildingType === BuildingType.WARRIOR_GUILD) {
+            animConfig = BUILDING_ANIMS.WARRIOR_GUILD;
+        } else if (building.buildingType === BuildingType.RANGER_GUILD) {
+            animConfig = BUILDING_ANIMS.RANGER_GUILD;
+        } else if (building.buildingType === BuildingType.WIZARD_GUILD) {
+            animConfig = BUILDING_ANIMS.WIZARD_GUILD;
+        } else if (building.buildingType === BuildingType.MARKETPLACE) {
+            animConfig = BUILDING_ANIMS.MARKETPLACE;
+        } else if (building.buildingType === BuildingType.BLACKSMITH) {
+            animConfig = BUILDING_ANIMS.BLACKSMITH;
+        } else if (building.buildingType === BuildingType.GUARD_TOWER) {
+            animConfig = BUILDING_ANIMS.GUARD_TOWER;
+        } else if (building.buildingType === BuildingType.AGRELLA_TEMPLE) {
+            animConfig = BUILDING_ANIMS.AGRELLA_TEMPLE;
+        } else if (building.buildingType === BuildingType.CRYPTA_TEMPLE) {
+            animConfig = BUILDING_ANIMS.CRYPTA_TEMPLE;
+        } else if (building.buildingType === BuildingType.KROLM_TEMPLE) {
+            animConfig = BUILDING_ANIMS.KROLM_TEMPLE;
+        } else if (building.buildingType === BuildingType.ELF_BUNGALOW) {
+            animConfig = BUILDING_ANIMS.ELF_BUNGALOW;
+        } else if (building.buildingType === BuildingType.DWARF_WINDMILL) {
+            animConfig = BUILDING_ANIMS.DWARF_WINDMILL;
+        } else if (building.buildingType === BuildingType.DWARF_TOWER) {
+            animConfig = BUILDING_ANIMS.DWARF_TOWER;
+        } else if (building.buildingType === BuildingType.GNOME_HOVEL) {
+            animConfig = BUILDING_ANIMS.GNOME_HOVEL;
+        } else if (building.buildingType === BuildingType.LIBRARY) {
+            animConfig = BUILDING_ANIMS.LIBRARY;
+        } else if (building.buildingType === BuildingType.INN) {
+            animConfig = BUILDING_ANIMS.INN;
+        }
+
+        if (animConfig && this.animLoader.animationData[animConfig.package]) {
+            building.initAnimatedSprite(
+                this.animLoader,
+                animConfig.package,
+                animConfig.idle
+            );
+            console.log(`Initialized building animation: package ${animConfig.package}, anim ${animConfig.idle}`);
         }
     }
 
@@ -1071,6 +1371,28 @@ export class Game {
             // Only process building objects (not decorations or spawn points)
             if (obj.isRespawn || obj.isWaveSpawn || obj.isDecoration) continue;
 
+            // For Castle (0x20), create a proper Building object instead of just a sprite
+            if (obj.type === 0x20) {
+                const castle = new Building(obj.gridI, obj.gridJ, BuildingType.CASTLE);
+                castle.team = 0;
+                castle.maxHealth = 1000;
+                castle.health = castle.maxHealth;
+                castle.sizeI = 3;
+                castle.sizeJ = 3;
+                castle.initSprite();
+                this.grid.container.addChild(castle.sprite);
+                castle.lockCells(this.grid);
+                this.buildings.push(castle);
+                this.playerCastle = castle;
+
+                // Initialize with animation
+                this.initBuildingAnimation(castle);
+
+                console.log(`Created player Castle at (${obj.gridI}, ${obj.gridJ}) from map data`);
+                buildingsRendered++;
+                continue;
+            }
+
             const buildingAnim = buildingAnims[obj.type];
             if (!buildingAnim) continue;
 
@@ -1200,6 +1522,12 @@ export class Game {
      */
     updateHoverTile() {
         if (!this.grid || !this.hoverHighlight) return;
+
+        // Hide hover highlight during placement mode (placement preview handles it)
+        if (this.placementMode) {
+            this.hoverHighlight.clear();
+            return;
+        }
 
         const worldPos = this.input.getWorldPosition();
 
@@ -1428,6 +1756,9 @@ export class Game {
         // Update hover highlight
         this.updateHoverTile();
 
+        // Update building placement preview
+        this.updatePlacementPreview();
+
         // Update path visualization
         this.updatePathVisualization();
 
@@ -1435,6 +1766,13 @@ export class Game {
         for (const entity of this.entities) {
             if (entity.update) {
                 entity.update(deltaTime);
+            }
+        }
+
+        // Update all buildings (for animations like flags, smoke, etc.)
+        for (const building of this.buildings) {
+            if (building.update) {
+                building.update(deltaTime);
             }
         }
 

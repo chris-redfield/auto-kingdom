@@ -75,6 +75,26 @@
             color: #888;
         }
 
+        /* Main content area with left panel and game */
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            overflow: hidden;
+        }
+
+        /* Left panel for building menu */
+        #left-panel {
+            width: 240px;
+            min-width: 240px;
+            background: linear-gradient(to right, #1a1a2e, #151525);
+            border-right: 2px solid #3a3a5a;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
         /* Game Container - Fills remaining space */
         #game-wrapper {
             flex: 1;
@@ -328,6 +348,144 @@
             border-radius: 3px;
             font-family: monospace;
         }
+
+        /* Building Menu - In left panel */
+        #building-menu {
+            background: rgba(26, 26, 46, 0.95);
+            border: 2px solid #5a5a7a;
+            border-radius: 8px;
+            padding: 0;
+            width: 100%;
+            display: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        #building-menu.visible {
+            display: block;
+        }
+
+        .building-menu-header {
+            background: linear-gradient(to bottom, #3a3a5a, #2a2a4a);
+            padding: 10px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #4a4a6a;
+        }
+
+        #building-menu-title {
+            font-weight: 700;
+            font-size: 16px;
+            color: #ffd700;
+        }
+
+        #building-menu-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+
+        #building-menu-close:hover {
+            color: #ff6666;
+        }
+
+        .building-menu-stats {
+            padding: 10px 12px;
+            border-bottom: 1px solid #3a3a5a;
+        }
+
+        .building-health-bar {
+            background: #333;
+            height: 12px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+
+        #building-health-fill {
+            background: linear-gradient(to right, #ff4444, #44ff44);
+            height: 100%;
+            transition: width 0.2s ease;
+        }
+
+        .building-stats-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        #building-options {
+            padding: 8px;
+        }
+
+        .build-section-header {
+            font-size: 12px;
+            font-weight: 700;
+            color: #8a8aaa;
+            text-transform: uppercase;
+            padding: 8px 12px 4px;
+            margin-top: 8px;
+            border-top: 1px solid #3a3a5a;
+        }
+
+        .building-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            margin: 4px 0;
+            background: linear-gradient(to bottom, #3a3a5a, #2a2a4a);
+            border: 1px solid #4a4a6a;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .building-option:hover:not(.disabled) {
+            background: linear-gradient(to bottom, #4a6a4a, #3a5a3a);
+            border-color: #6a9a6a;
+            transform: translateX(2px);
+        }
+
+        .building-option.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .option-icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .option-text {
+            flex: 1;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .option-cost {
+            color: #ffd700;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .building-info {
+            padding: 8px 12px;
+            font-size: 11px;
+            color: #888;
+            border-top: 1px solid #3a3a5a;
+        }
+
+        .building-info div {
+            margin: 2px 0;
+        }
     </style>
 </head>
 <body>
@@ -352,33 +510,58 @@
         <div class="game-status" id="game-status">Playing</div>
     </div>
 
-    <!-- Game Canvas -->
-    <div id="game-wrapper">
-        <div id="game-container">
-            <div id="loading">Loading Majesty...</div>
-        </div>
-
-        <!-- Overlays on game area -->
-        <div id="minimap">
-            <canvas id="minimap-canvas"></canvas>
-            <div id="minimap-label">Click to scroll</div>
-        </div>
-
-        <div id="selected-panel">
-            <div class="unit-name" id="selected-name">Warrior</div>
-            <div class="health-bar">
-                <div class="health-fill" id="selected-health" style="width: 100%"></div>
+    <!-- Main content area with left panel and game -->
+    <div id="main-content">
+        <!-- Left Panel for Building Menu -->
+        <div id="left-panel">
+            <div id="building-menu">
+                <div class="building-menu-header">
+                    <span id="building-menu-title">Building</span>
+                    <button id="building-menu-close">&times;</button>
+                </div>
+                <div class="building-menu-stats">
+                    <div class="building-health-bar">
+                        <div id="building-health-fill" style="width: 100%"></div>
+                    </div>
+                    <div class="building-stats-row">
+                        <span id="building-health-text">500/500</span>
+                        <span id="building-level">Level 1</span>
+                    </div>
+                </div>
+                <div id="building-options">
+                    <!-- Options will be dynamically added -->
+                </div>
             </div>
-            <div class="unit-stats" id="selected-stats">HP: 100/100</div>
         </div>
 
-        <div id="message"></div>
+        <!-- Game Canvas -->
+        <div id="game-wrapper">
+            <div id="game-container">
+                <div id="loading">Loading Majesty...</div>
+            </div>
 
-        <div id="hints">
+            <!-- Overlays on game area -->
+            <div id="minimap">
+                <canvas id="minimap-canvas"></canvas>
+                <div id="minimap-label">Click to scroll</div>
+            </div>
+
+            <div id="selected-panel">
+                <div class="unit-name" id="selected-name">Warrior</div>
+                <div class="health-bar">
+                    <div class="health-fill" id="selected-health" style="width: 100%"></div>
+                </div>
+                <div class="unit-stats" id="selected-stats">HP: 100/100</div>
+            </div>
+
+            <div id="message"></div>
+
+            <div id="hints">
             <kbd>T</kbd> Spawn enemy &nbsp;
             <kbd>G</kbd> Create guilds<br>
             <kbd>M</kbd> Music &nbsp;
             <kbd>D</kbd> Debug
+        </div>
         </div>
     </div>
 

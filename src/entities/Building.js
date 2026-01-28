@@ -43,6 +43,9 @@ export class Building extends Entity {
         this.packageId = 1;  // Package 1 contains buildings
         this.animId = 0;     // Will be set based on buildingType
         this.frameId = 0;
+        this.frameCount = 0;
+        this.animationTimer = 0;
+        this.animationSpeed = 100; // ms per frame (adjust for speed)
 
         // Building state
         this.constructed = true;  // False during construction
@@ -90,6 +93,11 @@ export class Building extends Entity {
         this.packageId = packageId;
         this.animId = animId;
         this.frameId = 0;
+        this.animationTimer = 0;
+
+        // Get frame count for this animation
+        const anim = animLoader.getAnimation(packageId, animId);
+        this.frameCount = anim ? anim.frameCount : 1;
 
         // Store old sprite's parent so we can add new sprite to same container
         const parent = this.sprite ? this.sprite.parent : null;
@@ -221,8 +229,16 @@ export class Building extends Entity {
      * Update building (called each game tick)
      */
     update(deltaTime) {
-        // Buildings are mostly static, but could have animated effects
-        // e.g., smoke from chimney, flags waving, etc.
+        // Animate building (flags waving, smoke, etc.)
+        if (this.animationLoader && this.frameCount > 1) {
+            this.animationTimer += deltaTime;
+
+            if (this.animationTimer >= this.animationSpeed) {
+                this.animationTimer = 0;
+                this.frameId = (this.frameId + 1) % this.frameCount;
+                this.updateAnimationFrame();
+            }
+        }
     }
 
     /**
@@ -247,11 +263,19 @@ export class Building extends Entity {
             [BuildingType.WARRIOR_GUILD]: 'Warrior Guild',
             [BuildingType.RANGER_GUILD]: 'Ranger Guild',
             [BuildingType.WIZARD_GUILD]: 'Wizard Guild',
+            0x24: 'Temple of Agrela',
+            0x25: 'Temple of Krypta',
+            0x26: 'Temple of Krolm',
             [BuildingType.BLACKSMITH]: 'Blacksmith',
+            0x28: 'Guard Tower',
             [BuildingType.MARKETPLACE]: 'Marketplace',
-            [BuildingType.ELF_BUNGALOW]: 'Elf Bungalow',
-            [BuildingType.DWARF_WINDMILL]: 'Dwarf Windmill',
+            0x2a: 'Statue',
+            [BuildingType.ELF_BUNGALOW]: 'Elven Bungalow',
+            [BuildingType.DWARF_WINDMILL]: 'Dwarven Settlement',
+            0x2d: 'Dwarf Tower',
             [BuildingType.GNOME_HOVEL]: 'Gnome Hovel',
+            0x2f: 'Statue',
+            0x30: 'Inn',
             [BuildingType.LIBRARY]: 'Library'
         };
         return names[this.buildingType] || 'Building';

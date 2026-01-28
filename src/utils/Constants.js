@@ -60,18 +60,36 @@ export const EntityState = {
     DEAD: 4
 };
 
-// Building types (bit flags from Location.smali)
+// Building types (from Const.smali TYPE_* constants)
 export const BuildingType = {
+    CASTLE: 0x20,           // 32
+    WARRIOR_GUILD: 0x21,    // 33
+    RANGER_GUILD: 0x22,     // 34
+    WIZARD_GUILD: 0x23,     // 35
+    AGRELLA_TEMPLE: 0x24,   // 36 - healer temple
+    CRYPTA_TEMPLE: 0x25,    // 37 - necromancer temple
+    KROLM_TEMPLE: 0x26,     // 38 - barbarian temple
+    BLACKSMITH: 0x27,       // 39
+    GUARD_TOWER: 0x28,      // 40
+    MARKETPLACE: 0x29,      // 41
+    STATUE: 0x2a,           // 42
+    ELF_BUNGALOW: 0x2b,     // 43
+    DWARF_WINDMILL: 0x2c,   // 44
+    DWARF_TOWER: 0x2d,      // 45
+    GNOME_HOVEL: 0x2e,      // 46
+    STATUE2: 0x2f,          // 47
+    INN: 0x30,              // 48
+    LIBRARY: 0x31           // 49 - research
+};
+
+// Building type bit flags (for iXXXPresent flags in Location.smali)
+export const BuildingFlag = {
     CASTLE: 0x1,
     WARRIOR_GUILD: 0x2,
     RANGER_GUILD: 0x4,
     WIZARD_GUILD: 0x8,
     BLACKSMITH: 0x80,
-    MARKETPLACE: 0x100,
-    ELF_BUNGALOW: 0x200,
-    DWARF_WINDMILL: 0x400,
-    GNOME_HOVEL: 0x800,
-    LIBRARY: 0x1000
+    MARKETPLACE: 0x100
 };
 
 // Screen dimensions (default, can be adjusted)

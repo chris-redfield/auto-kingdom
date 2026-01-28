@@ -69,12 +69,22 @@ export const BUILDING_ANIMS = {
         build: 32       // RANGER_GUILD_BUILD
     },
 
-    // Marketplace - need to find correct IDs
+    // Wizard Guild - WIZARD_GUILD_1_ON = 0x2448 -> package 9, anim 72
+    WIZARD_GUILD: {
+        package: 9,
+        idle: 72,       // WIZARD_GUILD_1_ON
+        off: 71,        // WIZARD_GUILD_1_OFF
+        destroyed: 70,  // WIZARD_GUILD_1_DESTROY
+        build: 79       // WIZARD_GUILD_BUILD
+    },
+
+    // Marketplace - MARKETPLACE_1_ON = 0x441 -> package 1, anim 65
     MARKETPLACE: {
         package: 1,
-        idle: 9,
-        off: 8,
-        destroyed: 7
+        idle: 65,       // MARKETPLACE_1_ON
+        off: 64,        // MARKETPLACE_1_OFF
+        destroyed: 63,  // MARKETPLACE_1_DESTROY
+        build: 72       // MARKETPLACE_BUILD
     },
 
     // Blacksmith - BLACKSMITH_1_ON = 0x402 -> package 1, anim 2
@@ -82,7 +92,98 @@ export const BUILDING_ANIMS = {
         package: 1,
         idle: 2,        // BLACKSMITH_1_ON
         off: 1,         // BLACKSMITH_1_OFF
-        destroyed: 0    // BLACKSMITH_1_DESTROY
+        destroyed: 0,   // BLACKSMITH_1_DESTROY
+        build: 9        // BLACKSMITH_BUILD
+    },
+
+    // Guard Tower - GUARDTOWER_ON = 0x434 -> package 1, anim 52
+    GUARD_TOWER: {
+        package: 1,
+        idle: 52,       // GUARDTOWER_ON
+        off: 51,        // GUARDTOWER_OFF
+        destroyed: 50,  // GUARDTOWER_DESTROY
+        build: 49       // GUARDTOWER_BUILD
+    },
+
+    // Agrela Temple - AGRELLA_TEMPLE_1_ON = 0x802 -> package 2, anim 2
+    AGRELLA_TEMPLE: {
+        package: 2,
+        idle: 2,        // AGRELLA_TEMPLE_1_ON
+        off: 1,         // AGRELLA_TEMPLE_1_OFF
+        destroyed: 0,   // AGRELLA_TEMPLE_1_DESTROY
+        build: 9        // AGRELLA_TEMPLE_BUILD
+    },
+
+    // Crypta Temple - CRYPTA_TEMPLE_1_ON = 0xc02 -> package 3, anim 2
+    CRYPTA_TEMPLE: {
+        package: 3,
+        idle: 2,        // CRYPTA_TEMPLE_1_ON
+        off: 1,         // CRYPTA_TEMPLE_1_OFF
+        destroyed: 0,   // CRYPTA_TEMPLE_1_DESTROY
+        build: 9        // CRYPTA_TEMPLE_BUILD
+    },
+
+    // Krolm Temple - KROLM_TEMPLE_ON = 0x182b -> package 6, anim 43
+    KROLM_TEMPLE: {
+        package: 6,
+        idle: 43,       // KROLM_TEMPLE_ON
+        off: 42,        // KROLM_TEMPLE_OFF
+        destroyed: 41,  // KROLM_TEMPLE_DESTROY
+        build: 40       // KROLM_TEMPLE_BUILD
+    },
+
+    // Elf Bungalow - ELF_BUNGALOW_ON = 0x142c -> package 5, anim 44
+    ELF_BUNGALOW: {
+        package: 5,
+        idle: 44,       // ELF_BUNGALOW_ON
+        off: 43,        // ELF_BUNGALOW_OFF
+        destroyed: 42,  // ELF_BUNGALOW_DESTROY
+        build: 41       // ELF_BUNGALOW_BUILD
+    },
+
+    // Dwarf Windmill - DWARF_WINDMILL_ON = 0x1010 -> package 4, anim 16
+    DWARF_WINDMILL: {
+        package: 4,
+        idle: 16,       // DWARF_WINDMILL_ON
+        off: 15,        // DWARF_WINDMILL_OFF
+        destroyed: 14,  // DWARF_WINDMILL_DESTROY
+        build: 13       // DWARF_WINDMILL_BUILD
+    },
+
+    // Dwarf Tower - DWARF_TOWER_ON = 0x100b -> package 4, anim 11
+    DWARF_TOWER: {
+        package: 4,
+        idle: 11,       // DWARF_TOWER_ON
+        off: 10,        // DWARF_TOWER_OFF
+        destroyed: 9,   // DWARF_TOWER_DESTROY
+        build: 8        // DWARF_TOWER_BUILD
+    },
+
+    // Gnome Hovel - GNOME_HOUEL_ON = 0x423 -> package 1, anim 35
+    GNOME_HOVEL: {
+        package: 1,
+        idle: 35,       // GNOME_HOUEL_ON
+        off: 34,        // GNOME_HOUEL_OFF
+        destroyed: 33,  // GNOME_HOUEL_DESTROY
+        build: 32       // GNOME_HOUEL_BUILD
+    },
+
+    // Library - LIBRARY_1_ON = 0x2403 -> package 9, anim 3
+    LIBRARY: {
+        package: 9,
+        idle: 3,        // LIBRARY_1_ON
+        off: 2,         // LIBRARY_1_OFF
+        destroyed: 1,   // LIBRARY_1_DESTROY
+        build: 0        // LIBRARY_1_BUILD
+    },
+
+    // Inn/House - HOUSE_ON = 0x439 -> package 1, anim 57
+    INN: {
+        package: 1,
+        idle: 57,       // HOUSE_ON
+        off: 56,        // HOUSE_OFF
+        destroyed: 55,  // HOUSE_DESTROY
+        build: 54       // HOUSE_BUILD
     }
 };
 
