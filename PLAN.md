@@ -46,7 +46,11 @@ All phases of the Playable Prototype are done:
 
 ### In Progress:
 - [x] **Milestone 1.5:** Visual & Audio Polish (sprites, textures, sounds) - COMPLETE
-- [ ] **Milestone 2:** First Mission (Map Loading + Game UI)
+- [~] **Milestone 2:** First Mission (Map Loading + Game UI) - IN PROGRESS
+  - [x] Phase 2.1-2.5: Map loading, terrain, objects, UI
+  - [x] Phase 2.6: Building system with placement
+  - [ ] Phase 2.7: Unit recruitment
+  - [ ] Phase 2.8: Mission system
 
 ---
 
@@ -530,11 +534,70 @@ The minimap is functional but terrain color detection needs refinement. Some roa
 - [ ] Consider adding building markers
 - [ ] Test click-to-scroll accuracy across entire map
 
-### Phase 2.6: Building System
-- [ ] Castle (player HQ)
-- [ ] Guild buildings (Warrior, Ranger, Wizard)
-- [ ] Marketplace, Blacksmith
-- [ ] Building placement from UI
+### Phase 2.6: Building System ✅ COMPLETE
+- [x] Castle (player HQ) - loads from map data at spawn point
+- [x] Guild buildings (Warrior, Ranger, Wizard, Marketplace, Blacksmith, Temples, etc.)
+- [x] Building placement from Castle UI with visual preview
+- [x] All building types use real animated sprites
+
+**Building Construction System (2026-01-27):**
+
+*Building Menu (Left Panel):*
+- Created `src/ui/BuildingMenu.js` with construction options
+- Moved building menus to external HTML panel (outside game canvas)
+- Castle shows build section with available buildings
+- Each building has cost, icon, and requirements (castle level, exclusions)
+
+*Constructible Buildings:*
+| Building | Cost | Requirements |
+|----------|------|--------------|
+| Warrior Guild | 800g | Castle Lv1 |
+| Ranger Guild | 700g | Castle Lv1 |
+| Marketplace | 500g | Castle Lv1 |
+| Blacksmith | 600g | Castle Lv1 |
+| Wizard Guild | 1200g | Castle Lv1 |
+| Temple of Agrela | 900g | Castle Lv1, excludes Krypta |
+| Temple of Krypta | 900g | Castle Lv1, excludes Agrela |
+| Temple of Krolm | 1000g | Castle Lv1, excludes others |
+| Library | 800g | Castle Lv1 |
+| Guard Tower | 400g | Castle Lv1 |
+| Elf Bungalow | 600g | Castle Lv1 |
+| Dwarf Settlement | 700g | Castle Lv1 |
+| Gnome Hovel | 500g | Castle Lv1 |
+| Inn | 300g | Castle Lv1 |
+
+*Placement System:*
+- `enterBuildingPlacementMode()` - starts placement mode
+- `updatePlacementPreview()` - shows isometric preview cursor
+- `tryPlaceBuilding()` - validates and places building
+- `isValidPlacement()` - checks grid walkability
+- Visual preview: 4 yellow tiles (2x2 footprint) surrounded by green tiles
+- Red tiles shown when placement is invalid
+- ESC or right-click cancels placement mode
+
+*Building Animations:*
+- All buildings now animate (flags waving, smoke effects, etc.)
+- `Building.update(deltaTime)` cycles through animation frames
+- Animation packages loaded: 1, 2, 3, 4, 5, 6, 7, 8, 9
+- `BUILDING_ANIMS` in AnimationConstants.js maps all building types
+
+*Castle from Map Data:*
+- Castle now created as proper `Building` object from map spawn point
+- Camera starts centered on castle position (not grid center)
+- Player units spawn near castle instead of map center
+- `playerCastle` reference set for victory/defeat conditions
+
+*Files Modified:*
+- `src/ui/BuildingMenu.js`: Added CONSTRUCTIBLE_BUILDINGS, addBuildSection(), startBuildingPlacement()
+- `src/core/Game.js`: Added placement mode (enterBuildingPlacementMode, updatePlacementPreview, tryPlaceBuilding, isValidPlacement), loaded animation packages 2-9, modified renderMapBuildings() for proper castle creation, camera centers on castle, units spawn near castle
+- `src/utils/AnimationConstants.js`: Added complete BUILDING_ANIMS mapping for all building types
+- `src/entities/Building.js`: Added animation frame cycling in update()
+- `index.html`: Restructured layout with left panel for building menu
+
+*Bug Fixes:*
+- Fixed invisible buildings (were added to wrong container - worldContainer instead of grid.container)
+- Fixed placement cursor not showing (getMousePosition → getWorldPosition)
+- Fixed placeholder graphics (copied missing animation packages from original game)
 
 ### Phase 2.7: Unit Recruitment
 - [ ] Recruit units from guild buildings
@@ -598,7 +661,8 @@ The minimap is functional but terrain color detection needs refinement. Some roa
     │   └── MapLoader.js    # Parses .m map files
     ├── /ui
     │   ├── HUD.js          # Old canvas HUD (disabled, replaced by HTML UI)
-    │   └── Minimap.js      # Isometric minimap renderer
+    │   ├── Minimap.js      # Isometric minimap renderer
+    │   └── BuildingMenu.js # Building selection and construction UI
     ├── /audio
     │   ├── SoundManager.js     # Audio playback system
     │   └── SoundConstants.js   # Sound effect mappings
@@ -677,18 +741,23 @@ python -m http.server 8080
 **Controls:**
 - Right-drag: Pan camera
 - Arrow keys: Move camera
-- Left-click: Select unit / Move to tile
+- Left-click: Select unit / Move to tile / Place building (in placement mode)
+- Right-click: Cancel building placement mode
 - C: Center camera on selected unit
 - S: Screen shake test
 - D: Toggle debug overlay
 - T: Spawn test enemy
 - G: Create test guilds
 - M: Toggle music
-- ESC: Pause/Resume
+- N: Mute/unmute SFX
+- ESC: Pause/Resume / Cancel placement mode
 - Minimap: Click/drag to scroll camera
+- Building Menu: Click building in Castle menu to enter placement mode
 
 **UI Elements:**
 - Header: Gold, allies/enemies count, game status
+- Left panel: Building menu (shows when Castle/Guild selected) with build options
 - Bottom bar: Build, Recruit, Pause, Speed buttons
 - Minimap: Top-right corner (isometric diamond view)
 - Selected unit panel: Bottom-left (when unit selected)
+- Placement preview: Isometric cursor showing building footprint (yellow) with surrounding tiles (green)
