@@ -49,8 +49,11 @@ All phases of the Playable Prototype are done:
 - [~] **Milestone 2:** First Mission (Map Loading + Game UI) - IN PROGRESS
   - [x] Phase 2.1-2.5: Map loading, terrain, objects, UI
   - [x] Phase 2.6: Building system with placement
-  - [ ] Phase 2.7: Unit recruitment
-  - [ ] Phase 2.8: Mission system
+  - [ ] **Phase 2.7: Character Stats & Progression** 🎯 NEXT
+  - [ ] **Phase 2.7.1: Debug Tools (Gain Gold button)** 🎯 NEXT
+  - [ ] **Phase 2.7.2: Building Construction Animation** 🎯 NEXT
+  - [ ] Phase 2.8: Unit recruitment (with training progress bar)
+  - [ ] Phase 2.9: Mission system
 
 ---
 
@@ -599,12 +602,57 @@ The minimap is functional but terrain color detection needs refinement. Some roa
 - Fixed placement cursor not showing (getMousePosition → getWorldPosition)
 - Fixed placeholder graphics (copied missing animation packages from original game)
 
-### Phase 2.7: Unit Recruitment
-- [ ] Recruit units from guild buildings
-- [ ] Gold cost system
-- [ ] Unit spawn at building location
+### Phase 2.7: Character Stats & Progression 🎯 NEXT PRIORITY
+- [ ] Research original game's stat system (analyze smali: Hero.smali, DynamicObject.smali)
+- [ ] Implement character stats (Strength, Intelligence, Dexterity, etc.)
+- [ ] Level-up system (XP from kills, stat increases)
+- [ ] Gold acquisition (heroes earn gold when killing enemies)
+- [ ] Hero inventory/equipment (from Blacksmith purchases)
+- [ ] Display stats in unit selection panel
+- [ ] Stat effects on combat (damage, defense, speed)
 
-### Phase 2.8: Mission System
+**Research Notes (to be filled in):**
+- Original stats: STR, INT, DEX, CON, etc.
+- XP curve per level
+- Gold reward per enemy type
+- How stats affect damage/defense formulas
+
+### Phase 2.7.1: Debug Tools 🎯 NEXT PRIORITY
+- [ ] Add "Gain Gold" debug button (+500g or configurable)
+- [ ] Add to debug overlay or UI panel
+- [ ] Keyboard shortcut (e.g., '$' or 'G' key)
+- [ ] Consider other debug tools: spawn specific units, instant build, god mode
+
+### Phase 2.7.2: Building Construction Animation 🎯 NEXT PRIORITY
+- [ ] Buildings spawn in "under construction" state (not instant)
+- [ ] Play build animation during construction (BUILDING_ANIMS has `build` anim IDs)
+- [ ] Construction timer/progress (configurable per building type)
+- [ ] Show construction progress bar above building
+- [ ] Transition to `idle` animation when construction complete
+- [ ] Buildings non-functional until construction finishes
+
+**Building Animation IDs (from AnimationConstants.js):**
+- Each building has: `idle`, `off`, `destroyed`, `build` animation IDs
+- Example: WARRIOR_GUILD has `build: 33` (package 8)
+- Construction should play `build` anim, then switch to `idle` when done
+
+### Phase 2.8: Unit Recruitment
+- [ ] Recruit units from guild buildings
+- [ ] Gold cost system (deduct from player gold)
+- [ ] Recruitment queue/timer per guild (not instant spawn)
+- [ ] **Progress bar above guild** showing hero training progress
+- [ ] Unit spawn at building location when training complete
+- [ ] Recruitment cooldown per guild
+- [ ] Different unit types per guild (Warrior Guild → Warriors, etc.)
+- [ ] Training time varies by unit type (Warriors faster than Wizards?)
+
+**Hero Training System:**
+- Click "Recruit" on guild → deduct gold → start training timer
+- Guild shows progress bar during training
+- Hero spawns when progress reaches 100%
+- Only one hero training per guild at a time (or queue system?)
+
+### Phase 2.9: Mission System
 - [ ] Mission objectives (defeat enemies, protect castle)
 - [ ] Win/lose conditions
 - [ ] Mission complete screen
