@@ -650,6 +650,12 @@ export class Game {
             hero.damage = 12;
             hero.isRanged = true;
             hero.rangedRange = 8;
+        } else if (configName === 'WIZARD') {
+            hero.maxHealth = 40;
+            hero.health = 40;
+            hero.damage = 18;
+            hero.isRanged = true;
+            hero.rangedRange = 10;
         }
 
         // Add to grid container and entities
@@ -925,9 +931,9 @@ export class Game {
             await this.animLoader.loadPackage(basePath, 14);
             console.log('Loaded troll animations (package 14)');
 
-            // Package 2: Agrella Temple
+            // Package 2: Wizards (MAG_BLUE) and ice effects
             await this.animLoader.loadPackage(basePath, 2);
-            console.log('Loaded Agrella Temple animations (package 2)');
+            console.log('Loaded wizard animations (package 2)');
 
             // Package 3: Crypta Temple
             await this.animLoader.loadPackage(basePath, 3);

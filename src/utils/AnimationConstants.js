@@ -231,6 +231,15 @@ export const UNIT_ANIMS = {
         death: 9,    // 0x3809 = (14 << 10) | 9
         walk: 17,    // 0x3811 = (14 << 10) | 17
         idle: 25     // 0x3819 = (14 << 10) | 25
+    },
+
+    // Package 9: Wizards (MAG_RED - red mage, from Wizard Guild)
+    WIZARD: {
+        package: 9,
+        attack: 33,  // 0x2421 = (9 << 10) | 33
+        death: 41,   // 0x2429 = (9 << 10) | 41
+        walk: 49,    // 0x2431 = (9 << 10) | 49
+        idle: 57     // 0x2439 = (9 << 10) | 57
     }
 };
 
