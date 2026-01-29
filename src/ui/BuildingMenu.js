@@ -216,12 +216,13 @@ export class BuildingMenu {
             closeBtn.addEventListener('click', () => this.hide());
         }
 
-        // Close on click outside (but not when clicking in the left panel or game)
+        // Close on click outside (but not when clicking in allowed areas)
         document.addEventListener('click', (e) => {
             if (this.visible && this.menuElement &&
                 !this.menuElement.contains(e.target) &&
                 !e.target.closest('#game-container') &&
-                !e.target.closest('#left-panel')) {
+                !e.target.closest('#left-panel') &&
+                !e.target.closest('#action-bar')) {
                 this.hide();
             }
         });
@@ -412,14 +413,6 @@ export class BuildingMenu {
         const availableBuildings = CONSTRUCTIBLE_BUILDINGS.filter(bldg => {
             // Check castle level requirement
             if (castle.level < bldg.requiresCastleLevel) {
-                return false;
-            }
-
-            // Check if already built (most buildings can only be built once)
-            const alreadyBuilt = this.game.buildings.some(b =>
-                b.buildingType === bldg.type && b.team === 0
-            );
-            if (alreadyBuilt) {
                 return false;
             }
 

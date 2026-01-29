@@ -66,8 +66,9 @@ export class Game {
         this.debugMode = true;
         this.debugText = null;
 
-        // Selected unit
+        // Selected unit and building
         this.selectedUnit = null;
+        this.selectedBuilding = null;
 
         // Hover highlight
         this.hoverHighlight = null;
@@ -352,6 +353,23 @@ export class Game {
      * Handle click on a building - show building menu
      */
     handleBuildingClick(building, screenX, screenY) {
+        // Deselect current unit
+        if (this.selectedUnit && this.selectedUnit.setSelected) {
+            this.selectedUnit.setSelected(false);
+        }
+        this.selectedUnit = null;
+
+        // Deselect previous building
+        if (this.selectedBuilding && this.selectedBuilding.setSelected) {
+            this.selectedBuilding.setSelected(false);
+        }
+
+        // Select this building
+        this.selectedBuilding = building;
+        if (building.setSelected) {
+            building.setSelected(true);
+        }
+
         // Initialize building menu if not already done
         if (!this.buildingMenu) {
             this.buildingMenu = new BuildingMenu(this);
@@ -362,7 +380,7 @@ export class Game {
             this.buildingMenu.show(building, screenX, screenY);
         }
 
-        console.log(`Clicked on ${building.getName()} - showing menu`);
+        console.log(`Selected ${building.getName()}`);
     }
 
     /**
@@ -574,12 +592,13 @@ export class Game {
      * Find a spawn position near a building
      */
     findSpawnPositionNearBuilding(building) {
-        // Check positions around the building
+        // Check positions around the building (southeast first, then other directions)
         const offsets = [
-            [0, -1], [1, -1], [2, -1],  // Top
-            [-1, 0], [-1, 1],           // Left
-            [2, 0], [2, 1],             // Right (building is 2 wide)
-            [0, 2], [1, 2], [2, 2]      // Bottom
+            [2, 2], [1, 2], [2, 1],     // Southeast (preferred spawn direction)
+            [0, 2],                      // South
+            [2, 0],                      // East
+            [-1, 1], [-1, 0],           // West
+            [0, -1], [1, -1], [2, -1]   // North (fallback)
         ];
 
         for (const [di, dj] of offsets) {
@@ -750,9 +769,18 @@ export class Game {
      * Select an entity
      */
     selectEntity(entity) {
-        // Deselect previous
+        // Deselect previous unit
         if (this.selectedUnit && this.selectedUnit.setSelected) {
             this.selectedUnit.setSelected(false);
+        }
+
+        // Deselect previous building and hide menu
+        if (this.selectedBuilding && this.selectedBuilding.setSelected) {
+            this.selectedBuilding.setSelected(false);
+        }
+        this.selectedBuilding = null;
+        if (this.buildingMenu) {
+            this.buildingMenu.hide();
         }
 
         this.selectedUnit = entity;
@@ -814,6 +842,9 @@ export class Game {
 
         // Initialize sound (async)
         this.initSound();
+
+        // Initialize building menu UI
+        this.buildingMenu = new BuildingMenu(this);
 
         // Create test unit on the grid
         this.createTestUnit();
@@ -1142,6 +1173,7 @@ export class Game {
 
         // Store building
         this.buildings.push(castle);
+        this.playerCastle = castle;
 
         console.log(`Created test building (Castle) at (${centerI}, ${centerJ})`);
 
@@ -1641,62 +1673,13 @@ export class Game {
             console.log('Wave Spawns:', this.spawnManager.waveSpawns.length);
         }
 
-        // Create test guild buildings: Press G
+        // Cheat: Press G to add gold
         if (this.input.isKeyJustPressed('g')) {
-            this.createTestGuilds();
-        }
-    }
-
-    /**
-     * Create test guild buildings for hero recruitment
-     */
-    createTestGuilds() {
-        if (this.buildings.length >= 3) {
-            console.log('Guilds already created');
-            return;
+            this.gold += 500;
+            this.showMessage('+500 Gold');
+            console.log('Cheat: Added 500 gold. Total:', this.gold);
         }
 
-        const centerI = Math.floor(this.gridWidth / 2);
-        const centerJ = Math.floor(this.gridHeight / 2);
-
-        // Castle (center) - important for win/lose conditions
-        const castle = new Building(centerI, centerJ - 3, BuildingType.CASTLE);
-        castle.team = 0;
-        castle.maxHealth = 1000;  // Castle has more HP
-        castle.health = castle.maxHealth;
-        castle.sizeI = 3;  // Castle is bigger
-        castle.sizeJ = 3;
-        castle.initSprite();
-        this.grid.container.addChild(castle.sprite);
-        castle.lockCells(this.grid);
-        this.buildings.push(castle);
-        this.playerCastle = castle;  // Set as player castle for defeat condition
-
-        // Warrior Guild
-        const warriorGuild = new Building(centerI - 8, centerJ - 3, BuildingType.WARRIOR_GUILD);
-        warriorGuild.team = 0;
-        warriorGuild.initSprite();
-        this.grid.container.addChild(warriorGuild.sprite);
-        warriorGuild.lockCells(this.grid);
-        this.buildings.push(warriorGuild);
-
-        // Ranger Guild
-        const rangerGuild = new Building(centerI + 5, centerJ - 3, BuildingType.RANGER_GUILD);
-        rangerGuild.team = 0;
-        rangerGuild.initSprite();
-        this.grid.container.addChild(rangerGuild.sprite);
-        rangerGuild.lockCells(this.grid);
-        this.buildings.push(rangerGuild);
-
-        // Update animations if loaded
-        if (this.animationsLoaded) {
-            this.updateBuildingAnimations();
-        }
-
-        console.log('Created Castle and test guilds: Warrior Guild and Ranger Guild');
-        console.log('Castle destroyed = DEFEAT | All enemies killed = VICTORY');
-        console.log('Click on a guild to recruit heroes (Warrior: 450g, Ranger: 350g)');
-        this.showMessage('Castle + Guilds created!');
     }
 
     /**
@@ -1787,15 +1770,14 @@ export class Game {
     }
 
     /**
-     * Check if game has ended (victory or defeat)
+     * Check if game has ended (defeat conditions)
      *
-     * Win/Lose conditions based on original Majesty game:
+     * Defeat conditions:
      * - DEFEAT: Castle is destroyed (primary condition)
      * - DEFEAT: All player units dead (fallback if no castle)
-     * - VICTORY: All enemies dead (simple mode - can be extended per-level)
      *
-     * Note: Original game has level-specific objectives (questState system)
-     * which can be added later for individual mission goals.
+     * Note: Victory conditions will be mission-specific (questState system)
+     * to be added later for individual mission goals.
      */
     checkGameEnd() {
         // Don't check if game already ended
@@ -1823,35 +1805,10 @@ export class Game {
             }
         }
 
-        // Victory - all enemies dead (only if enemies have spawned)
-        // Check that at least one enemy was ever present to avoid false victory
-        if (enemyAlive === 0 && this.state === GameState.GAME) {
-            // Only trigger if we've actually had enemies (or it's a map without enemies)
-            const hasHadCombat = this.entities.some(e => e.team === 'enemy');
-            if (hasHadCombat) {
-                this.onVictory();
-            }
-        }
-
         // Defeat - all player units dead (fallback if no castle)
         if (!this.playerCastle && playerAlive === 0 && this.state === GameState.GAME) {
             this.onDefeat('All allies lost!');
         }
-    }
-
-    /**
-     * Handle victory
-     */
-    onVictory() {
-        this.gameEnded = true;
-        this.setState(GameState.GAME_PAUSE);
-        this.gold += 100;  // Bonus gold
-
-        // Play victory sound
-        this.playSound(SOUNDS.GOLD);
-
-        this.showMessage('VICTORY! +100 Gold');
-        console.log('Victory! All enemies defeated.');
     }
 
     /**

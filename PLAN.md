@@ -42,18 +42,18 @@ All phases of the Playable Prototype are done:
 - Combat (melee + ranged with missiles)
 - Auto-play AI for all units
 - HUD with unit selection panel
-- Victory/defeat conditions
+- Defeat conditions (victory is mission-specific)
 
 ### In Progress:
 - [x] **Milestone 1.5:** Visual & Audio Polish (sprites, textures, sounds) - COMPLETE
 - [~] **Milestone 2:** First Mission (Map Loading + Game UI) - IN PROGRESS
   - [x] Phase 2.1-2.5: Map loading, terrain, objects, UI
   - [x] Phase 2.6: Building system with placement
+  - [x] Phase 2.6.1: UI/UX improvements (Build button, building selection, debug tools)
   - [ ] **Phase 2.7: Character Stats & Progression** 🎯 NEXT
-  - [ ] **Phase 2.7.1: Debug Tools (Gain Gold button)** 🎯 NEXT
   - [ ] **Phase 2.7.2: Building Construction Animation** 🎯 NEXT
   - [ ] Phase 2.8: Unit recruitment (with training progress bar)
-  - [ ] Phase 2.9: Mission system
+  - [ ] Phase 2.9: Mission system (includes victory conditions)
 
 ---
 
@@ -446,7 +446,6 @@ const frame = (transformed >> 3) & 0x7F;  // 0-127
 - SpawnManager implemented but **disabled by default** (performance concerns with many enemies)
 - 'T' key: Test spawn random enemy near player
 - 'Y' key: Show spawn manager status
-- 'G' key: Create test Castle + Guilds for hero recruitment
 - To enable auto-spawning: uncomment lines 716-718 and 1444-1445 in Game.js
 
 **Terrain Tile System (WORKING):**
@@ -602,6 +601,33 @@ The minimap is functional but terrain color detection needs refinement. Some roa
 - Fixed placement cursor not showing (getMousePosition → getWorldPosition)
 - Fixed placeholder graphics (copied missing animation packages from original game)
 
+### Phase 2.6.1: UI/UX Improvements (2026-01-28) ✅ COMPLETE
+
+*Build Button:*
+- Build button in action bar now opens Castle building menu (same as clicking Castle)
+- Fixed buildingMenu not initialized at startup (was only created on first building click)
+- Fixed menu closing immediately when clicking Build button (added #action-bar to allowed click areas)
+
+*Building Selection:*
+- Clicking a building now deselects the current unit
+- Added `selectedBuilding` property to track selected building
+- Clicking a unit deselects the building and hides the building menu
+- Building selection ellipse now consistent across all buildings (based on sizeI/sizeJ)
+- Selection ellipse positioned lower (offsetY = 40) to appear at building base
+
+*Building Menu:*
+- Buildings can now be built multiple times (removed "already built" filter)
+- BuildingMenu initialized at game startup for immediate availability
+
+*Game Mechanics:*
+- Removed automatic victory condition when all enemies killed
+- Victory conditions will be mission-specific (to be implemented in Phase 2.9)
+- Defeat conditions remain: Castle destroyed or all player units dead
+
+*Debug Tools:*
+- 'G' key now adds +500 gold (cheat for testing)
+- Removed old 'G' key test guild creation (no longer needed)
+
 ### Phase 2.7: Character Stats & Progression 🎯 NEXT PRIORITY
 - [ ] Research original game's stat system (analyze smali: Hero.smali, DynamicObject.smali)
 - [ ] Implement character stats (Strength, Intelligence, Dexterity, etc.)
@@ -617,11 +643,10 @@ The minimap is functional but terrain color detection needs refinement. Some roa
 - Gold reward per enemy type
 - How stats affect damage/defense formulas
 
-### Phase 2.7.1: Debug Tools 🎯 NEXT PRIORITY
-- [ ] Add "Gain Gold" debug button (+500g or configurable)
-- [ ] Add to debug overlay or UI panel
-- [ ] Keyboard shortcut (e.g., '$' or 'G' key)
-- [ ] Consider other debug tools: spawn specific units, instant build, god mode
+### Phase 2.7.1: Debug Tools ✅ COMPLETE
+- [x] Keyboard shortcut: 'G' key adds +500 gold
+- [x] Removed old 'G' key test guild creation (no longer needed)
+- [ ] Consider other debug tools: spawn specific units, instant build, god mode (optional)
 
 ### Phase 2.7.2: Building Construction Animation 🎯 NEXT PRIORITY
 - [ ] Buildings spawn in "under construction" state (not instant)
@@ -789,13 +814,13 @@ python -m http.server 8080
 **Controls:**
 - Right-drag: Pan camera
 - Arrow keys: Move camera
-- Left-click: Select unit / Move to tile / Place building (in placement mode)
+- Left-click: Select unit / Select building / Move to tile / Place building (in placement mode)
 - Right-click: Cancel building placement mode
 - C: Center camera on selected unit
 - S: Screen shake test
 - D: Toggle debug overlay
 - T: Spawn test enemy
-- G: Create test guilds
+- G: Add 500 gold (cheat)
 - M: Toggle music
 - N: Mute/unmute SFX
 - ESC: Pause/Resume / Cancel placement mode

@@ -558,7 +558,7 @@
 
             <div id="hints">
             <kbd>T</kbd> Spawn enemy &nbsp;
-            <kbd>G</kbd> Create guilds<br>
+            <kbd>G</kbd> +500 Gold<br>
             <kbd>M</kbd> Music &nbsp;
             <kbd>D</kbd> Debug
         </div>
@@ -567,47 +567,10 @@
 
     <!-- Bottom Action Bar -->
     <div id="action-bar">
-        <div class="dropdown" id="build-dropdown">
-            <button class="action-btn" id="btn-build">
-                <span class="icon">&#x1F3D7;</span>
-                Build
-            </button>
-            <div class="dropdown-content">
-                <div class="dropdown-item" data-building="warrior-guild">
-                    <span class="name">Warrior Guild</span>
-                    <span class="cost">500g</span>
-                </div>
-                <div class="dropdown-item" data-building="ranger-guild">
-                    <span class="name">Ranger Guild</span>
-                    <span class="cost">400g</span>
-                </div>
-                <div class="dropdown-item" data-building="marketplace">
-                    <span class="name">Marketplace</span>
-                    <span class="cost">350g</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="dropdown" id="recruit-dropdown">
-            <button class="action-btn" id="btn-recruit">
-                <span class="icon">&#x2694;</span>
-                Recruit
-            </button>
-            <div class="dropdown-content">
-                <div class="dropdown-item" data-unit="warrior">
-                    <span class="name">Warrior</span>
-                    <span class="cost">450g</span>
-                </div>
-                <div class="dropdown-item" data-unit="ranger">
-                    <span class="name">Ranger</span>
-                    <span class="cost">350g</span>
-                </div>
-                <div class="dropdown-item" data-unit="wizard">
-                    <span class="name">Wizard</span>
-                    <span class="cost">500g</span>
-                </div>
-            </div>
-        </div>
+        <button class="action-btn" id="btn-build">
+            <span class="icon">&#x1F3D7;</span>
+            Build
+        </button>
 
         <button class="action-btn" id="btn-pause">
             <span class="icon">&#x23F8;</span>
@@ -663,21 +626,19 @@
                 game.togglePause();
             });
 
-            // Recruit dropdown items
-            document.querySelectorAll('#recruit-dropdown .dropdown-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const unitType = item.dataset.unit;
-                    recruitUnit(game, unitType);
-                });
-            });
+            // Build button - opens Castle building menu
+            document.getElementById('btn-build').addEventListener('click', () => {
+                // Try playerCastle first, fall back to finding castle in buildings array
+                let castle = game.playerCastle;
+                if (!castle && game.buildings) {
+                    castle = game.buildings.find(b => b.buildingType === 0x20 && b.team === 0);
+                }
 
-            // Build dropdown items
-            document.querySelectorAll('#build-dropdown .dropdown-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const buildingType = item.dataset.building;
-                    // TODO: Implement building placement mode
-                    showMessage('Building placement coming soon!');
-                });
+                if (castle && game.buildingMenu) {
+                    game.buildingMenu.show(castle);
+                } else {
+                    showMessage('No castle available!');
+                }
             });
 
             console.log('External UI initialized');
@@ -737,39 +698,6 @@
             } else {
                 panel.classList.remove('visible');
             }
-        }
-
-        function recruitUnit(game, unitType) {
-            const costs = { warrior: 450, ranger: 350, wizard: 500 };
-            const cost = costs[unitType];
-
-            if (game.gold < cost) {
-                showMessage(`Need ${cost} gold!`);
-                return;
-            }
-
-            // Find a spawn position near center or castle
-            const centerI = Math.floor(game.gridWidth / 2);
-            const centerJ = Math.floor(game.gridHeight / 2);
-
-            // Find walkable position
-            let spawnI = centerI, spawnJ = centerJ;
-            for (let d = 0; d < 10; d++) {
-                for (let di = -d; di <= d; di++) {
-                    for (let dj = -d; dj <= d; dj++) {
-                        if (game.grid.isWalkable(centerI + di, centerJ + dj)) {
-                            spawnI = centerI + di;
-                            spawnJ = centerJ + dj;
-                            d = 10; // break all loops
-                            break;
-                        }
-                    }
-                }
-            }
-
-            game.gold -= cost;
-            game.spawnHero(unitType.toUpperCase(), spawnI, spawnJ);
-            showMessage(`${unitType} recruited!`);
         }
 
         function showMessage(text, duration = 1500) {

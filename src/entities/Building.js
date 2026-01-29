@@ -185,10 +185,15 @@ export class Building extends Entity {
 
         if (this.selected) {
             if (!this.selectionIndicator) {
-                // Create larger selection ellipse for buildings
+                // Create selection ellipse for buildings
+                // Use consistent size based on building footprint (sizeI x sizeJ)
+                const radiusX = Math.max(this.sizeI, this.sizeJ) * 20;
+                const radiusY = radiusX * 0.5;  // Isometric perspective
+                const offsetY = 40;  // Position ellipse lower (at building base)
+
                 this.selectionIndicator = new PIXI.Graphics();
-                this.selectionIndicator.ellipse(0, 0, this.width/2 + 5, this.sizeI * 15);
-                this.selectionIndicator.stroke({ width: 3, color: 0x00ff00 });
+                this.selectionIndicator.ellipse(0, offsetY, radiusX, radiusY);
+                this.selectionIndicator.stroke({ width: 2, color: 0x00ff00 });
                 this.sprite.addChild(this.selectionIndicator);
             }
             this.selectionIndicator.visible = true;
