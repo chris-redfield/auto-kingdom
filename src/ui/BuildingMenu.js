@@ -283,23 +283,25 @@ export class BuildingMenu {
             this.addBuildSection(building);
         }
 
-        // Recruit option
+        // Recruit option (only if building is fully constructed)
         if (config.canRecruit) {
+            const canRecruit = building.constructed && this.game.gold >= config.recruitCost;
             this.addOption({
                 icon: '⚔️',
-                text: `Recruit ${config.recruitName}`,
+                text: building.constructed ? `Recruit ${config.recruitName}` : `Recruit ${config.recruitName} (building...)`,
                 cost: config.recruitCost,
-                enabled: this.game.gold >= config.recruitCost,
+                enabled: canRecruit,
                 onClick: () => this.recruitHero(config.recruitUnit, config.recruitCost)
             });
 
             // Alternative recruit (e.g., Paladin from Warrior Guild)
             if (config.altRecruit && this.hasBuilding(config.altRecruit.requires)) {
+                const canAltRecruit = building.constructed && this.game.gold >= config.altRecruit.cost;
                 this.addOption({
                     icon: '🛡️',
-                    text: `Recruit ${config.altRecruit.name}`,
+                    text: building.constructed ? `Recruit ${config.altRecruit.name}` : `Recruit ${config.altRecruit.name} (building...)`,
                     cost: config.altRecruit.cost,
-                    enabled: this.game.gold >= config.altRecruit.cost,
+                    enabled: canAltRecruit,
                     onClick: () => this.recruitHero(config.altRecruit.unit, config.altRecruit.cost)
                 });
             }
@@ -501,6 +503,15 @@ export class BuildingMenu {
      * Recruit a hero from the building
      */
     recruitHero(unitType, cost) {
+        // Check if building is under construction
+        if (this.currentBuilding && !this.currentBuilding.constructed) {
+            this.game.showMessage('Building under construction!');
+            if (this.game.playSound) {
+                this.game.playSound(SOUNDS.CLICK_DENY);
+            }
+            return;
+        }
+
         if (this.game.gold < cost) {
             this.game.showMessage(`Need ${cost} gold!`);
             if (this.game.playSound) {

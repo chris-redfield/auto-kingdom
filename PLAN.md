@@ -648,22 +648,84 @@ The minimap is functional but terrain color detection needs refinement. Some roa
 - [x] Removed old 'G' key test guild creation (no longer needed)
 - [ ] Consider other debug tools: spawn specific units, instant build, god mode (optional)
 
-### Phase 2.7.2: Building Construction Animation 🎯 NEXT PRIORITY
-- [ ] Buildings spawn in "under construction" state (not instant)
-- [ ] Play build animation during construction (BUILDING_ANIMS has `build` anim IDs)
-- [ ] Construction timer/progress (configurable per building type)
-- [ ] Show construction progress bar above building
-- [ ] Transition to `idle` animation when construction complete
-- [ ] Buildings non-functional until construction finishes
+### Phase 2.7.2: Building Construction Animation ✅ COMPLETE
+- [x] Buildings spawn in "under construction" state (not instant)
+- [x] Play build animation during construction (BUILDING_ANIMS has `build` anim IDs)
+- [x] Construction timer/progress (5 seconds default, configurable per building type)
+- [x] Show construction progress bar above building (green fill bar)
+- [x] Transition to `idle` animation when construction complete
+- [x] Buildings non-functional until construction finishes (recruit buttons disabled)
+- [x] Animation plays through once during construction (frame tied to progress)
+- [x] Progress bar persists during animation frame updates
 
-**Building Animation IDs (from AnimationConstants.js):**
-- Each building has: `idle`, `off`, `destroyed`, `build` animation IDs
-- Example: WARRIOR_GUILD has `build: 33` (package 8)
-- Construction should play `build` anim, then switch to `idle` when done
+**Implementation details:**
+- `Building.js`: Added `startConstruction()`, `completeConstruction()`, `createProgressBar()`, `updateProgressBar()`
+- `Game.js`: `initBuildingAnimation()` now accepts `startConstruction` parameter
+- `BuildingMenu.js`: Recruit buttons disabled and show "(building...)" text during construction
+- Progress bar appears above building during construction, removed on completion
+- Animation frame tied to `constructionProgress * frameCount` (plays once, not looping)
+- Fixed progress bar vanishing by preserving it in `updateAnimationFrame()`
 
-### Phase 2.8: Unit Recruitment
-- [ ] Recruit units from guild buildings
-- [ ] Gold cost system (deduct from player gold)
+**Original Game Construction System (from smali analysis):**
+
+The original game calculates construction time based on building HP (Stability):
+- `waitingForBuild = HP * 8` (HP shifted left by 3)
+- `BUILD_FILL_STACK_TICKTIME = 40` ticks between build point additions
+- `BUILD_FILL_STACK_VALUE = 10` points added per cycle
+- `BUILD_SPEED = 1` (speed multiplier)
+
+**Building HP Values (Stability) from Const.smali:**
+
+| Building | HP (Level 1) | HP (Level 2) | HP (Level 3) |
+|----------|-------------|-------------|-------------|
+| Castle | 550 | 700 | 1000 |
+| Warrior Guild | 700 | - | - |
+| Ranger Guild | 250 | - | - |
+| Wizard Guild | 350 | 500 | 700 |
+| Blacksmith | 250 | 300 | 400 |
+| Marketplace | 200 | 250 | 300 |
+| Agrela Temple | 250 | 300 | 400 |
+| Crypta Temple | 350 | 425 | 475 |
+| Krolm Temple | 800 | - | - |
+| Guard Tower | 200 | - | - |
+| Library | 100 | 200 | 300 |
+| Inn (House) | 75 | - | - |
+| Gnome Hovel | 75 | - | - |
+| Elf Bungalow | 300 | - | - |
+| Dwarf Windmill | 600 | - | - |
+| Dwarf Tower | 350 | - | - |
+
+Construction time is proportional to HP - lower HP buildings construct faster.
+Based on typical gameplay, estimates are:
+- Small buildings (75 HP): ~15-30 seconds
+- Medium buildings (200-350 HP): ~45-90 seconds
+- Large buildings (600-800 HP): ~90-150 seconds
+
+**TODO (Future):** Implement per-building construction times based on HP values above.
+
+### Phase 2.7.3: Game Configuration File 🎯 TODO
+- [ ] Create `src/config/GameConfig.js` - centralized configuration for all game parameters
+- [ ] Move hardcoded values to config file:
+  - Building HP values (per level)
+  - Building construction times
+  - Building costs
+  - Unit HP values
+  - Unit stats (attack, defense, speed, range)
+  - Unit costs and training times
+  - Combat formulas and multipliers
+  - XP curves and level-up bonuses
+- [ ] Allow easy tweaking of game balance without code changes
+- [ ] Consider JSON format for potential external editing/modding
+
+**Benefits:**
+- Single source of truth for game balance
+- Easy to compare with original game values
+- Enables future modding support
+- Cleaner code (no magic numbers scattered throughout)
+
+### Phase 2.8: Unit Training Progress 🎯 NEXT PRIORITY
+- [x] Recruit units from guild buildings (DONE in earlier phase)
+- [x] Gold cost system (deduct from player gold) (DONE)
 - [ ] Recruitment queue/timer per guild (not instant spawn)
 - [ ] **Progress bar above guild** showing hero training progress
 - [ ] Unit spawn at building location when training complete

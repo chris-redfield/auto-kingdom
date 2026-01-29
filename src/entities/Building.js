@@ -50,6 +50,12 @@ export class Building extends Entity {
         // Building state
         this.constructed = true;  // False during construction
         this.level = 1;           // Upgrade level
+
+        // Construction properties
+        this.constructionProgress = 0;    // 0 to 1
+        this.constructionTime = 5000;     // Time to build in ms (5 seconds default)
+        this.idleAnimId = null;           // Store idle animation to switch to after construction
+        this.progressBar = null;          // Visual progress bar
     }
 
     /**
@@ -125,11 +131,11 @@ export class Building extends Entity {
     updateAnimationFrame() {
         if (!this.animationLoader || !this.sprite) return;
 
-        // Remove old frame
+        // Remove old frame (but preserve UI elements)
         while (this.sprite.children.length > 0) {
             const child = this.sprite.children[0];
             this.sprite.removeChild(child);
-            if (child !== this.selectionIndicator) {
+            if (child !== this.selectionIndicator && child !== this.progressBar) {
                 child.destroy();
             }
         }
@@ -148,6 +154,11 @@ export class Building extends Entity {
         // Re-add selection indicator if selected
         if (this.selected && this.selectionIndicator) {
             this.sprite.addChild(this.selectionIndicator);
+        }
+
+        // Re-add progress bar if under construction
+        if (this.progressBar) {
+            this.sprite.addChild(this.progressBar);
         }
     }
 
@@ -231,10 +242,122 @@ export class Building extends Entity {
     }
 
     /**
+     * Start construction mode with build animation
+     * @param {AnimationLoader} animLoader - Animation loader
+     * @param {number} packageId - Animation package
+     * @param {number} buildAnimId - Build animation ID
+     * @param {number} idleAnimId - Idle animation ID to switch to when done
+     * @param {number} constructionTime - Time to build in ms (optional)
+     */
+    startConstruction(animLoader, packageId, buildAnimId, idleAnimId, constructionTime = 5000) {
+        this.constructed = false;
+        this.constructionProgress = 0;
+        this.constructionTime = constructionTime;
+        this.idleAnimId = idleAnimId;
+
+        // Initialize with build animation
+        this.initAnimatedSprite(animLoader, packageId, buildAnimId);
+
+        // Create progress bar
+        this.createProgressBar();
+    }
+
+    /**
+     * Create a progress bar above the building
+     */
+    createProgressBar() {
+        if (!this.sprite) return;
+
+        // Remove existing progress bar
+        if (this.progressBar) {
+            this.progressBar.destroy();
+        }
+
+        this.progressBar = new PIXI.Container();
+
+        // Background bar (gray)
+        const bgBar = new PIXI.Graphics();
+        bgBar.rect(-30, -this.height - 20, 60, 8);
+        bgBar.fill(0x333333);
+        bgBar.stroke({ width: 1, color: 0x000000 });
+        this.progressBar.addChild(bgBar);
+
+        // Progress fill (green)
+        const fillBar = new PIXI.Graphics();
+        fillBar.rect(-29, -this.height - 19, 0, 6);
+        fillBar.fill(0x44aa44);
+        this.progressBar.fillBar = fillBar;
+        this.progressBar.addChild(fillBar);
+
+        this.sprite.addChild(this.progressBar);
+    }
+
+    /**
+     * Update progress bar fill
+     */
+    updateProgressBar() {
+        if (!this.progressBar || !this.progressBar.fillBar) return;
+
+        const fillBar = this.progressBar.fillBar;
+        fillBar.clear();
+        const fillWidth = Math.floor(58 * this.constructionProgress);
+        if (fillWidth > 0) {
+            fillBar.rect(-29, -this.height - 19, fillWidth, 6);
+            fillBar.fill(0x44aa44);
+        }
+    }
+
+    /**
+     * Complete construction - switch to idle animation
+     */
+    completeConstruction() {
+        this.constructed = true;
+        this.constructionProgress = 1;
+
+        // Remove progress bar
+        if (this.progressBar) {
+            if (this.progressBar.parent) {
+                this.progressBar.parent.removeChild(this.progressBar);
+            }
+            this.progressBar.destroy();
+            this.progressBar = null;
+        }
+
+        // Switch to idle animation
+        if (this.animationLoader && this.idleAnimId !== null) {
+            this.initAnimatedSprite(this.animationLoader, this.packageId, this.idleAnimId);
+        }
+    }
+
+    /**
      * Update building (called each game tick)
      */
     update(deltaTime) {
-        // Animate building (flags waving, smoke, etc.)
+        // Handle construction progress
+        if (!this.constructed) {
+            this.constructionProgress += deltaTime / this.constructionTime;
+
+            if (this.constructionProgress >= 1) {
+                this.completeConstruction();
+            } else {
+                this.updateProgressBar();
+
+                // During construction, frame is tied to progress (play once through)
+                if (this.animationLoader && this.frameCount > 1) {
+                    const newFrame = Math.min(
+                        Math.floor(this.constructionProgress * this.frameCount),
+                        this.frameCount - 1
+                    );
+                    if (newFrame !== this.frameId) {
+                        this.frameId = newFrame;
+                        this.updateAnimationFrame();
+                    }
+                }
+            }
+            return;  // Don't run normal animation cycling during construction
+        }
+
+        // Animate completed building (flags waving, smoke, etc.) - cycles continuously
         if (this.animationLoader && this.frameCount > 1) {
             this.animationTimer += deltaTime;
 

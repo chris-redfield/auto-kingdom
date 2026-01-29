@@ -571,16 +571,16 @@ export class Game {
         this.grid.container.addChild(building.sprite);
         this.buildings.push(building);
 
-        // Initialize with animations if available
+        // Initialize with animations if available (start in construction mode)
         if (this.animationsLoaded && this.animLoader) {
-            this.initBuildingAnimation(building);
+            this.initBuildingAnimation(building, true);  // true = start construction
         }
 
         // Exit placement mode
         this.cancelPlacementMode();
 
         // Show success message
-        this.showMessage(`${buildingInfo.name} built!`);
+        this.showMessage(`Building ${buildingInfo.name}...`);
         if (this.playSound) {
             this.playSound(SOUNDS.GOLD);
         }
@@ -1221,7 +1221,7 @@ export class Game {
     /**
      * Initialize animation for a single building
      */
-    initBuildingAnimation(building) {
+    initBuildingAnimation(building, startConstruction = false) {
         if (!this.animationsLoaded || !this.animLoader) return;
 
         // Get animation config for this building type
@@ -1262,12 +1262,25 @@ export class Game {
         }
 
         if (animConfig && this.animLoader.animationData[animConfig.package]) {
-            building.initAnimatedSprite(
-                this.animLoader,
-                animConfig.package,
-                animConfig.idle
-            );
-            console.log(`Initialized building animation: package ${animConfig.package}, anim ${animConfig.idle}`);
+            if (startConstruction && animConfig.build !== undefined) {
+                // Start in construction mode with build animation
+                building.startConstruction(
+                    this.animLoader,
+                    animConfig.package,
+                    animConfig.build,
+                    animConfig.idle,
+                    5000  // 5 seconds construction time
+                );
+                console.log(`Started construction: package ${animConfig.package}, build anim ${animConfig.build}`);
+            } else {
+                // Directly show idle animation (for existing buildings like Castle)
+                building.initAnimatedSprite(
+                    this.animLoader,
+                    animConfig.package,
+                    animConfig.idle
+                );
+                console.log(`Initialized building animation: package ${animConfig.package}, anim ${animConfig.idle}`);
+            }
         }
     }
 
