@@ -249,11 +249,11 @@
             position: absolute;
             bottom: 60px;
             left: 10px;
-            background: rgba(26, 26, 46, 0.9);
+            background: rgba(26, 26, 46, 0.95);
             border: 2px solid #4a4a6a;
             border-radius: 8px;
-            padding: 10px;
-            min-width: 150px;
+            padding: 12px;
+            min-width: 200px;
             display: none;
         }
 
@@ -261,17 +261,33 @@
             display: block;
         }
 
+        #selected-panel .unit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
         #selected-panel .unit-name {
             font-weight: 600;
             font-size: 14px;
-            margin-bottom: 6px;
+            color: #fff;
+        }
+
+        #selected-panel .unit-level {
+            font-size: 12px;
+            color: #ffd700;
+            background: rgba(255, 215, 0, 0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
         }
 
         #selected-panel .health-bar {
             background: #333;
-            height: 8px;
-            border-radius: 4px;
+            height: 10px;
+            border-radius: 5px;
             overflow: hidden;
+            margin-bottom: 4px;
         }
 
         #selected-panel .health-fill {
@@ -280,9 +296,50 @@
             transition: width 0.2s ease;
         }
 
-        #selected-panel .unit-stats {
-            font-size: 12px;
+        #selected-panel .xp-bar {
+            background: #222;
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        #selected-panel .xp-fill {
+            background: linear-gradient(to right, #4488ff, #88ccff);
+            height: 100%;
+            transition: width 0.2s ease;
+        }
+
+        #selected-panel .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-size: 11px;
             color: #aaa;
+            margin-top: 8px;
+        }
+
+        #selected-panel .stat-row {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #selected-panel .stat-label {
+            color: #888;
+        }
+
+        #selected-panel .stat-value {
+            color: #ddd;
+            font-weight: 500;
+        }
+
+        #selected-panel .stat-value.damage { color: #ff6666; }
+        #selected-panel .stat-value.defense { color: #6688ff; }
+        #selected-panel .stat-value.gold { color: #ffd700; }
+
+        #selected-panel .unit-stats {
+            font-size: 11px;
+            color: #888;
             margin-top: 4px;
         }
 
@@ -486,6 +543,232 @@
         .building-info div {
             margin: 2px 0;
         }
+
+        /* Unit Menu - In left panel (same structure as building menu) */
+        #unit-menu {
+            background: rgba(26, 26, 46, 0.95);
+            border: 2px solid #5a7a5a;
+            border-radius: 8px;
+            padding: 0;
+            width: 100%;
+            display: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            margin-top: 10px;
+        }
+
+        #unit-menu.visible {
+            display: block;
+        }
+
+        .unit-menu-header {
+            background: linear-gradient(to bottom, #3a5a3a, #2a4a2a);
+            padding: 10px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #4a6a4a;
+        }
+
+        #unit-menu-title {
+            font-weight: 700;
+            font-size: 16px;
+            color: #88ff88;
+        }
+
+        #unit-menu-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+
+        #unit-menu-close:hover {
+            color: #ff6666;
+        }
+
+        .unit-menu-stats {
+            padding: 10px 12px;
+            border-bottom: 1px solid #3a5a3a;
+        }
+
+        .unit-health-bar {
+            background: #333;
+            height: 12px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+
+        #unit-health-fill {
+            background: linear-gradient(to right, #ff4444, #44ff44);
+            height: 100%;
+            transition: width 0.2s ease;
+        }
+
+        .unit-xp-bar {
+            background: #222;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+
+        #unit-xp-fill {
+            background: linear-gradient(to right, #4488ff, #88ccff);
+            height: 100%;
+            transition: width 0.2s ease;
+        }
+
+        .unit-stats-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        /* Stats display grid */
+        #unit-stats-display .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid #3a5a3a;
+        }
+
+        #unit-stats-display .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 11px;
+        }
+
+        #unit-stats-display .stat-label {
+            color: #888;
+            font-size: 9px;
+        }
+
+        #unit-stats-display .stat-value {
+            color: #ddd;
+            font-weight: 600;
+        }
+
+        #unit-stats-display .combat-stats {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        #unit-stats-display .combat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+        }
+
+        #unit-stats-display .damage { color: #ff6666; }
+        #unit-stats-display .defense { color: #6688ff; }
+
+        #unit-stats-display .gold-display {
+            padding: 6px 12px;
+            display: flex;
+            justify-content: space-between;
+            background: rgba(255, 215, 0, 0.1);
+            border-top: 1px solid #3a5a3a;
+        }
+
+        #unit-stats-display .gold-value {
+            color: #ffd700;
+            font-weight: 700;
+        }
+
+        #unit-options {
+            padding: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .unit-section-header {
+            font-size: 11px;
+            font-weight: 700;
+            color: #8a8aaa;
+            text-transform: uppercase;
+            padding: 8px 12px 4px;
+            margin-top: 4px;
+            border-top: 1px solid #3a5a3a;
+        }
+
+        .unit-section-header:first-child {
+            border-top: none;
+            margin-top: 0;
+        }
+
+        .unit-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 12px;
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .unit-info-row .info-value {
+            color: #ddd;
+        }
+
+        .unit-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            margin: 4px 0;
+            background: linear-gradient(to bottom, #3a5a3a, #2a4a2a);
+            border: 1px solid #4a6a4a;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .unit-option:hover:not(.disabled) {
+            background: linear-gradient(to bottom, #4a7a4a, #3a6a3a);
+            border-color: #6a9a6a;
+            transform: translateX(2px);
+        }
+
+        .unit-option.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .unit-option .option-icon {
+            font-size: 16px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .unit-option .option-text {
+            flex: 1;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .unit-option .option-cost {
+            color: #ffd700;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .unit-info {
+            padding: 8px 12px;
+            font-size: 11px;
+            color: #888;
+            border-top: 1px solid #3a5a3a;
+        }
+
+        .unit-info div {
+            margin: 2px 0;
+        }
     </style>
 </head>
 <body>
@@ -532,6 +815,32 @@
                     <!-- Options will be dynamically added -->
                 </div>
             </div>
+
+            <!-- Unit Menu (for heroes) -->
+            <div id="unit-menu">
+                <div class="unit-menu-header">
+                    <span id="unit-menu-title">Hero</span>
+                    <button id="unit-menu-close">&times;</button>
+                </div>
+                <div class="unit-menu-stats">
+                    <div class="unit-health-bar">
+                        <div id="unit-health-fill" style="width: 100%"></div>
+                    </div>
+                    <div class="unit-xp-bar">
+                        <div id="unit-xp-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="unit-stats-row">
+                        <span id="unit-health-text">100/100</span>
+                        <span id="unit-level">Level 1</span>
+                    </div>
+                </div>
+                <div id="unit-stats-display">
+                    <!-- Stats will be dynamically added -->
+                </div>
+                <div id="unit-options">
+                    <!-- Options will be dynamically added -->
+                </div>
+            </div>
         </div>
 
         <!-- Game Canvas -->
@@ -547,11 +856,35 @@
             </div>
 
             <div id="selected-panel">
-                <div class="unit-name" id="selected-name">Warrior</div>
+                <div class="unit-header">
+                    <div class="unit-name" id="selected-name">Warrior</div>
+                    <div class="unit-level" id="selected-level">Lv.1</div>
+                </div>
                 <div class="health-bar">
                     <div class="health-fill" id="selected-health" style="width: 100%"></div>
                 </div>
-                <div class="unit-stats" id="selected-stats">HP: 100/100</div>
+                <div class="xp-bar">
+                    <div class="xp-fill" id="selected-xp" style="width: 0%"></div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-row">
+                        <span class="stat-label">HP:</span>
+                        <span class="stat-value" id="stat-hp">100/100</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">DMG:</span>
+                        <span class="stat-value damage" id="stat-damage">5-15</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">ARM:</span>
+                        <span class="stat-value defense" id="stat-armor">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Gold:</span>
+                        <span class="stat-value gold" id="stat-gold">0</span>
+                    </div>
+                </div>
+                <div class="unit-stats" id="selected-stats">STR:10 VIT:10 H2H:30</div>
             </div>
 
             <div id="message"></div>
@@ -688,13 +1021,51 @@
 
             if (unit && unit.isAlive && unit.isAlive()) {
                 panel.classList.add('visible');
-                document.getElementById('selected-name').textContent =
-                    unit.unitType ? unit.unitType.charAt(0).toUpperCase() + unit.unitType.slice(1) : 'Unit';
 
+                // Name and level
+                const unitName = unit.unitType ?
+                    unit.unitType.charAt(0).toUpperCase() + unit.unitType.slice(1) : 'Unit';
+                document.getElementById('selected-name').textContent = unitName;
+                document.getElementById('selected-level').textContent = `Lv.${unit.level || 1}`;
+
+                // Health bar
                 const healthPct = (unit.health / unit.maxHealth) * 100;
                 document.getElementById('selected-health').style.width = healthPct + '%';
-                document.getElementById('selected-stats').textContent =
-                    `HP: ${Math.ceil(unit.health)}/${unit.maxHealth}`;
+                document.getElementById('stat-hp').textContent =
+                    `${Math.ceil(unit.health)}/${unit.maxHealth}`;
+
+                // XP bar (if unit has XP system)
+                if (unit.levelUpXp && unit.levelUpXp > 0) {
+                    const currentXp = (unit.experience || 0) - (unit.prevExp || 0);
+                    const xpPct = Math.min(100, (currentXp / unit.levelUpXp) * 100);
+                    document.getElementById('selected-xp').style.width = xpPct + '%';
+                } else {
+                    document.getElementById('selected-xp').style.width = '0%';
+                }
+
+                // Damage
+                const minDmg = unit.minDamage || 5;
+                const maxDmg = unit.maxDamage || 15;
+                document.getElementById('stat-damage').textContent = `${minDmg}-${maxDmg}`;
+
+                // Armor
+                const armor = unit.getTotalArmor ? unit.getTotalArmor() : (unit.armor || 0);
+                document.getElementById('stat-armor').textContent = armor;
+
+                // Gold (for heroes)
+                const gold = (unit.gold || 0) + (unit.taxGold || 0);
+                document.getElementById('stat-gold').textContent = gold;
+
+                // Detailed stats (show different stats based on unit type)
+                let statsText = '';
+                if (unit.attackType === 1) {  // MELEE
+                    statsText = `STR:${unit.strength || 10} H2H:${unit.H2H || 0} PAR:${unit.parry || 0}`;
+                } else if (unit.attackType === 2) {  // RANGED
+                    statsText = `ART:${unit.artifice || 10} RNG:${unit.ranged || 0} DOD:${unit.dodge || 0}`;
+                } else {  // MAGIC
+                    statsText = `INT:${unit.intelligence || 10} RES:${unit.resist || 0}`;
+                }
+                document.getElementById('selected-stats').textContent = statsText;
             } else {
                 panel.classList.remove('visible');
             }

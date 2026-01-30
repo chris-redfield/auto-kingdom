@@ -366,7 +366,8 @@ export class BuildingMenu {
         `;
 
         if (enabled) {
-            option.addEventListener('click', () => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();  // Prevent document click handler from closing menu
                 onClick();
                 this.updateMenu();
             });
@@ -456,7 +457,8 @@ export class BuildingMenu {
             `;
 
             if (canAfford) {
-                option.addEventListener('click', () => {
+                option.addEventListener('click', (e) => {
+                    e.stopPropagation();  // Prevent document click handler from closing menu
                     this.startBuildingPlacement(bldg);
                 });
             }
@@ -469,9 +471,7 @@ export class BuildingMenu {
      * Start building placement mode
      */
     startBuildingPlacement(buildingInfo) {
-        // Hide the menu
-        this.hide();
-
+        // Keep menu open - user can continue browsing while placing
         // Tell the game to enter building placement mode
         this.game.enterBuildingPlacementMode(buildingInfo);
     }

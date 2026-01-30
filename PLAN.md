@@ -50,9 +50,11 @@ All phases of the Playable Prototype are done:
   - [x] Phase 2.1-2.5: Map loading, terrain, objects, UI
   - [x] Phase 2.6: Building system with placement
   - [x] Phase 2.6.1: UI/UX improvements (Build button, building selection, debug tools)
-  - [ ] **Phase 2.7: Character Stats & Progression** 🎯 NEXT
-  - [ ] **Phase 2.7.2: Building Construction Animation** 🎯 NEXT
-  - [ ] Phase 2.8: Unit recruitment (with training progress bar)
+  - [x] **Phase 2.7: Character Stats & Progression** ✅ COMPLETE
+  - [x] **Phase 2.7.2: Building Construction Animation** ✅ COMPLETE
+  - [~] **Phase 2.7.3: Unit Menu System** 🔄 IN PROGRESS
+  - [~] **Phase 2.7.4: Game Configuration File** 🔄 IN PROGRESS
+  - [ ] **Phase 2.8: Unit Training Progress** 🎯 NEXT
   - [ ] Phase 2.9: Mission system (includes victory conditions)
 
 ---
@@ -628,20 +630,79 @@ The minimap is functional but terrain color detection needs refinement. Some roa
 - 'G' key now adds +500 gold (cheat for testing)
 - Removed old 'G' key test guild creation (no longer needed)
 
-### Phase 2.7: Character Stats & Progression 🎯 NEXT PRIORITY
-- [ ] Research original game's stat system (analyze smali: Hero.smali, DynamicObject.smali)
-- [ ] Implement character stats (Strength, Intelligence, Dexterity, etc.)
-- [ ] Level-up system (XP from kills, stat increases)
-- [ ] Gold acquisition (heroes earn gold when killing enemies)
-- [ ] Hero inventory/equipment (from Blacksmith purchases)
-- [ ] Display stats in unit selection panel
-- [ ] Stat effects on combat (damage, defense, speed)
+### Phase 2.7: Character Stats & Progression ✅ COMPLETE
+- [x] Research original game's stat system (analyzed DynamicObject.smali, Const.smali)
+- [x] Implement character stats (Strength, Intelligence, Vitality, Willpower, Artifice)
+- [x] Level-up system (XP from kills, stat increases with diminishing returns)
+- [x] Gold acquisition (heroes earn personal gold + tax gold from kills)
+- [x] Hero inventory/equipment (weapon/armor levels, enchantments, potions)
+- [x] Display stats in unit selection panel
+- [x] Stat effects on combat (damage, defense, hit/miss rolls)
 
-**Research Notes (to be filled in):**
-- Original stats: STR, INT, DEX, CON, etc.
-- XP curve per level
-- Gold reward per enemy type
-- How stats affect damage/defense formulas
+**Implemented Files:**
+- `src/config/GameConfig.js` - All unit stats, formulas, and constants
+- `src/entities/Inventory.js` - Equipment and item management
+- `src/entities/DynamicEntity.js` - Updated with full stat system
+
+**Original Game Stats (from smali analysis):**
+
+*Primary Stats:*
+- `strength` - Affects melee damage
+- `intelligence` - Affects magic damage and spells
+- `artifice` - Crafting/ranged skill (elves)
+- `vitality` - Affects HP gains on level up
+- `willpower` - Affects magic resistance
+
+*Combat Skills:*
+- `H2H` - Hand-to-hand melee hit chance (0-95)
+- `ranged` - Ranged attack hit chance (0-95)
+- `parry` - Block melee attacks (0-95)
+- `dodge` - Evade ranged attacks (0-95)
+- `resist` - Magic resistance (0-95)
+- `armor` - Reduces damage taken
+
+*Hit Formula:*
+```javascript
+// Melee: rnd(200) + attacker.H2H >= defender.parry + 100
+// Ranged: rnd(200) + attacker.ranged >= defender.dodge + 100
+```
+
+*Damage Formula:*
+```javascript
+baseDamage = rnd(minDamage, maxDamage)
+reduction = min(0.75, defenderArmor / 100)
+finalDamage = max(1, baseDamage * (1 - reduction))
+```
+
+*XP System:*
+- XP gained = baseXp / currentLevel (diminishing returns)
+- Level up when: (exp - prevExp) >= levelUpXp
+- On level up: Primary stat +1, combat skill +1, parry +1, dodge +1
+- HP increase: rnd(1, vitality/2) + vitality/2
+- Stat cap: 95
+
+*Level Up XP Requirements:*
+| Unit Type | XP per Level |
+|-----------|-------------|
+| Warrior | 1500 |
+| Ranger | 1250 |
+| Paladin | 2000 |
+| Wizard | 2000 |
+| Healer | 900 |
+| Necromancer | 1200 |
+| Barbarian | 1200 |
+| Dwarf | 1500 |
+| Elf | 1600 |
+
+*Gold System:*
+- Heroes have personal `gold` for purchases
+- Heroes collect `taxGold` from kills (delivered to castle)
+- Monsters drop `deadGold` when killed
+
+*Equipment Levels:*
+- Weapon levels 1-6 (+2 damage per level)
+- Armor levels 1-6 (+3 defense per level)
+- Enchantments 0-3 (+3 weapon damage, +5 armor per level)
 
 ### Phase 2.7.1: Debug Tools ✅ COMPLETE
 - [x] Keyboard shortcut: 'G' key adds +500 gold
@@ -703,8 +764,53 @@ Based on typical gameplay, estimates are:
 
 **TODO (Future):** Implement per-building construction times based on HP values above.
 
-### Phase 2.7.3: Game Configuration File 🎯 TODO
-- [ ] Create `src/config/GameConfig.js` - centralized configuration for all game parameters
+### Phase 2.7.3: Unit Menu System 🔄 IN PROGRESS (2026-01-29)
+- [x] Created `src/ui/UnitMenu.js` - menu for hero unit interactions
+- [x] Added unit menu HTML/CSS to `index.html` (left panel, same location as building menu)
+- [x] Integrated UnitMenu with Game.js entity selection system
+- [x] Menu shows when clicking on player heroes, hides when clicking buildings/enemies/ground
+- [x] Fixed menu button click issues (stopPropagation to prevent menu closing)
+
+**Unit Menu Features:**
+- Stats display: STR, INT, VIT, ART, H2H, RNG, PAR, DOD
+- Combat stats: Damage range, Armor, Resist
+- Gold display (personal + tax gold)
+- Equipment section: Weapon/Armor levels, enchantments
+- Potions section: Healing potions, Cure potions (buy/use)
+- Accessories section: Ring of Protection, Amulet of Teleportation, Poison Coating
+
+**Contextual Options (appear when hero is near specific buildings):**
+- Near Blacksmith: Upgrade Weapon, Upgrade Armor
+- Near Library: Enchant Weapon, Enchant Armor
+- Near Marketplace: Buy potions, Buy accessories
+
+**Implementation Details:**
+- `src/ui/UnitMenu.js`: Full menu class with stats display, equipment, potions, accessories
+- `index.html`: Added `#unit-menu` HTML structure and CSS styles (green theme for heroes)
+- `Game.js`: Import UnitMenu, initialize in `createTestContent()`, show/hide in `selectEntity()`
+- Menu uses same pattern as BuildingMenu (left panel, close button, click-outside handling)
+
+**Bug Fixes (2026-01-29):**
+- Fixed building menu closing when clicking buttons (recruit, upgrade, build)
+  - Root cause: `updateMenu()` rebuilds options, removing clicked element from DOM
+  - Document click handler then thought click was outside menu
+  - Fix: Added `e.stopPropagation()` to all option click handlers in BuildingMenu.js
+- Applied same fix to UnitMenu.js for consistency
+- Fixed building menu staying open during placement mode (removed `this.hide()` from `startBuildingPlacement()`)
+
+**Files Modified:**
+- `src/ui/UnitMenu.js` (NEW)
+- `src/ui/BuildingMenu.js` (bug fixes)
+- `src/core/Game.js` (UnitMenu integration)
+- `index.html` (unit menu HTML/CSS)
+
+### Phase 2.7.4: Game Configuration File 🔄 IN PROGRESS
+- [x] Created `src/config/GameConfig.js` - centralized configuration for game parameters
+- [x] Unit base stats (UNIT_BASE_STATS for all unit types)
+- [x] Combat formulas (hit checks, damage calculation)
+- [ ] XP and level-up system (code written, needs testing)
+- [ ] Equipment prices and bonuses (code written, needs testing)
+- [x] Item definitions (potions, accessories)
 - [ ] Move hardcoded values to config file:
   - Building HP values (per level)
   - Building construction times

@@ -7,6 +7,8 @@
  * - Speed and velocity
  * - Target following
  * - Sprite animations (optional)
+ * - RPG stats (strength, vitality, etc.)
+ * - Equipment and inventory
  */
 
 import { Entity, EntityType } from './Entity.js';
@@ -15,6 +17,12 @@ import { EntityState, FLD_BUSY, FLD_EMPTY } from '../utils/Constants.js';
 import { AnimatedSprite } from '../graphics/AnimationLoader.js';
 import { UNIT_ANIMS, GAME_DIR_TO_ANIM_DIR, getAnimId } from '../utils/AnimationConstants.js';
 import { SOUNDS, getDeathSoundForUnit } from '../audio/SoundConstants.js';
+import {
+    UNIT_TYPE, ATTACK_TYPE, OBJECT_TYPE,
+    UNIT_BASE_STATS, LEVEL_UP, COMBAT, EXPERIENCE, GOLD,
+    EQUIPMENT, ITEMS, SPEED,
+    getUnitStats, rollStat
+} from '../config/GameConfig.js';
 
 export class DynamicEntity extends Entity {
     /**
@@ -48,16 +56,68 @@ export class DynamicEntity extends Entity {
         // Auto-play
         this.autoPlay = true;     // Whether AI controls this unit
 
+        // =====================================================================
+        // RPG STATS (from original game)
+        // =====================================================================
+
+        // Unit type ID (from UNIT_TYPE constants)
+        this.unitTypeId = UNIT_TYPE.WARRIOR;
+        this.objectType = OBJECT_TYPE.HERO;  // HERO, MONSTER, or SUMMON
+
         // Level and experience
         this.level = 1;
+        this.maxLevel = 10;
         this.experience = 0;
-        this.experienceToLevel = 100;
+        this.prevExp = 0;         // Track XP at last level up
+        this.levelUpXp = 1000;    // XP needed per level
 
-        // Unit stats
-        this.damage = 10;
-        this.attackRange = 1;
+        // Primary stats
+        this.strength = 10;       // Affects melee damage
+        this.intelligence = 10;   // Affects magic damage and spells
+        this.artifice = 10;       // Crafting/item skill
+        this.vitality = 10;       // Affects HP on level up
+        this.willpower = 10;      // Affects magic resistance
+
+        // Combat skills
+        this.H2H = 30;            // Hand-to-hand (melee hit chance)
+        this.ranged = 0;          // Ranged attack skill
+        this.parry = 15;          // Block melee attacks
+        this.dodge = 15;          // Dodge ranged attacks
+        this.resist = 15;         // Magic resistance
+
+        // Damage
+        this.minDamage = 5;
+        this.maxDamage = 15;
+        this.armor = 0;           // Reduces incoming damage
+
+        // Combat parameters
+        this.attackRange = 1;     // Tiles
+        this.attackType = ATTACK_TYPE.MELEE;
         this.attackSpeed = 1000;  // ms between attacks
         this.sightRange = 8;      // Tiles for spotting enemies
+
+        // Gold (for heroes)
+        this.gold = 0;            // Personal gold
+        this.taxGold = 0;         // Tax collected, to be returned to castle
+        this.deadGold = 20;       // Gold given when killed (monsters)
+        this.deadExp = 100;       // XP given when killed (monsters)
+        this.expPerDmg = 0;       // XP per damage dealt to this unit
+
+        // Equipment levels (1-based)
+        this.weaponLevel = 1;
+        this.armorLevel = 1;
+        this.enchantedWeaponLevel = 0;  // Enchantment bonus
+        this.enchantedArmorLevel = 0;
+
+        // Inventory
+        this.curePotionsCount = 0;
+        this.hasRingOfProtection = false;
+        this.hasAmuletOfTeleportation = false;
+        this.amuletOfTeleportationTicks = 9999;
+
+        // =====================================================================
+        // END RPG STATS
+        // =====================================================================
 
         // Visual customization
         this.bodyColor = 0x4488ff;
@@ -69,7 +129,7 @@ export class DynamicEntity extends Entity {
         // Game reference (for spawning missiles, etc.)
         this.game = null;
 
-        // Combat type
+        // Combat type (derived from attackType)
         this.isRanged = false;       // If true, uses ranged attacks
         this.rangedRange = 5;        // Attack range for ranged units (in tiles)
         this.meleeRange = 1.5;       // Attack range for melee units
@@ -91,6 +151,120 @@ export class DynamicEntity extends Entity {
 
         // Unit type for sounds (e.g., 'warrior', 'rat', 'troll')
         this.unitType = 'warrior';
+    }
+
+    /**
+     * Initialize stats from unit type ID
+     * Call this after creating the entity to set up proper stats
+     * @param {number} unitTypeId - From UNIT_TYPE constants
+     * @param {number} [level=1] - Starting level
+     */
+    initFromUnitType(unitTypeId, level = 1) {
+        this.unitTypeId = unitTypeId;
+
+        // Get base stats for this unit type
+        const stats = getUnitStats(unitTypeId);
+
+        // Apply stats
+        this.maxLevel = stats.maxLevel;
+        this.levelUpXp = stats.levelUp;
+        this.strength = stats.strength;
+        this.intelligence = stats.intelligence;
+        this.artifice = stats.artifice;
+        this.vitality = stats.vitality;
+        this.willpower = stats.willpower;
+        this.H2H = stats.H2H;
+        this.ranged = stats.ranged;
+        this.parry = stats.parry;
+        this.dodge = stats.dodge;
+        this.resist = stats.resist;
+        this.sightRange = stats.visionRange;
+        this.attackType = stats.attackType;
+
+        // Set combat mode based on attack type
+        this.isRanged = stats.attackType === ATTACK_TYPE.RANGED ||
+                        stats.attackType === ATTACK_TYPE.MAGIC;
+        this.attackRange = stats.attackRange;
+        if (this.isRanged) {
+            this.rangedRange = stats.attackRange;
+        }
+
+        // HP
+        this.health = stats.life;
+        this.maxHealth = stats.life;
+
+        // Damage (if specified, otherwise calculate from strength)
+        if (stats.minDamage !== undefined) {
+            this.minDamage = stats.minDamage;
+            this.maxDamage = stats.maxDamage;
+        } else {
+            // Calculate damage from strength (heroes)
+            this.calculateDamageFromStats();
+        }
+
+        // Speed (convert from original format)
+        this.speed = SPEED.toPixelsPerTick(stats.speed);
+
+        // XP and gold rewards when killed
+        this.deadExp = stats.deadExp;
+        this.deadGold = stats.deadGold;
+        this.expPerDmg = Math.floor(this.deadExp / this.maxHealth);
+
+        // Determine object type
+        if (unitTypeId >= 0x50) {
+            this.objectType = OBJECT_TYPE.MONSTER;
+        } else {
+            this.objectType = OBJECT_TYPE.HERO;
+        }
+
+        // Apply level-ups if starting above level 1
+        if (level > 1) {
+            for (let i = 1; i < level; i++) {
+                this.applyLevelUpStats();
+            }
+            this.level = level;
+        }
+    }
+
+    /**
+     * Calculate damage based on strength and weapon
+     */
+    calculateDamageFromStats() {
+        // Base damage formula (simplified from original)
+        const weaponBonus = (this.weaponLevel - 1) * 2;
+        const enchantBonus = this.enchantedWeaponLevel * EQUIPMENT.WEAPON_ENCHANT_DAMAGE_BONUS;
+
+        if (this.attackType === ATTACK_TYPE.MELEE) {
+            this.minDamage = Math.floor(this.strength / 3) + weaponBonus + enchantBonus;
+            this.maxDamage = Math.floor(this.strength / 2) + weaponBonus + enchantBonus + 5;
+        } else if (this.attackType === ATTACK_TYPE.RANGED) {
+            this.minDamage = Math.floor(this.artifice / 4) + weaponBonus + enchantBonus;
+            this.maxDamage = Math.floor(this.artifice / 2) + weaponBonus + enchantBonus + 3;
+        } else {
+            // Magic
+            this.minDamage = Math.floor(this.intelligence / 3) + enchantBonus;
+            this.maxDamage = Math.floor(this.intelligence / 2) + enchantBonus + 5;
+        }
+    }
+
+    /**
+     * Get total armor including equipment and enchantments
+     */
+    getTotalArmor() {
+        let total = this.armor;
+
+        // Armor from equipment level
+        total += (this.armorLevel - 1) * 3;
+
+        // Enchantment bonus
+        total += this.enchantedArmorLevel * EQUIPMENT.ARMOR_ENCHANT_DEFENSE_BONUS;
+
+        // Ring of protection bonus
+        if (this.hasRingOfProtection) {
+            total += ITEMS.RING_OF_PROTECTION.bonus;
+        }
+
+        return total;
     }
 
     /**
@@ -778,23 +952,168 @@ export class DynamicEntity extends Entity {
             }
             return false;  // Damage dealt by missile on impact
         } else {
-            // Melee attack - deal damage directly
-            const killed = target.takeDamage(this.damage, this);
+            // Melee attack - check hit with stats
+            const hitResult = this.rollAttackHit(target);
 
-            // Visual feedback for melee hit
-            this.showMeleeEffect(target);
+            if (hitResult.hit) {
+                // Calculate damage using stats
+                const damage = this.rollDamage(target);
+                const killed = target.takeDamage(damage, this);
 
-            // Play melee hit sound
-            if (this.game && this.game.playSoundAt) {
-                this.game.playSoundAt(SOUNDS.PHYSIC_UNIT_HIT_ENEMY, target.worldX, target.worldY);
+                // Visual feedback for melee hit
+                this.showMeleeEffect(target);
+
+                // Play melee hit sound
+                if (this.game && this.game.playSoundAt) {
+                    this.game.playSoundAt(SOUNDS.PHYSIC_UNIT_HIT_ENEMY, target.worldX, target.worldY);
+                }
+
+                // Give experience based on damage dealt
+                const xpGained = Math.min(damage, target.health + damage) *
+                                 (target.expPerDmg || 1);
+                this.gainExperience(xpGained);
+
+                // Extra XP bonus if killed
+                if (killed) {
+                    const killXp = EXPERIENCE.getKillXp({ deadExp: target.deadExp || 100 });
+                    this.gainExperience(killXp);
+
+                    // Collect gold from kill (for heroes)
+                    if (this.objectType === OBJECT_TYPE.HERO) {
+                        const goldEarned = GOLD.getKillGold({ deadGold: target.deadGold || 20 });
+                        this.addGold(goldEarned);
+                    }
+                }
+
+                return killed;
+            } else {
+                // Attack missed/parried
+                this.showMissEffect(target);
+                return false;
             }
+        }
+    }
 
-            // Give experience if killed
-            if (killed) {
-                this.gainExperience(25);
+    /**
+     * Roll to see if attack hits (using combat stats)
+     * @param {DynamicEntity} target
+     * @returns {{hit: boolean, critical: boolean}}
+     */
+    rollAttackHit(target) {
+        // Get defender's parry/dodge bonus (e.g., paladin bonus)
+        let defenderBonus = 0;
+        if (target.unitTypeId === UNIT_TYPE.PALADIN) {
+            defenderBonus = COMBAT.PALADIN_DEFENSE_BONUS;
+        }
+
+        let hit = false;
+        if (this.attackType === ATTACK_TYPE.MELEE) {
+            hit = COMBAT.meleeHitCheck(this.H2H, target.parry, defenderBonus);
+        } else if (this.attackType === ATTACK_TYPE.RANGED) {
+            hit = COMBAT.rangedHitCheck(this.ranged, target.dodge, defenderBonus);
+        } else {
+            // Magic attacks check against resist
+            const roll = Math.floor(Math.random() * COMBAT.HIT_ROLL_MAX);
+            hit = (roll + this.intelligence) >= (target.resist + COMBAT.BASE_DEFENSE);
+        }
+
+        return { hit, critical: false };  // TODO: Add critical hits
+    }
+
+    /**
+     * Roll damage for an attack
+     * @param {DynamicEntity} target
+     * @returns {number} Damage amount
+     */
+    rollDamage(target) {
+        // Get attacker bonus (e.g., paladin vs undead)
+        let attackerBonus = 0;
+        if (this.unitTypeId === UNIT_TYPE.PALADIN &&
+            (target.unitTypeId === UNIT_TYPE.SKELETON ||
+             target.unitTypeId === UNIT_TYPE.ZOMBIE ||
+             target.unitTypeId === UNIT_TYPE.VAMPIRE)) {
+            attackerBonus = COMBAT.PALADIN_ATTACK_BONUS;
+        }
+
+        // Calculate base damage with target's armor
+        const targetArmor = target.getTotalArmor ? target.getTotalArmor() : (target.armor || 0);
+        return COMBAT.calculateDamage(
+            this.minDamage + attackerBonus,
+            this.maxDamage + attackerBonus,
+            targetArmor
+        );
+    }
+
+    /**
+     * Show visual effect for missed attack
+     */
+    showMissEffect(target) {
+        if (!this.sprite || !this.sprite.parent) return;
+
+        // Create a "miss" indicator
+        const missText = new PIXI.Text({
+            text: 'Miss!',
+            style: {
+                fontFamily: 'Arial',
+                fontSize: 12,
+                fill: 0xaaaaaa,
+                fontWeight: 'bold'
             }
+        });
+        missText.x = target.worldX - 15;
+        missText.y = target.worldY - 30;
+        missText.zIndex = 99999;
 
-            return killed;
+        this.sprite.parent.addChild(missText);
+
+        // Float up and fade
+        let alpha = 1.0;
+        let yOffset = 0;
+        const fadeCallback = () => {
+            alpha -= 0.05;
+            yOffset -= 1;
+            missText.alpha = alpha;
+            missText.y = target.worldY - 30 + yOffset;
+            if (alpha <= 0) {
+                PIXI.Ticker.shared.remove(fadeCallback);
+                if (missText.parent) {
+                    missText.parent.removeChild(missText);
+                }
+                missText.destroy();
+            }
+        };
+        PIXI.Ticker.shared.add(fadeCallback);
+    }
+
+    /**
+     * Add gold to hero's personal gold
+     */
+    addGold(amount) {
+        if (this.objectType !== OBJECT_TYPE.HERO) return;
+
+        this.gold += amount;
+
+        // Show gold pickup animation (optional)
+        if (this.game && this.game.playSound) {
+            this.game.playSound(SOUNDS.GOLD);
+        }
+    }
+
+    /**
+     * Add tax gold (to be delivered to castle)
+     */
+    addTaxGold(amount) {
+        this.taxGold += amount;
+    }
+
+    /**
+     * Deliver tax gold to player's treasury
+     */
+    deliverTaxGold() {
+        if (this.taxGold > 0 && this.game) {
+            this.game.gold += this.taxGold;
+            console.log(`Hero delivered ${this.taxGold} gold (total: ${this.game.gold})`);
+            this.taxGold = 0;
         }
     }
 
@@ -863,36 +1182,142 @@ export class DynamicEntity extends Entity {
     }
 
     /**
-     * Gain experience
+     * Gain experience (with diminishing returns at higher levels)
+     * Formula from original: exp += addedXp / currentLevel
      */
     gainExperience(amount) {
-        this.experience += amount;
+        // Can't gain XP if at max level
+        if (this.level >= this.maxLevel) return;
+        if (amount <= 0) return;
 
-        // Check for level up
-        while (this.experience >= this.experienceToLevel) {
+        // Apply diminishing returns at higher levels
+        const adjustedXp = EXPERIENCE.getAdjustedXp(amount, this.level);
+        this.experience += adjustedXp;
+
+        // Check for level up(s)
+        while (this.experience - this.prevExp >= this.levelUpXp &&
+               this.level < this.maxLevel) {
+            this.prevExp += this.levelUpXp;
             this.levelUp();
         }
     }
 
     /**
-     * Level up
+     * Level up - increase stats based on unit type
      */
     levelUp() {
-        this.experience -= this.experienceToLevel;
         this.level++;
-        this.experienceToLevel = Math.floor(this.experienceToLevel * 1.5);
 
-        // Increase stats
-        this.maxHealth += 10;
-        this.health = this.maxHealth;
-        this.damage += 2;
+        // Apply stat increases
+        this.applyLevelUpStats();
 
         // Play level up sound
         if (this.game && this.game.playSoundAt) {
             this.game.playSoundAt(SOUNDS.UNIT_LEVELUP, this.worldX, this.worldY);
         }
 
-        console.log(`Entity ${this.id} leveled up to ${this.level}!`);
+        // Show level up visual effect
+        this.showLevelUpEffect();
+
+        console.log(`${this.unitType} leveled up to ${this.level}!`);
+    }
+
+    /**
+     * Apply stat increases for a level up
+     */
+    applyLevelUpStats() {
+        // Increase primary stat based on unit type (every odd level)
+        const primaryStat = LEVEL_UP.getPrimaryStatIncrease(this.unitTypeId, this.level);
+        if (primaryStat && this[primaryStat] < LEVEL_UP.STAT_CAP) {
+            this[primaryStat]++;
+        }
+
+        // Increase combat skill based on attack type
+        if (this.attackType === ATTACK_TYPE.MELEE) {
+            if (this.H2H < LEVEL_UP.STAT_CAP) this.H2H++;
+        } else if (this.attackType === ATTACK_TYPE.RANGED) {
+            if (this.ranged < LEVEL_UP.STAT_CAP) this.ranged++;
+        }
+
+        // Increase parry and dodge
+        if (this.parry < LEVEL_UP.STAT_CAP) this.parry++;
+        if (this.dodge < LEVEL_UP.STAT_CAP) this.dodge++;
+
+        // Special: Barbarians double regeneration at level 6
+        if (this.unitTypeId === UNIT_TYPE.BARBARIAN && this.level === 6) {
+            this.regeneration = (this.regeneration || 1) * 4;
+        }
+
+        // Special: Wizards increase resurrection counter
+        if (this.unitTypeId === UNIT_TYPE.WIZARD_HEALER) {
+            this.resurrectionCounter = (this.resurrectionCounter || 0) + 1;
+        }
+
+        // HP increase based on vitality
+        const hpIncrease = LEVEL_UP.getHpIncrease(this.vitality);
+        this.maxHealth += hpIncrease;
+        this.health = this.maxHealth;  // Full heal on level up
+
+        // Recalculate damage from new stats
+        this.calculateDamageFromStats();
+    }
+
+    /**
+     * Show level up visual effect
+     */
+    showLevelUpEffect() {
+        if (!this.sprite || !this.sprite.parent) return;
+
+        // Create a glowing ring effect
+        const ring = new PIXI.Graphics();
+        ring.circle(0, 0, 25);
+        ring.stroke({ width: 3, color: 0xffff00, alpha: 1.0 });
+        ring.x = this.worldX;
+        ring.y = this.worldY - 15;
+        ring.zIndex = 99998;
+
+        this.sprite.parent.addChild(ring);
+
+        // Create level up text
+        const levelText = new PIXI.Text({
+            text: `Lv.${this.level}!`,
+            style: {
+                fontFamily: 'Arial',
+                fontSize: 14,
+                fill: 0xffff00,
+                fontWeight: 'bold',
+                stroke: { color: 0x000000, width: 2 }
+            }
+        });
+        levelText.x = this.worldX - 20;
+        levelText.y = this.worldY - 45;
+        levelText.zIndex = 99999;
+
+        this.sprite.parent.addChild(levelText);
+
+        // Animate: ring expands and fades, text floats up
+        let alpha = 1.0;
+        let scale = 1.0;
+        let yOffset = 0;
+        const animCallback = () => {
+            alpha -= 0.03;
+            scale += 0.05;
+            yOffset -= 0.5;
+
+            ring.alpha = alpha;
+            ring.scale.set(scale);
+            levelText.alpha = alpha;
+            levelText.y = this.worldY - 45 + yOffset;
+
+            if (alpha <= 0) {
+                PIXI.Ticker.shared.remove(animCallback);
+                if (ring.parent) ring.parent.removeChild(ring);
+                if (levelText.parent) levelText.parent.removeChild(levelText);
+                ring.destroy();
+                levelText.destroy();
+            }
+        };
+        PIXI.Ticker.shared.add(animCallback);
     }
 
     /**
@@ -906,15 +1331,26 @@ export class DynamicEntity extends Entity {
         // Vacate the cell we're on
         this.vacateCell(this.gridI, this.gridJ);
 
-        // Award gold to player when enemy dies
+        // Award gold to player treasury when enemy dies (not collected by hero)
         if (this.team === 'enemy' && this.game) {
             const goldReward = this.getGoldReward();
             this.game.gold += goldReward;
-            console.log(`+${goldReward} gold (total: ${this.game.gold})`);
-            // Play gold sound (use SOUNDS.GOLD not string)
+            console.log(`+${goldReward} gold from kill (treasury: ${this.game.gold})`);
+            // Play gold sound
             if (this.game.playSound) {
                 this.game.playSound(SOUNDS.GOLD);
             }
+        }
+
+        // If a hero dies, drop their gold
+        if (this.objectType === OBJECT_TYPE.HERO && this.game) {
+            const droppedGold = Math.floor((this.gold + this.taxGold) * 0.5);  // Lose 50%
+            if (droppedGold > 0) {
+                console.log(`Hero died! Lost ${this.gold + this.taxGold - droppedGold} gold`);
+                // TODO: Create gold pile at death location
+            }
+            this.gold = 0;
+            this.taxGold = 0;
         }
 
         // Play death sound
@@ -932,22 +1368,17 @@ export class DynamicEntity extends Entity {
 
     /**
      * Get gold reward for killing this unit
+     * Uses stats from GameConfig
      */
     getGoldReward() {
-        // DEBUG: High rewards for testing
-        return 100;
+        return GOLD.getKillGold({ deadGold: this.deadGold || 20 });
+    }
 
-        // Original rewards (uncomment when done testing):
-        // const rewards = {
-        //     'giantrat': 5,
-        //     'giant_rat': 5,
-        //     'rat': 5,
-        //     'troll': 15,
-        //     'goblin': 8,
-        //     'goblin_archer': 10
-        // };
-        // const baseReward = rewards[this.unitType] || 10;
-        // return Math.floor(baseReward * (1 + (this.level - 1) * 0.5));
+    /**
+     * Get XP reward for killing this unit
+     */
+    getExpReward() {
+        return EXPERIENCE.getKillXp({ deadExp: this.deadExp || 100 });
     }
 
     /**

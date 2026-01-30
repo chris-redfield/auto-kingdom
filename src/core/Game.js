@@ -20,6 +20,7 @@ import { SOUNDS, MUSIC } from '../audio/SoundConstants.js';
 import { MapLoader } from '../world/MapLoader.js';
 import { SpawnManager } from '../systems/SpawnManager.js';
 import { BuildingMenu } from '../ui/BuildingMenu.js';
+import { UnitMenu } from '../ui/UnitMenu.js';
 
 export class Game {
     constructor(app, input, assetLoader) {
@@ -96,6 +97,9 @@ export class Game {
 
         // Building menu UI
         this.buildingMenu = null;  // Initialized after DOM is ready
+
+        // Unit menu UI (for hero stats/inventory)
+        this.unitMenu = null;  // Initialized after DOM is ready
 
         // Blacksmith upgrade levels
         this.weaponUpgradeLevel = 0;
@@ -358,6 +362,11 @@ export class Game {
             this.selectedUnit.setSelected(false);
         }
         this.selectedUnit = null;
+
+        // Hide unit menu
+        if (this.unitMenu) {
+            this.unitMenu.hide();
+        }
 
         // Deselect previous building
         if (this.selectedBuilding && this.selectedBuilding.setSelected) {
@@ -780,7 +789,7 @@ export class Game {
             this.selectedUnit.setSelected(false);
         }
 
-        // Deselect previous building and hide menu
+        // Deselect previous building and hide menus
         if (this.selectedBuilding && this.selectedBuilding.setSelected) {
             this.selectedBuilding.setSelected(false);
         }
@@ -794,6 +803,13 @@ export class Game {
         // Select new
         if (entity && entity.setSelected) {
             entity.setSelected(true);
+        }
+
+        // Show unit menu for player heroes
+        if (entity && entity.team === 'player' && this.unitMenu) {
+            this.unitMenu.show(entity);
+        } else if (this.unitMenu) {
+            this.unitMenu.hide();
         }
     }
 
@@ -851,6 +867,9 @@ export class Game {
 
         // Initialize building menu UI
         this.buildingMenu = new BuildingMenu(this);
+
+        // Initialize unit menu UI
+        this.unitMenu = new UnitMenu(this);
 
         // Create test unit on the grid
         this.createTestUnit();
