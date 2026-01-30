@@ -354,12 +354,22 @@ export class DynamicEntity extends Entity {
 
         // Re-initialize sprite if already created
         if (this.sprite) {
-            // Clear existing children except health bar
+            // Save existing UI elements that need to be preserved
             const healthBar = this.healthBar;
+            const selectionIndicator = this.selectionIndicator;
+            const wasSelected = this.selected;
+
             this.sprite.removeChildren();
             this.initAnimatedSprite();
+
+            // Restore health bar
             if (healthBar) {
                 this.sprite.addChild(healthBar);
+            }
+
+            // Restore selection indicator if was selected
+            if (wasSelected && selectionIndicator) {
+                this.sprite.addChild(selectionIndicator);
             }
         }
     }

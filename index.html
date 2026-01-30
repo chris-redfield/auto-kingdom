@@ -244,104 +244,6 @@
             font-size: 13px;
         }
 
-        /* Selected unit panel */
-        #selected-panel {
-            position: absolute;
-            bottom: 60px;
-            left: 10px;
-            background: rgba(26, 26, 46, 0.95);
-            border: 2px solid #4a4a6a;
-            border-radius: 8px;
-            padding: 12px;
-            min-width: 200px;
-            display: none;
-        }
-
-        #selected-panel.visible {
-            display: block;
-        }
-
-        #selected-panel .unit-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        #selected-panel .unit-name {
-            font-weight: 600;
-            font-size: 14px;
-            color: #fff;
-        }
-
-        #selected-panel .unit-level {
-            font-size: 12px;
-            color: #ffd700;
-            background: rgba(255, 215, 0, 0.2);
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-
-        #selected-panel .health-bar {
-            background: #333;
-            height: 10px;
-            border-radius: 5px;
-            overflow: hidden;
-            margin-bottom: 4px;
-        }
-
-        #selected-panel .health-fill {
-            background: linear-gradient(to right, #ff4444, #44ff44);
-            height: 100%;
-            transition: width 0.2s ease;
-        }
-
-        #selected-panel .xp-bar {
-            background: #222;
-            height: 6px;
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 8px;
-        }
-
-        #selected-panel .xp-fill {
-            background: linear-gradient(to right, #4488ff, #88ccff);
-            height: 100%;
-            transition: width 0.2s ease;
-        }
-
-        #selected-panel .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4px;
-            font-size: 11px;
-            color: #aaa;
-            margin-top: 8px;
-        }
-
-        #selected-panel .stat-row {
-            display: flex;
-            justify-content: space-between;
-        }
-
-        #selected-panel .stat-label {
-            color: #888;
-        }
-
-        #selected-panel .stat-value {
-            color: #ddd;
-            font-weight: 500;
-        }
-
-        #selected-panel .stat-value.damage { color: #ff6666; }
-        #selected-panel .stat-value.defense { color: #6688ff; }
-        #selected-panel .stat-value.gold { color: #ffd700; }
-
-        #selected-panel .unit-stats {
-            font-size: 11px;
-            color: #888;
-            margin-top: 4px;
-        }
 
         /* Message display */
         #message {
@@ -855,37 +757,6 @@
                 <div id="minimap-label">Click to scroll</div>
             </div>
 
-            <div id="selected-panel">
-                <div class="unit-header">
-                    <div class="unit-name" id="selected-name">Warrior</div>
-                    <div class="unit-level" id="selected-level">Lv.1</div>
-                </div>
-                <div class="health-bar">
-                    <div class="health-fill" id="selected-health" style="width: 100%"></div>
-                </div>
-                <div class="xp-bar">
-                    <div class="xp-fill" id="selected-xp" style="width: 0%"></div>
-                </div>
-                <div class="stats-grid">
-                    <div class="stat-row">
-                        <span class="stat-label">HP:</span>
-                        <span class="stat-value" id="stat-hp">100/100</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">DMG:</span>
-                        <span class="stat-value damage" id="stat-damage">5-15</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">ARM:</span>
-                        <span class="stat-value defense" id="stat-armor">0</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Gold:</span>
-                        <span class="stat-value gold" id="stat-gold">0</span>
-                    </div>
-                </div>
-                <div class="unit-stats" id="selected-stats">STR:10 VIT:10 H2H:30</div>
-            </div>
 
             <div id="message"></div>
 
@@ -1010,65 +881,6 @@
             const isPaused = game.state === 21;
             pauseBtn.querySelector('.icon').textContent = isPaused ? '\u25B6' : '\u23F8';
             pauseBtn.querySelector('.label').textContent = isPaused ? 'Play' : 'Pause';
-
-            // Update selected unit panel
-            updateSelectedPanel(game);
-        }
-
-        function updateSelectedPanel(game) {
-            const panel = document.getElementById('selected-panel');
-            const unit = game.selectedUnit;
-
-            if (unit && unit.isAlive && unit.isAlive()) {
-                panel.classList.add('visible');
-
-                // Name and level
-                const unitName = unit.unitType ?
-                    unit.unitType.charAt(0).toUpperCase() + unit.unitType.slice(1) : 'Unit';
-                document.getElementById('selected-name').textContent = unitName;
-                document.getElementById('selected-level').textContent = `Lv.${unit.level || 1}`;
-
-                // Health bar
-                const healthPct = (unit.health / unit.maxHealth) * 100;
-                document.getElementById('selected-health').style.width = healthPct + '%';
-                document.getElementById('stat-hp').textContent =
-                    `${Math.ceil(unit.health)}/${unit.maxHealth}`;
-
-                // XP bar (if unit has XP system)
-                if (unit.levelUpXp && unit.levelUpXp > 0) {
-                    const currentXp = (unit.experience || 0) - (unit.prevExp || 0);
-                    const xpPct = Math.min(100, (currentXp / unit.levelUpXp) * 100);
-                    document.getElementById('selected-xp').style.width = xpPct + '%';
-                } else {
-                    document.getElementById('selected-xp').style.width = '0%';
-                }
-
-                // Damage
-                const minDmg = unit.minDamage || 5;
-                const maxDmg = unit.maxDamage || 15;
-                document.getElementById('stat-damage').textContent = `${minDmg}-${maxDmg}`;
-
-                // Armor
-                const armor = unit.getTotalArmor ? unit.getTotalArmor() : (unit.armor || 0);
-                document.getElementById('stat-armor').textContent = armor;
-
-                // Gold (for heroes)
-                const gold = (unit.gold || 0) + (unit.taxGold || 0);
-                document.getElementById('stat-gold').textContent = gold;
-
-                // Detailed stats (show different stats based on unit type)
-                let statsText = '';
-                if (unit.attackType === 1) {  // MELEE
-                    statsText = `STR:${unit.strength || 10} H2H:${unit.H2H || 0} PAR:${unit.parry || 0}`;
-                } else if (unit.attackType === 2) {  // RANGED
-                    statsText = `ART:${unit.artifice || 10} RNG:${unit.ranged || 0} DOD:${unit.dodge || 0}`;
-                } else {  // MAGIC
-                    statsText = `INT:${unit.intelligence || 10} RES:${unit.resist || 0}`;
-                }
-                document.getElementById('selected-stats').textContent = statsText;
-            } else {
-                panel.classList.remove('visible');
-            }
         }
 
         function showMessage(text, duration = 1500) {

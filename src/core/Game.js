@@ -874,8 +874,9 @@ export class Game {
         // Create test unit on the grid
         this.createTestUnit();
 
-        // Create test building (only if not loading from map)
-        if (!this.mapLoader || this.mapLoader.objects.length === 0) {
+        // Create test building (only if map doesn't have a castle)
+        const mapHasCastle = this.mapLoader?.objects?.some(obj => obj.type === 0x20);
+        if (!mapHasCastle) {
             this.createTestBuilding();
         }
 
@@ -1443,6 +1444,11 @@ export class Game {
 
             // For Castle (0x20), create a proper Building object instead of just a sprite
             if (obj.type === 0x20) {
+                // Skip if we already have a castle (prevent duplicates)
+                if (this.playerCastle) {
+                    continue;
+                }
+
                 const castle = new Building(obj.gridI, obj.gridJ, BuildingType.CASTLE);
                 castle.team = 0;
                 castle.maxHealth = 1000;
@@ -1721,14 +1727,14 @@ export class Game {
     }
 
     /**
-     * Test spawn - spawn a random enemy near the selected unit or center
+     * Test spawn - spawn a random enemy near the castle or center
      */
     testSpawn() {
-        // Get spawn position near selected unit or center
+        // Get spawn position near castle (or center if no castle)
         let spawnI, spawnJ;
-        if (this.selectedUnit) {
-            spawnI = this.selectedUnit.gridI + Math.floor(Math.random() * 6) - 3;
-            spawnJ = this.selectedUnit.gridJ + Math.floor(Math.random() * 6) - 3;
+        if (this.playerCastle) {
+            spawnI = this.playerCastle.gridI + Math.floor(Math.random() * 8) - 2;
+            spawnJ = this.playerCastle.gridJ + Math.floor(Math.random() * 8) - 2;
         } else {
             spawnI = Math.floor(this.gridWidth / 2) + Math.floor(Math.random() * 10) - 5;
             spawnJ = Math.floor(this.gridHeight / 2) + Math.floor(Math.random() * 10) - 5;
