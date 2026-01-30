@@ -1809,6 +1809,11 @@ export class Game {
         // Update missiles
         this.updateMissiles(deltaTime);
 
+        // Update unit menu (real-time stats display)
+        if (this.unitMenu) {
+            this.unitMenu.update();
+        }
+
         // Check victory/defeat conditions
         this.checkGameEnd();
     }

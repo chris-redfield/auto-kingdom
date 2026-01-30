@@ -674,7 +674,38 @@ reduction = min(0.75, defenderArmor / 100)
 finalDamage = max(1, baseDamage * (1 - reduction))
 ```
 
-*XP System:*
+*XP System (from smali analysis 2026-01-29):*
+
+**Key Discovery:** The original game gives XP **per damage dealt**, not just on kill!
+
+The `getKickExp(damage)` method in DynamicObject.smali distributes XP fairly:
+```javascript
+// Fields on each enemy:
+expPerDmg = deadExp / maxHealth  // XP per point of damage (e.g., 100 XP / 100 HP = 1)
+leaveExp = 0                      // Tracks total XP already distributed from this enemy
+deadExp = 100                     // Total XP this enemy is worth
+
+// When damage is dealt:
+function getKickExp(damage) {
+    let xpGain = expPerDmg * damage;
+    leaveExp += xpGain;
+
+    // Cap at deadExp - can't give more XP than enemy is worth
+    if (leaveExp > deadExp) {
+        xpGain -= (leaveExp - deadExp);
+        leaveExp = deadExp;
+    }
+    return xpGain;
+}
+```
+
+**Fair Distribution Example:**
+- Enemy has 100 HP, worth 100 XP (expPerDmg = 1)
+- Knight deals 70 damage → gets 70 XP
+- Ranger deals 30 damage → gets 30 XP
+- Total distributed = 100 XP (exactly deadExp, no more)
+
+**Level Up:**
 - XP gained = baseXp / currentLevel (diminishing returns)
 - Level up when: (exp - prevExp) >= levelUpXp
 - On level up: Primary stat +1, combat skill +1, parry +1, dodge +1
@@ -694,10 +725,25 @@ finalDamage = max(1, baseDamage * (1 - reduction))
 | Dwarf | 1500 |
 | Elf | 1600 |
 
-*Gold System:*
-- Heroes have personal `gold` for purchases
-- Heroes collect `taxGold` from kills (delivered to castle)
-- Monsters drop `deadGold` when killed
+*Gold System (from smali analysis 2026-01-29):*
+
+**Key Discovery:** Gold is awarded **only on kill**, not per damage (unlike XP).
+
+```javascript
+// When enemy dies:
+Script.addGold(attacker, target.deadGold);  // Only the killer gets gold
+
+// Gold goes to taxGold (not personal gold directly)
+attacker.taxGold += amount;  // Collected gold to deliver to castle
+```
+
+**Gold Flow:**
+1. Hero kills enemy → gains `deadGold` to their `taxGold`
+2. Hero returns to castle → delivers `taxGold` to player treasury
+3. Hero can spend personal `gold` at Marketplace/Blacksmith/Library
+
+**Important:** Only the unit that lands the **killing blow** receives gold.
+Multiple attackers do NOT share gold (unlike XP which is distributed by damage).
 
 *Equipment Levels:*
 - Weapon levels 1-6 (+2 damage per level)
@@ -808,7 +854,9 @@ Based on typical gameplay, estimates are:
 - [x] Created `src/config/GameConfig.js` - centralized configuration for game parameters
 - [x] Unit base stats (UNIT_BASE_STATS for all unit types)
 - [x] Combat formulas (hit checks, damage calculation)
-- [ ] XP and level-up system (code written, needs testing)
+- [x] XP system - implemented `getKickExp()` matching original game (XP per damage, fair distribution)
+- [x] Gold system - implemented kill-only gold rewards matching original game
+- [x] Real-time UnitMenu updates during combat (XP bar, gold display)
 - [ ] Equipment prices and bonuses (code written, needs testing)
 - [x] Item definitions (potions, accessories)
 - [ ] Move hardcoded values to config file:

@@ -454,6 +454,46 @@ export class UnitMenu {
         }
     }
 
+    /**
+     * Light update - just refresh bars and stats without rebuilding options
+     * Called periodically from game loop for real-time updates
+     */
+    update() {
+        if (!this.visible || !this.currentUnit) return;
+
+        const unit = this.currentUnit;
+
+        // Check if unit is still alive
+        if (!unit.isAlive || !unit.isAlive()) {
+            this.hide();
+            return;
+        }
+
+        // Update health bar
+        const healthPct = (unit.health / unit.maxHealth) * 100;
+        if (this.healthBar) {
+            this.healthBar.style.width = `${healthPct}%`;
+        }
+        if (this.healthText) {
+            this.healthText.textContent = `${Math.ceil(unit.health)}/${unit.maxHealth}`;
+        }
+
+        // Update XP bar
+        if (this.xpBar && unit.levelUpXp && unit.levelUpXp > 0) {
+            const currentXp = (unit.experience || 0) - (unit.prevExp || 0);
+            const xpPct = Math.min(100, (currentXp / unit.levelUpXp) * 100);
+            this.xpBar.style.width = `${xpPct}%`;
+        }
+
+        // Update level
+        if (this.levelText) {
+            this.levelText.textContent = `Level ${unit.level || 1}`;
+        }
+
+        // Update stats display (includes gold)
+        this.updateStatsDisplay(unit);
+    }
+
     // =========================================================================
     // PROXIMITY CHECKS
     // =========================================================================

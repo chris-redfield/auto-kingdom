@@ -102,6 +102,7 @@ export class DynamicEntity extends Entity {
         this.deadGold = 20;       // Gold given when killed (monsters)
         this.deadExp = 100;       // XP given when killed (monsters)
         this.expPerDmg = 0;       // XP per damage dealt to this unit
+        this.leaveExp = 0;        // XP already distributed from this unit (for fair distribution)
 
         // Equipment levels (1-based)
         this.weaponLevel = 1;
@@ -978,15 +979,13 @@ export class DynamicEntity extends Entity {
                     this.game.playSoundAt(SOUNDS.PHYSIC_UNIT_HIT_ENEMY, target.worldX, target.worldY);
                 }
 
-                // Give experience based on damage dealt
-                const xpGained = Math.min(damage, target.health + damage) *
-                                 (target.expPerDmg || 1);
+                // Give experience based on damage dealt (original game mechanic)
+                // Uses getKickExp which tracks XP distribution fairly
+                const xpGained = target.getKickExp ? target.getKickExp(damage) : damage;
                 this.gainExperience(xpGained);
 
-                // Extra XP bonus if killed
+                // Gold reward on kill (no extra XP - already distributed via getKickExp)
                 if (killed) {
-                    const killXp = EXPERIENCE.getKillXp({ deadExp: target.deadExp || 100 });
-                    this.gainExperience(killXp);
 
                     // Collect gold from kill (for heroes)
                     if (this.objectType === OBJECT_TYPE.HERO) {
@@ -1389,6 +1388,33 @@ export class DynamicEntity extends Entity {
      */
     getExpReward() {
         return EXPERIENCE.getKillXp({ deadExp: this.deadExp || 100 });
+    }
+
+    /**
+     * Get XP for damage dealt (original game mechanic)
+     * Distributes total XP (deadExp) across all damage dealt.
+     * Tracks leaveExp to ensure total XP given never exceeds deadExp.
+     * @param {number} damage - Damage dealt
+     * @returns {number} XP to award
+     */
+    getKickExp(damage) {
+        // Calculate XP based on damage
+        const expPerDmg = this.expPerDmg || Math.floor((this.deadExp || 100) / (this.maxHealth || 100));
+        let xpGain = expPerDmg * damage;
+
+        // Track accumulated XP given
+        this.leaveExp = (this.leaveExp || 0) + xpGain;
+
+        // Cap at deadExp - don't give more XP than the enemy is worth
+        const deadExp = this.deadExp || 100;
+        if (this.leaveExp > deadExp) {
+            const overflow = this.leaveExp - deadExp;
+            xpGain -= overflow;
+            this.leaveExp = deadExp;
+        }
+
+        // Ensure non-negative
+        return Math.max(0, xpGain);
     }
 
     /**

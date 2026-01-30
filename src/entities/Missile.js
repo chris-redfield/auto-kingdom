@@ -139,9 +139,21 @@ export class Missile extends Entity {
         if (this.target && this.target.isAlive()) {
             const killed = this.target.takeDamage(this.damage, this.owner);
 
-            // Give experience to owner if target was killed
-            if (killed && this.owner && this.owner.gainExperience) {
-                this.owner.gainExperience(25);
+            // Give experience and gold to owner
+            if (this.owner) {
+                // XP for damage dealt (uses getKickExp for fair distribution)
+                if (this.owner.gainExperience && this.target.getKickExp) {
+                    const xpGained = this.target.getKickExp(this.damage);
+                    this.owner.gainExperience(xpGained);
+                }
+
+                // Gold for hero units on kill (no extra XP - already distributed via getKickExp)
+                if (killed) {
+                    if (this.owner.addGold && this.owner.objectType === 1) {  // OBJECT_TYPE.HERO = 1
+                        const goldEarned = this.target.deadGold || 20;
+                        this.owner.addGold(goldEarned);
+                    }
+                }
             }
         }
 
