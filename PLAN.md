@@ -752,6 +752,9 @@ Multiple attackers do NOT share gold (unlike XP which is distributed by damage).
 
 ### Phase 2.7.1: Debug Tools ✅ COMPLETE
 - [x] Keyboard shortcut: 'G' key adds +500 gold
+- [x] Keyboard shortcut: 'X' key adds +500 XP to selected unit
+- [x] Keyboard shortcut: 'L' key instantly levels up selected unit
+- [x] Console logging for XP gains (shows base XP, adjusted XP, level, progress)
 - [x] Removed old 'G' key test guild creation (no longer needed)
 - [ ] Consider other debug tools: spawn specific units, instant build, god mode (optional)
 
@@ -850,15 +853,23 @@ Based on typical gameplay, estimates are:
 - `src/core/Game.js` (UnitMenu integration)
 - `index.html` (unit menu HTML/CSS)
 
-### Phase 2.7.4: Game Configuration File 🔄 IN PROGRESS
+### Phase 2.7.4: Game Configuration File ✅ COMPLETE
 - [x] Created `src/config/GameConfig.js` - centralized configuration for game parameters
 - [x] Unit base stats (UNIT_BASE_STATS for all unit types)
 - [x] Combat formulas (hit checks, damage calculation)
 - [x] XP system - implemented `getKickExp()` matching original game (XP per damage, fair distribution)
 - [x] Gold system - implemented kill-only gold rewards matching original game
 - [x] Real-time UnitMenu updates during combat (XP bar, gold display)
+- [x] Enemy stats initialization - `spawnEnemy()` and map enemies now use `initFromUnitType()`
 - [ ] Equipment prices and bonuses (code written, needs testing)
 - [x] Item definitions (potions, accessories)
+
+**XP/Gold System Testing (2026-01-29):**
+- Fixed enemies not giving proper XP - were using default values instead of `initFromUnitType()`
+- Added debug tools: X key (+500 XP), L key (instant level up)
+- Added console logging for XP gains during combat
+- Verified XP distribution works correctly (damage-based, capped at deadExp)
+- Monster stats now match original game (Rat: 12 HP, Troll: 80 HP, etc.)
 - [ ] Move hardcoded values to config file:
   - Building HP values (per level)
   - Building construction times
@@ -876,6 +887,28 @@ Based on typical gameplay, estimates are:
 - Easy to compare with original game values
 - Enables future modding support
 - Cleaner code (no magic numbers scattered throughout)
+
+### Phase 2.7.5: Collision System Fixes 🔧 PENDING
+- [ ] **Building collision** - Units can currently walk through buildings
+  - Buildings should block pathfinding (mark building tiles as unwalkable)
+  - Units should path around buildings, not through them
+  - Need to update Grid.js pathfinding to respect building footprints
+  - Building footprint is typically 2x2 tiles (sizeI × sizeJ)
+  - May need to mark tiles as FLD_BUSY when building is placed
+
+- [ ] **Unit stacking fix** - Multiple units can occupy the same tile
+  - Currently 10+ knights can all stand on same tile attacking one enemy
+  - Units should collide with each other and occupy unique tiles
+  - When moving to attack, units should find nearest unoccupied tile adjacent to target
+  - Consider implementing "surround" behavior - units spread around target
+  - May need to improve pathfinding to find alternate tiles when target tile is occupied
+  - Should apply to both melee attackers and idle units
+
+**Implementation Notes:**
+- Building collision: Update `renderMapBuildings()` and `tryPlaceBuilding()` to mark grid cells
+- Unit collision: Update `processAI()` and movement logic to check cell occupancy
+- May need to add `findNearestEmptyTile(targetI, targetJ)` helper function
+- Consider implementing formation/spacing when multiple units pursue same target
 
 ### Phase 2.8: Unit Training Progress 🎯 NEXT PRIORITY
 - [x] Recruit units from guild buildings (DONE in earlier phase)
@@ -1037,6 +1070,8 @@ python -m http.server 8080
 - D: Toggle debug overlay
 - T: Spawn test enemy
 - G: Add 500 gold (cheat)
+- X: Add 500 XP to selected unit (cheat)
+- L: Instant level up selected unit (cheat)
 - M: Toggle music
 - N: Mute/unmute SFX
 - ESC: Pause/Resume / Cancel placement mode

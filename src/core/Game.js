@@ -21,6 +21,7 @@ import { MapLoader } from '../world/MapLoader.js';
 import { SpawnManager } from '../systems/SpawnManager.js';
 import { BuildingMenu } from '../ui/BuildingMenu.js';
 import { UnitMenu } from '../ui/UnitMenu.js';
+import { UNIT_TYPE } from '../config/GameConfig.js';
 
 export class Game {
     constructor(app, input, assetLoader) {
@@ -1135,6 +1136,11 @@ export class Game {
             const pos = enemyPositions[idx];
             if (this.grid.isWalkable(pos.i, pos.j)) {
                 const enemy = new DynamicEntity(pos.i, pos.j);
+
+                // Initialize stats from unit type (alternating rat/troll)
+                const isRat = (idx % 2 === 0);
+                enemy.initFromUnitType(isRat ? UNIT_TYPE.RAT : UNIT_TYPE.TROLL);
+
                 enemy.initSprite();
                 enemy.setBodyColor(0xff4444);  // Red for enemies
                 enemy.autoPlay = true;
@@ -1142,10 +1148,11 @@ export class Game {
                 enemy.setGrid(this.grid);
                 enemy.game = this;
                 enemy.team = 'enemy';
-                // Alternate between rat and troll for variety
-                enemy.unitType = (idx % 2 === 0) ? 'rat' : 'troll';
+                enemy.unitType = isRat ? 'rat' : 'troll';  // For death sounds
                 this.grid.container.addChild(enemy.sprite);
                 this.entities.push(enemy);
+
+                console.log(`Map enemy: ${enemy.unitType} - HP: ${enemy.maxHealth}, deadExp: ${enemy.deadExp}`);
             }
         }
 
@@ -1724,6 +1731,39 @@ export class Game {
             console.log('Cheat: Added 500 gold. Total:', this.gold);
         }
 
+        // Cheat: Press X to give +500 XP to selected unit
+        if (this.input.isKeyJustPressed('x')) {
+            if (this.selectedUnit && this.selectedUnit.gainExperience) {
+                const prevLevel = this.selectedUnit.level;
+                this.selectedUnit.gainExperience(500);
+                this.showMessage(`+500 XP (${this.selectedUnit.experience} total)`);
+                console.log('Cheat: Added 500 XP to', this.selectedUnit.unitType,
+                    '- Total:', this.selectedUnit.experience,
+                    '- Level:', this.selectedUnit.level,
+                    '- Next level at:', this.selectedUnit.prevExp + this.selectedUnit.levelUpXp);
+                if (this.selectedUnit.level > prevLevel) {
+                    this.showMessage(`Level Up! Now level ${this.selectedUnit.level}`);
+                }
+            } else {
+                this.showMessage('Select a unit first');
+            }
+        }
+
+        // Cheat: Press L to instantly level up selected unit
+        if (this.input.isKeyJustPressed('l')) {
+            if (this.selectedUnit && this.selectedUnit.levelUp) {
+                if (this.selectedUnit.level < this.selectedUnit.maxLevel) {
+                    this.selectedUnit.levelUp();
+                    this.showMessage(`Level Up! Now level ${this.selectedUnit.level}`);
+                    console.log('Cheat: Leveled up', this.selectedUnit.unitType, 'to level', this.selectedUnit.level);
+                } else {
+                    this.showMessage('Already at max level!');
+                }
+            } else {
+                this.showMessage('Select a unit first');
+            }
+        }
+
     }
 
     /**
@@ -1954,8 +1994,27 @@ export class Game {
             return null;
         }
 
+        // Map config name to UNIT_TYPE for stats
+        const configToUnitType = {
+            'GIANT_RAT': UNIT_TYPE.RAT,
+            'TROLL': UNIT_TYPE.TROLL,
+            'SKELETON': UNIT_TYPE.SKELETON,
+            'ZOMBIE': UNIT_TYPE.ZOMBIE,
+            'GOBLIN': UNIT_TYPE.GOBLIN,
+            'VAMPIRE': UNIT_TYPE.VAMPIRE,
+            'MINOTAUR': UNIT_TYPE.MINOTAUR,
+            'DRAGON': UNIT_TYPE.DRAGON,
+        };
+
         // Create the enemy entity
         const enemy = new DynamicEntity(gridI, gridJ);
+
+        // Initialize stats from unit type (IMPORTANT - sets deadExp, expPerDmg, etc.)
+        const unitTypeId = configToUnitType[configName];
+        if (unitTypeId !== undefined) {
+            enemy.initFromUnitType(unitTypeId);
+        }
+
         enemy.initSprite();
         enemy.setBodyColor(0xff4444);  // Red for enemies
         enemy.setGrid(this.grid);
@@ -1978,7 +2037,7 @@ export class Game {
         }
         this.entities.push(enemy);
 
-        console.log(`Spawned ${configName} at (${gridI}, ${gridJ})`);
+        console.log(`Spawned ${configName} at (${gridI}, ${gridJ}) - HP: ${enemy.maxHealth}, deadExp: ${enemy.deadExp}, expPerDmg: ${enemy.expPerDmg}`);
         return enemy;
     }
 

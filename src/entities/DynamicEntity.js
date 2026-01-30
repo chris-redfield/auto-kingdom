@@ -1203,6 +1203,9 @@ export class DynamicEntity extends Entity {
         const adjustedXp = EXPERIENCE.getAdjustedXp(amount, this.level);
         this.experience += adjustedXp;
 
+        // Debug logging
+        console.log(`[XP] ${this.unitType} gained ${adjustedXp} XP (base: ${amount}, level: ${this.level}) - Total: ${this.experience}/${this.prevExp + this.levelUpXp}`);
+
         // Check for level up(s)
         while (this.experience - this.prevExp >= this.levelUpXp &&
                this.level < this.maxLevel) {
