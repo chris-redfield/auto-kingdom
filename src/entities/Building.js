@@ -8,6 +8,13 @@
 import { Entity, EntityType } from './Entity.js';
 import { BuildingType, EntityState } from '../utils/Constants.js';
 import * as IsoMath from '../world/IsoMath.js';
+import {
+    getBuildingHP,
+    getBuildingConstructionTime,
+    getBuildingSize,
+    TIMERS,
+    VISUAL
+} from '../config/GameConfig.js';
 
 export class Building extends Entity {
     /**
@@ -22,17 +29,18 @@ export class Building extends Entity {
         this.type = EntityType.BUILDING;
         this.buildingType = buildingType;
 
-        // Buildings have more health than units
-        this.maxHealth = 500;
+        // Buildings have more health than units - get from config
+        this.maxHealth = getBuildingHP(buildingType, 1);
         this.health = this.maxHealth;
         this.armor = 5;
 
         // Team/ownership (0 = player, 1 = enemy, 2 = neutral)
         this.team = 0;
 
-        // Building size in grid cells (most buildings are 2x2 or 3x3)
-        this.sizeI = 2;
-        this.sizeJ = 2;
+        // Building size in grid cells - get from config
+        const size = getBuildingSize(buildingType);
+        this.sizeI = size.i;
+        this.sizeJ = size.j;
 
         // Visual dimensions (pixels)
         this.width = 80;
@@ -45,7 +53,7 @@ export class Building extends Entity {
         this.frameId = 0;
         this.frameCount = 0;
         this.animationTimer = 0;
-        this.animationSpeed = 100; // ms per frame (adjust for speed)
+        this.animationSpeed = TIMERS.BUILDING_ANIM_SPEED;
 
         // Building state
         this.constructed = true;  // False during construction
@@ -53,7 +61,7 @@ export class Building extends Entity {
 
         // Construction properties
         this.constructionProgress = 0;    // 0 to 1
-        this.constructionTime = 5000;     // Time to build in ms (5 seconds default)
+        this.constructionTime = getBuildingConstructionTime(buildingType);
         this.idleAnimId = null;           // Store idle animation to switch to after construction
         this.progressBar = null;          // Visual progress bar
     }
@@ -200,7 +208,7 @@ export class Building extends Entity {
                 // Use consistent size based on building footprint (sizeI x sizeJ)
                 const radiusX = Math.max(this.sizeI, this.sizeJ) * 20;
                 const radiusY = radiusX * 0.5;  // Isometric perspective
-                const offsetY = 40;  // Position ellipse lower (at building base)
+                const offsetY = VISUAL.BUILDING_SELECTION_OFFSET_Y;
 
                 this.selectionIndicator = new PIXI.Graphics();
                 this.selectionIndicator.ellipse(0, offsetY, radiusX, radiusY);
@@ -275,16 +283,20 @@ export class Building extends Entity {
 
         this.progressBar = new PIXI.Container();
 
+        const barWidth = VISUAL.PROGRESS_BAR_WIDTH;
+        const barHeight = VISUAL.PROGRESS_BAR_HEIGHT;
+        const halfWidth = barWidth / 2;
+
         // Background bar (gray)
         const bgBar = new PIXI.Graphics();
-        bgBar.rect(-30, -this.height - 20, 60, 8);
+        bgBar.rect(-halfWidth, -this.height - 20, barWidth, barHeight);
         bgBar.fill(0x333333);
         bgBar.stroke({ width: 1, color: 0x000000 });
         this.progressBar.addChild(bgBar);
 
         // Progress fill (green)
         const fillBar = new PIXI.Graphics();
-        fillBar.rect(-29, -this.height - 19, 0, 6);
+        fillBar.rect(-halfWidth + 1, -this.height - 19, 0, barHeight - 2);
         fillBar.fill(0x44aa44);
         this.progressBar.fillBar = fillBar;
         this.progressBar.addChild(fillBar);
@@ -300,9 +312,11 @@ export class Building extends Entity {
 
         const fillBar = this.progressBar.fillBar;
         fillBar.clear();
-        const fillWidth = Math.floor(58 * this.constructionProgress);
+        const maxFillWidth = VISUAL.PROGRESS_BAR_FILL_WIDTH;
+        const fillWidth = Math.floor(maxFillWidth * this.constructionProgress);
+        const halfWidth = VISUAL.PROGRESS_BAR_WIDTH / 2;
         if (fillWidth > 0) {
-            fillBar.rect(-29, -this.height - 19, fillWidth, 6);
+            fillBar.rect(-halfWidth + 1, -this.height - 19, fillWidth, VISUAL.PROGRESS_BAR_HEIGHT - 2);
             fillBar.fill(0x44aa44);
         }
     }
@@ -379,7 +393,7 @@ export class Building extends Entity {
         // For now, just mark as dead after a delay
         setTimeout(() => {
             this.state = EntityState.DEAD;
-        }, 500);
+        }, TIMERS.BUILDING_DEATH_DELAY);
     }
 
     /**

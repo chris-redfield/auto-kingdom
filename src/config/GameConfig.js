@@ -801,3 +801,357 @@ function getDefaultStats() {
         deadGold: 20,
     };
 }
+
+// =============================================================================
+// BUILDING CONFIGURATION
+// =============================================================================
+export const BUILDING_TYPE = {
+    CASTLE: 0x20,
+    WARRIOR_GUILD: 0x21,
+    RANGER_GUILD: 0x22,
+    WIZARD_GUILD: 0x23,
+    AGRELLA_TEMPLE: 0x24,
+    CRYPTA_TEMPLE: 0x25,
+    KROLM_TEMPLE: 0x26,
+    BLACKSMITH: 0x27,
+    GUARD_TOWER: 0x28,
+    MARKETPLACE: 0x29,
+    STATUE: 0x2a,
+    ELF_BUNGALOW: 0x2b,
+    DWARF_WINDMILL: 0x2c,
+    DWARF_TOWER: 0x2d,
+    GNOME_HOVEL: 0x2e,
+    INN: 0x30,
+    LIBRARY: 0x31,
+};
+
+// Building HP values per level (from Const.smali)
+export const BUILDING_HP = {
+    [BUILDING_TYPE.CASTLE]: [550, 700, 1000],
+    [BUILDING_TYPE.WARRIOR_GUILD]: [700, 850, 1000],
+    [BUILDING_TYPE.RANGER_GUILD]: [250, 350, 450],
+    [BUILDING_TYPE.WIZARD_GUILD]: [350, 500, 700],
+    [BUILDING_TYPE.BLACKSMITH]: [250, 300, 400],
+    [BUILDING_TYPE.MARKETPLACE]: [200, 250, 300],
+    [BUILDING_TYPE.AGRELLA_TEMPLE]: [250, 300, 400],
+    [BUILDING_TYPE.CRYPTA_TEMPLE]: [350, 425, 475],
+    [BUILDING_TYPE.KROLM_TEMPLE]: [800, 900, 1000],
+    [BUILDING_TYPE.GUARD_TOWER]: [200, 300, 400],
+    [BUILDING_TYPE.LIBRARY]: [100, 200, 300],
+    [BUILDING_TYPE.INN]: [75, 125, 175],
+    [BUILDING_TYPE.GNOME_HOVEL]: [75, 125, 175],
+    [BUILDING_TYPE.ELF_BUNGALOW]: [300, 400, 500],
+    [BUILDING_TYPE.DWARF_WINDMILL]: [600, 750, 900],
+    [BUILDING_TYPE.DWARF_TOWER]: [350, 450, 550],
+};
+
+// Building construction costs
+export const BUILDING_COSTS = {
+    [BUILDING_TYPE.WARRIOR_GUILD]: 800,
+    [BUILDING_TYPE.RANGER_GUILD]: 700,
+    [BUILDING_TYPE.WIZARD_GUILD]: 1500,
+    [BUILDING_TYPE.BLACKSMITH]: 500,
+    [BUILDING_TYPE.MARKETPLACE]: 1500,
+    [BUILDING_TYPE.GUARD_TOWER]: 600,
+    [BUILDING_TYPE.AGRELLA_TEMPLE]: 1500,
+    [BUILDING_TYPE.CRYPTA_TEMPLE]: 1000,
+    [BUILDING_TYPE.KROLM_TEMPLE]: 1500,
+    [BUILDING_TYPE.ELF_BUNGALOW]: 750,
+    [BUILDING_TYPE.DWARF_WINDMILL]: 1250,
+    [BUILDING_TYPE.GNOME_HOVEL]: 100,
+    [BUILDING_TYPE.LIBRARY]: 600,
+    [BUILDING_TYPE.INN]: 500,
+};
+
+// Building upgrade costs per level [lv1->2, lv2->3, lv3->4]
+export const BUILDING_UPGRADE_COSTS = {
+    [BUILDING_TYPE.CASTLE]: [600, 1200, 2400],
+    [BUILDING_TYPE.WARRIOR_GUILD]: [800, 1600, 3200],
+    [BUILDING_TYPE.RANGER_GUILD]: [700, 1400, 2800],
+    [BUILDING_TYPE.WIZARD_GUILD]: [1500, 3000, 6000],
+    [BUILDING_TYPE.AGRELLA_TEMPLE]: [1000, 2000, 4000],
+    [BUILDING_TYPE.CRYPTA_TEMPLE]: [1000, 2000, 4000],
+    [BUILDING_TYPE.KROLM_TEMPLE]: [1000, 2000, 4000],
+    [BUILDING_TYPE.BLACKSMITH]: [500, 1000, 2000],
+    [BUILDING_TYPE.GUARD_TOWER]: [400, 800, 1600],
+    [BUILDING_TYPE.MARKETPLACE]: [1500, 3000, 6000],
+    [BUILDING_TYPE.ELF_BUNGALOW]: [800, 1600],
+    [BUILDING_TYPE.DWARF_WINDMILL]: [1000, 2000],
+    [BUILDING_TYPE.GNOME_HOVEL]: [800, 1600],
+    [BUILDING_TYPE.INN]: [500, 1000],
+    [BUILDING_TYPE.LIBRARY]: [1500, 3000],
+};
+
+// Building max levels
+export const BUILDING_MAX_LEVEL = {
+    [BUILDING_TYPE.CASTLE]: 3,
+    [BUILDING_TYPE.WARRIOR_GUILD]: 3,
+    [BUILDING_TYPE.RANGER_GUILD]: 3,
+    [BUILDING_TYPE.WIZARD_GUILD]: 3,
+    [BUILDING_TYPE.AGRELLA_TEMPLE]: 3,
+    [BUILDING_TYPE.CRYPTA_TEMPLE]: 3,
+    [BUILDING_TYPE.KROLM_TEMPLE]: 3,
+    [BUILDING_TYPE.BLACKSMITH]: 3,
+    [BUILDING_TYPE.GUARD_TOWER]: 3,
+    [BUILDING_TYPE.MARKETPLACE]: 3,
+    [BUILDING_TYPE.ELF_BUNGALOW]: 2,
+    [BUILDING_TYPE.DWARF_WINDMILL]: 2,
+    [BUILDING_TYPE.GNOME_HOVEL]: 2,
+    [BUILDING_TYPE.INN]: 2,
+    [BUILDING_TYPE.LIBRARY]: 2,
+};
+
+// Building construction times in ms (based on HP * 8 from original)
+// Simplified for gameplay - can be tuned
+export const BUILDING_CONSTRUCTION_TIME = {
+    [BUILDING_TYPE.CASTLE]: 10000,        // 10 seconds
+    [BUILDING_TYPE.WARRIOR_GUILD]: 8000,  // 8 seconds
+    [BUILDING_TYPE.RANGER_GUILD]: 5000,   // 5 seconds
+    [BUILDING_TYPE.WIZARD_GUILD]: 7000,   // 7 seconds
+    [BUILDING_TYPE.BLACKSMITH]: 5000,
+    [BUILDING_TYPE.MARKETPLACE]: 4000,
+    [BUILDING_TYPE.AGRELLA_TEMPLE]: 6000,
+    [BUILDING_TYPE.CRYPTA_TEMPLE]: 7000,
+    [BUILDING_TYPE.KROLM_TEMPLE]: 10000,
+    [BUILDING_TYPE.GUARD_TOWER]: 4000,
+    [BUILDING_TYPE.LIBRARY]: 3000,
+    [BUILDING_TYPE.INN]: 2000,
+    [BUILDING_TYPE.GNOME_HOVEL]: 2000,
+    [BUILDING_TYPE.ELF_BUNGALOW]: 6000,
+    [BUILDING_TYPE.DWARF_WINDMILL]: 9000,
+    [BUILDING_TYPE.DWARF_TOWER]: 7000,
+    DEFAULT: 5000,
+};
+
+// Building footprint sizes (grid cells)
+export const BUILDING_SIZE = {
+    [BUILDING_TYPE.CASTLE]: { i: 3, j: 3 },
+    [BUILDING_TYPE.WARRIOR_GUILD]: { i: 2, j: 2 },
+    [BUILDING_TYPE.RANGER_GUILD]: { i: 2, j: 2 },
+    [BUILDING_TYPE.WIZARD_GUILD]: { i: 2, j: 2 },
+    [BUILDING_TYPE.BLACKSMITH]: { i: 2, j: 2 },
+    [BUILDING_TYPE.MARKETPLACE]: { i: 2, j: 2 },
+    [BUILDING_TYPE.AGRELLA_TEMPLE]: { i: 2, j: 2 },
+    [BUILDING_TYPE.CRYPTA_TEMPLE]: { i: 2, j: 2 },
+    [BUILDING_TYPE.KROLM_TEMPLE]: { i: 2, j: 2 },
+    [BUILDING_TYPE.GUARD_TOWER]: { i: 2, j: 2 },
+    [BUILDING_TYPE.LIBRARY]: { i: 2, j: 2 },
+    [BUILDING_TYPE.INN]: { i: 2, j: 2 },
+    [BUILDING_TYPE.GNOME_HOVEL]: { i: 2, j: 2 },
+    [BUILDING_TYPE.ELF_BUNGALOW]: { i: 2, j: 2 },
+    [BUILDING_TYPE.DWARF_WINDMILL]: { i: 2, j: 2 },
+    [BUILDING_TYPE.DWARF_TOWER]: { i: 2, j: 2 },
+    DEFAULT: { i: 2, j: 2 },
+};
+
+// Hero recruitment costs
+export const RECRUIT_COSTS = {
+    WARRIOR: 350,
+    RANGER: 400,
+    WIZARD: 300,
+    PALADIN: 1000,
+    HEALER: 800,
+    NECROMANCER: 900,
+    ELF: 450,
+    DWARF: 500,
+    GNOME: 450,
+    BARBARIAN: 600,
+};
+
+// =============================================================================
+// COMBAT CONSTANTS
+// =============================================================================
+export const COMBAT_CONSTANTS = {
+    // Damage bonuses per upgrade level
+    WEAPON_DAMAGE_PER_LEVEL: 2,      // +2 damage per weapon level
+    ARMOR_DEFENSE_PER_LEVEL: 3,      // +3 armor per armor level
+    WEAPON_ENCHANT_BONUS: 3,         // +3 damage per enchant level
+    ARMOR_ENCHANT_BONUS: 5,          // +5 defense per enchant level
+
+    // Blacksmith upgrade bonuses (global for all heroes)
+    BLACKSMITH_WEAPON_BONUS: 3,      // +3 damage per blacksmith weapon upgrade
+    BLACKSMITH_ARMOR_BONUS: 2,       // +2 armor per blacksmith armor upgrade
+
+    // Damage formulas (from strength/artifice)
+    MELEE_MIN_DIVISOR: 3,            // minDamage = strength / 3
+    MELEE_MAX_DIVISOR: 2,            // maxDamage = strength / 2 + bonuses + BASE
+    MELEE_BASE_MAX: 5,               // Base added to max melee damage
+    RANGED_MIN_DIVISOR: 4,           // minDamage = artifice / 4
+    RANGED_MAX_DIVISOR: 2,           // maxDamage = artifice / 2 + bonuses + BASE
+    RANGED_BASE_MAX: 3,              // Base added to max ranged damage
+
+    // Armor reduction cap
+    MAX_ARMOR_REDUCTION: 0.75,       // 75% max damage reduction from armor
+
+    // Attack cooldown
+    DEFAULT_ATTACK_SPEED: 1000,      // ms between attacks
+
+    // Building upgrade HP bonus
+    BUILDING_UPGRADE_HP_BONUS: 100,  // +100 HP per building level
+};
+
+// =============================================================================
+// GRID / TILE CONFIGURATION
+// =============================================================================
+export const GRID_CONFIG = {
+    // Tile dimensions (pixels)
+    TILE_WIDTH: 64,
+    TILE_HEIGHT: 32,
+
+    // Original tileset dimensions (before scaling)
+    TILESET_TILE_WIDTH: 130,
+    TILESET_TILE_HEIGHT: 68,
+
+    // Grass background tile size
+    GRASS_TILE_SIZE: 84,
+
+    // Viewport culling margin (extra tiles beyond screen edge)
+    VISIBLE_TILE_MARGIN: 3,
+
+    // Default grid size
+    DEFAULT_GRID_WIDTH: 64,
+    DEFAULT_GRID_HEIGHT: 64,
+
+    // Cell size for fine-grained movement (from original)
+    CELL_SIZE: 8,
+};
+
+// =============================================================================
+// AI BEHAVIOR CONFIGURATION
+// =============================================================================
+export const AI_CONFIG = {
+    // Idle behavior
+    WANDER_CHANCE: 0.005,            // 0.5% chance per tick to start wandering
+    WANDER_MIN_DISTANCE: 1,          // Min tiles to wander
+    WANDER_MAX_DISTANCE: 2,          // Max tiles to wander
+
+    // Combat AI
+    DEFAULT_SIGHT_RANGE: 8,          // Default tiles for spotting enemies
+    PLAYER_HERO_SIGHT_RANGE: 12,     // Player heroes see further
+    ENEMY_SIGHT_RANGE: 10,           // Enemy sight range
+
+    // Building search
+    BUILDING_SEARCH_RANGE: 50,       // Max tiles to search for buildings to attack
+
+    // Path rerouting
+    REROUTE_THRESHOLD: 2,            // Reroute if target moved > 2 tiles from path destination
+
+    // Tax collection
+    TAX_COLLECTION_INTERVAL: 500,    // Ticks between tax collection attempts
+    MIN_GOLD_TO_COLLECT: 20,         // Min gold before hero returns to castle
+};
+
+// =============================================================================
+// TIMERS & COOLDOWNS
+// =============================================================================
+export const TIMERS = {
+    // Game tick (from original game)
+    TICK_MS: 40,                     // 40ms per tick = 25 FPS logic
+
+    // Animation speeds
+    BUILDING_ANIM_SPEED: 100,        // ms per building animation frame
+    UNIT_ANIM_SPEED: 80,             // ms per unit animation frame (approx)
+
+    // Combat
+    DEFAULT_ATTACK_COOLDOWN: 1000,   // ms between attacks
+
+    // Construction
+    DEFAULT_CONSTRUCTION_TIME: 5000, // 5 seconds default build time
+
+    // UI updates
+    MINIMAP_UPDATE_INTERVAL: 100,    // ms between minimap updates (10 FPS)
+    UI_UPDATE_INTERVAL: 100,         // ms between UI state polls
+
+    // Death animation
+    BUILDING_DEATH_DELAY: 500,       // ms before building marked as dead
+
+    // Game end
+    GRACE_PERIOD_TICKS: 300,         // ~5 seconds before checking win/lose (12 seconds at 25 FPS)
+};
+
+// =============================================================================
+// VISUAL CONFIGURATION
+// =============================================================================
+export const VISUAL = {
+    // Health bar dimensions
+    HEALTH_BAR_WIDTH: 30,
+    HEALTH_BAR_HEIGHT: 4,
+    HEALTH_BAR_FILL_WIDTH: 28,       // Slightly smaller than background
+    HEALTH_BAR_Y_OFFSET: -38,        // Position above entity
+
+    // Building selection ellipse
+    BUILDING_SELECTION_OFFSET_Y: 40, // Position at building base
+
+    // Sprite offsets
+    UNIT_SPRITE_Y_OFFSET: -20,       // Unit sprite position adjustment
+
+    // Progress bar (construction)
+    PROGRESS_BAR_WIDTH: 60,
+    PROGRESS_BAR_HEIGHT: 8,
+    PROGRESS_BAR_FILL_WIDTH: 58,
+
+    // Effect fade rates (per frame)
+    MISS_TEXT_FADE_RATE: 0.05,
+    MISS_TEXT_RISE_SPEED: 1,
+    MELEE_EFFECT_FADE_RATE: 0.08,
+    LEVEL_UP_FADE_RATE: 0.03,
+    LEVEL_UP_SCALE_RATE: 0.05,
+
+    // Camera
+    KEYBOARD_CAMERA_SPEED: 15,       // Pixels per frame for arrow key panning
+    CAMERA_SHAKE_AMPLITUDE: 10,      // Default shake intensity
+    CAMERA_SHAKE_DURATION: 500,      // Default shake duration ms
+
+    // Missile spawn offset
+    MISSILE_SPAWN_Y_OFFSET: -15,     // Spawn from "hand" height
+};
+
+// =============================================================================
+// GAME RULES
+// =============================================================================
+export const GAME_RULES = {
+    // Starting resources
+    STARTING_GOLD: 1000,             // Initial gold (DEBUG value - original is lower)
+
+    // Death penalty
+    HERO_DEATH_GOLD_LOSS: 0.5,       // Lose 50% of gold on death
+
+    // Cheat/debug values
+    CHEAT_GOLD_AMOUNT: 500,          // Gold added by 'G' key
+    CHEAT_XP_AMOUNT: 500,            // XP added by 'X' key
+
+    // Victory bonus
+    VICTORY_GOLD_BONUS: 100,         // Gold awarded on victory
+};
+
+// =============================================================================
+// BLACKSMITH UPGRADES
+// =============================================================================
+export const BLACKSMITH_CONFIG = {
+    // Weapon upgrade costs per level [0->1, 1->2, 2->3]
+    WEAPON_UPGRADE_COSTS: [500, 1000, 2000],
+    // Armor upgrade costs per level
+    ARMOR_UPGRADE_COSTS: [500, 1000, 2000],
+    // Max upgrade levels
+    MAX_WEAPON_LEVEL: 3,
+    MAX_ARMOR_LEVEL: 3,
+};
+
+// =============================================================================
+// HELPER FUNCTION: Get building config value
+// =============================================================================
+export function getBuildingHP(buildingType, level = 1) {
+    const hpArray = BUILDING_HP[buildingType];
+    if (hpArray) {
+        return hpArray[Math.min(level - 1, hpArray.length - 1)] || hpArray[0];
+    }
+    return 500; // Default
+}
+
+export function getBuildingConstructionTime(buildingType) {
+    return BUILDING_CONSTRUCTION_TIME[buildingType] || BUILDING_CONSTRUCTION_TIME.DEFAULT;
+}
+
+export function getBuildingSize(buildingType) {
+    return BUILDING_SIZE[buildingType] || BUILDING_SIZE.DEFAULT;
+}

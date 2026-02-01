@@ -11,6 +11,7 @@
 import * as IsoMath from './IsoMath.js';
 import { FLD_EMPTY, FLD_BUSY, FLD_LOCK } from '../utils/Constants.js';
 import { TileRenderer } from '../graphics/TileRenderer.js';
+import { GRID_CONFIG } from '../config/GameConfig.js';
 
 // Tile types
 export const TileType = {
@@ -37,7 +38,7 @@ const TILE_COLORS = {
 // Background textures (from Import.smali DD_WINDOW_TILE = 0x42)
 // Package 0, Animation 66 - tiled 84x84 textures (water, red, yellow terrain)
 // NOTE: Green grass is NOT in Animation 66 - it's procedurally generated!
-const GRASS_TILE_SIZE = 84;  // Each tile is 84x84 pixels
+const GRASS_TILE_SIZE = GRID_CONFIG.GRASS_TILE_SIZE;  // Each tile is 84x84 pixels
 
 // Animation 66 frame mapping (from test_terrain.html):
 // Frame 0: Water texture (blue)
@@ -129,7 +130,7 @@ export class Grid {
         this.terrainSprites = new Map();  // "i,j" -> { base, overlays[] } sprite pool
         this.lastCameraX = null;
         this.lastCameraY = null;
-        this.visibleTileMargin = 3;  // Extra tiles beyond screen edge
+        this.visibleTileMargin = GRID_CONFIG.VISIBLE_TILE_MARGIN;  // Extra tiles beyond screen edge
 
         // Overlay statistics for debugging
         this.overlayStats = {
@@ -542,8 +543,8 @@ export class Grid {
             const tileY = Math.round(topPos.y);
 
             // Scale factors: tiles are 130x68, scale to 64x32 grid cells
-            const scaleX = 64 / 130;
-            const scaleY = 32 / 68;
+            const scaleX = GRID_CONFIG.TILE_WIDTH / GRID_CONFIG.TILESET_TILE_WIDTH;
+            const scaleY = GRID_CONFIG.TILE_HEIGHT / GRID_CONFIG.TILESET_TILE_HEIGHT;
 
             const halfWidth = IsoMath.TILE_HALF_WIDTH;
             const halfHeight = IsoMath.TILE_HALF_HEIGHT;

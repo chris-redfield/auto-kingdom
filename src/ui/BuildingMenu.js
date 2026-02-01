@@ -10,51 +10,61 @@
 
 import { BuildingType } from '../utils/Constants.js';
 import { SOUNDS } from '../audio/SoundConstants.js';
+import {
+    BUILDING_COSTS,
+    BUILDING_UPGRADE_COSTS,
+    BUILDING_MAX_LEVEL,
+    RECRUIT_COSTS,
+    COMBAT_CONSTANTS,
+    BLACKSMITH_CONFIG,
+} from '../config/GameConfig.js';
 
 // Buildings that can be constructed from the Castle
 // Based on original game's getTypeFromMenuBuildings() in GameDialog.smali
+// Costs are pulled from GameConfig.BUILDING_COSTS
 const CONSTRUCTIBLE_BUILDINGS = [
-    { type: BuildingType.WARRIOR_GUILD, name: 'Warrior Guild', cost: 800, icon: '⚔️', requiresCastleLevel: 1 },
-    { type: BuildingType.RANGER_GUILD, name: 'Ranger Guild', cost: 700, icon: '🏹', requiresCastleLevel: 1 },
-    { type: BuildingType.WIZARD_GUILD, name: 'Wizard Guild', cost: 1500, icon: '🔮', requiresCastleLevel: 1 },
-    { type: BuildingType.BLACKSMITH, name: 'Blacksmith', cost: 500, icon: '🔨', requiresCastleLevel: 2 },
-    { type: BuildingType.MARKETPLACE, name: 'Marketplace', cost: 1500, icon: '🏪', requiresCastleLevel: 1 },
-    { type: BuildingType.GUARD_TOWER, name: 'Guard Tower', cost: 600, icon: '🗼', requiresCastleLevel: 1 },
-    { type: BuildingType.AGRELLA_TEMPLE, name: 'Temple of Agrela', cost: 1500, icon: '☀️', requiresCastleLevel: 2, excludes: ['CRYPTA_TEMPLE', 'KROLM_TEMPLE'] },
-    { type: BuildingType.CRYPTA_TEMPLE, name: 'Temple of Krypta', cost: 1000, icon: '💀', requiresCastleLevel: 2, excludes: ['AGRELLA_TEMPLE', 'KROLM_TEMPLE'] },
-    { type: BuildingType.KROLM_TEMPLE, name: 'Temple of Krolm', cost: 1500, icon: '⚡', requiresCastleLevel: 2, excludes: ['AGRELLA_TEMPLE', 'CRYPTA_TEMPLE'] },
-    { type: BuildingType.ELF_BUNGALOW, name: 'Elven Bungalow', cost: 750, icon: '🌿', requiresCastleLevel: 2, excludes: ['GNOME_HOVEL', 'DWARF_WINDMILL'] },
-    { type: BuildingType.DWARF_WINDMILL, name: 'Dwarven Settlement', cost: 1250, icon: '⛏️', requiresCastleLevel: 2, excludes: ['GNOME_HOVEL', 'ELF_BUNGALOW'] },
-    { type: BuildingType.GNOME_HOVEL, name: 'Gnome Hovel', cost: 100, icon: '🍄', requiresCastleLevel: 1, excludes: ['ELF_BUNGALOW', 'DWARF_WINDMILL'] },
-    { type: BuildingType.LIBRARY, name: 'Library', cost: 600, icon: '📚', requiresCastleLevel: 2 },
-    { type: BuildingType.INN, name: 'Inn', cost: 500, icon: '🍺', requiresCastleLevel: 1 },
+    { type: BuildingType.WARRIOR_GUILD, name: 'Warrior Guild', get cost() { return BUILDING_COSTS[BuildingType.WARRIOR_GUILD]; }, icon: '⚔️', requiresCastleLevel: 1 },
+    { type: BuildingType.RANGER_GUILD, name: 'Ranger Guild', get cost() { return BUILDING_COSTS[BuildingType.RANGER_GUILD]; }, icon: '🏹', requiresCastleLevel: 1 },
+    { type: BuildingType.WIZARD_GUILD, name: 'Wizard Guild', get cost() { return BUILDING_COSTS[BuildingType.WIZARD_GUILD]; }, icon: '🔮', requiresCastleLevel: 1 },
+    { type: BuildingType.BLACKSMITH, name: 'Blacksmith', get cost() { return BUILDING_COSTS[BuildingType.BLACKSMITH]; }, icon: '🔨', requiresCastleLevel: 2 },
+    { type: BuildingType.MARKETPLACE, name: 'Marketplace', get cost() { return BUILDING_COSTS[BuildingType.MARKETPLACE]; }, icon: '🏪', requiresCastleLevel: 1 },
+    { type: BuildingType.GUARD_TOWER, name: 'Guard Tower', get cost() { return BUILDING_COSTS[BuildingType.GUARD_TOWER]; }, icon: '🗼', requiresCastleLevel: 1 },
+    { type: BuildingType.AGRELLA_TEMPLE, name: 'Temple of Agrela', get cost() { return BUILDING_COSTS[BuildingType.AGRELLA_TEMPLE]; }, icon: '☀️', requiresCastleLevel: 2, excludes: ['CRYPTA_TEMPLE', 'KROLM_TEMPLE'] },
+    { type: BuildingType.CRYPTA_TEMPLE, name: 'Temple of Krypta', get cost() { return BUILDING_COSTS[BuildingType.CRYPTA_TEMPLE]; }, icon: '💀', requiresCastleLevel: 2, excludes: ['AGRELLA_TEMPLE', 'KROLM_TEMPLE'] },
+    { type: BuildingType.KROLM_TEMPLE, name: 'Temple of Krolm', get cost() { return BUILDING_COSTS[BuildingType.KROLM_TEMPLE]; }, icon: '⚡', requiresCastleLevel: 2, excludes: ['AGRELLA_TEMPLE', 'CRYPTA_TEMPLE'] },
+    { type: BuildingType.ELF_BUNGALOW, name: 'Elven Bungalow', get cost() { return BUILDING_COSTS[BuildingType.ELF_BUNGALOW]; }, icon: '🌿', requiresCastleLevel: 2, excludes: ['GNOME_HOVEL', 'DWARF_WINDMILL'] },
+    { type: BuildingType.DWARF_WINDMILL, name: 'Dwarven Settlement', get cost() { return BUILDING_COSTS[BuildingType.DWARF_WINDMILL]; }, icon: '⛏️', requiresCastleLevel: 2, excludes: ['GNOME_HOVEL', 'ELF_BUNGALOW'] },
+    { type: BuildingType.GNOME_HOVEL, name: 'Gnome Hovel', get cost() { return BUILDING_COSTS[BuildingType.GNOME_HOVEL]; }, icon: '🍄', requiresCastleLevel: 1, excludes: ['ELF_BUNGALOW', 'DWARF_WINDMILL'] },
+    { type: BuildingType.LIBRARY, name: 'Library', get cost() { return BUILDING_COSTS[BuildingType.LIBRARY]; }, icon: '📚', requiresCastleLevel: 2 },
+    { type: BuildingType.INN, name: 'Inn', get cost() { return BUILDING_COSTS[BuildingType.INN]; }, icon: '🍺', requiresCastleLevel: 1 },
 ];
 
 // Building configuration - costs and options
 // Using BuildingType hex values (0x20 = Castle, 0x21 = Warrior Guild, etc.)
+// Costs and max levels now pulled from GameConfig
 const BUILDING_CONFIG = {
     // Castle (0x20)
     [BuildingType.CASTLE]: {
         name: 'Castle',
         canUpgrade: true,
-        upgradeCost: [600, 1200, 2400],  // Cost per level
-        maxLevel: 3,
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.CASTLE]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.CASTLE]; },
         canBuild: true  // Castle can construct other buildings
     },
     // Warrior Guild (0x21)
     [BuildingType.WARRIOR_GUILD]: {
         name: 'Warrior Guild',
         canRecruit: true,
-        recruitCost: 350,
+        get recruitCost() { return RECRUIT_COSTS.WARRIOR; },
         recruitUnit: 'WARRIOR',
         recruitName: 'Warrior',
         canUpgrade: true,
-        upgradeCost: [800, 1600, 3200],
-        maxLevel: 3,
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.WARRIOR_GUILD]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.WARRIOR_GUILD]; },
         // Alternative hero (Paladin) available with Agrella Temple
         altRecruit: {
             name: 'Paladin',
-            cost: 1000,
+            get cost() { return RECRUIT_COSTS.PALADIN; },
             unit: 'PALADIN',
             requires: 'AGRELLA_TEMPLE'
         }
@@ -63,33 +73,33 @@ const BUILDING_CONFIG = {
     [BuildingType.RANGER_GUILD]: {
         name: 'Ranger Guild',
         canRecruit: true,
-        recruitCost: 400,
+        get recruitCost() { return RECRUIT_COSTS.RANGER; },
         recruitUnit: 'RANGER',
         recruitName: 'Ranger',
         canUpgrade: true,
-        upgradeCost: [700, 1400, 2800],
-        maxLevel: 3
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.RANGER_GUILD]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.RANGER_GUILD]; }
     },
     // Wizard Guild (0x23)
     [BuildingType.WIZARD_GUILD]: {
         name: 'Wizard Guild',
         canRecruit: true,
-        recruitCost: 300,
+        get recruitCost() { return RECRUIT_COSTS.WIZARD; },
         recruitUnit: 'WIZARD',
         recruitName: 'Wizard',
         canUpgrade: true,
-        upgradeCost: [1500, 3000, 6000],
-        maxLevel: 3,
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.WIZARD_GUILD]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.WIZARD_GUILD]; },
         // Alternative heroes with temples
         altRecruit: {
             name: 'Healer',
-            cost: 800,
+            get cost() { return RECRUIT_COSTS.HEALER; },
             unit: 'HEALER',
             requires: 'AGRELLA_TEMPLE'
         },
         altRecruit2: {
             name: 'Necromancer',
-            cost: 900,
+            get cost() { return RECRUIT_COSTS.NECROMANCER; },
             unit: 'NECROMANCER',
             requires: 'CRYPTA_TEMPLE'
         }
@@ -98,46 +108,46 @@ const BUILDING_CONFIG = {
     [BuildingType.AGRELLA_TEMPLE]: {
         name: 'Temple of Agrela',
         canUpgrade: true,
-        upgradeCost: [1000, 2000, 4000],
-        maxLevel: 3
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.AGRELLA_TEMPLE]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.AGRELLA_TEMPLE]; }
     },
     // Crypta Temple (0x25) - for necromancers
     [BuildingType.CRYPTA_TEMPLE]: {
         name: 'Temple of Krypta',
         canUpgrade: true,
-        upgradeCost: [1000, 2000, 4000],
-        maxLevel: 3
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.CRYPTA_TEMPLE]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.CRYPTA_TEMPLE]; }
     },
     // Krolm Temple (0x26) - for barbarians
     [BuildingType.KROLM_TEMPLE]: {
         name: 'Temple of Krolm',
         canUpgrade: true,
-        upgradeCost: [1000, 2000, 4000],
-        maxLevel: 3
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.KROLM_TEMPLE]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.KROLM_TEMPLE]; }
     },
     // Blacksmith (0x27)
     [BuildingType.BLACKSMITH]: {
         name: 'Blacksmith',
         canUpgradeWeapons: true,
         canUpgradeArmor: true,
-        weaponUpgradeCost: [500, 1000, 2000],
-        armorUpgradeCost: [500, 1000, 2000],
-        maxWeaponLevel: 3,
-        maxArmorLevel: 3
+        get weaponUpgradeCost() { return BLACKSMITH_CONFIG.WEAPON_UPGRADE_COSTS; },
+        get armorUpgradeCost() { return BLACKSMITH_CONFIG.ARMOR_UPGRADE_COSTS; },
+        get maxWeaponLevel() { return BLACKSMITH_CONFIG.MAX_WEAPON_LEVEL; },
+        get maxArmorLevel() { return BLACKSMITH_CONFIG.MAX_ARMOR_LEVEL; }
     },
     // Guard Tower (0x28)
     [BuildingType.GUARD_TOWER]: {
         name: 'Guard Tower',
         canUpgrade: true,
-        upgradeCost: [400, 800, 1600],
-        maxLevel: 3
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.GUARD_TOWER]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.GUARD_TOWER]; }
     },
     // Marketplace (0x29)
     [BuildingType.MARKETPLACE]: {
         name: 'Marketplace',
         canUpgrade: true,
-        upgradeCost: [1500, 3000, 6000],
-        maxLevel: 3,
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.MARKETPLACE]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.MARKETPLACE]; },
         // Generates tax income
         incomeBonus: [10, 20, 30]  // % bonus per level
     },
@@ -145,48 +155,48 @@ const BUILDING_CONFIG = {
     [BuildingType.ELF_BUNGALOW]: {
         name: 'Elven Bungalow',
         canRecruit: true,
-        recruitCost: 450,
+        get recruitCost() { return RECRUIT_COSTS.ELF; },
         recruitUnit: 'ELF',
         recruitName: 'Elf',
         canUpgrade: true,
-        upgradeCost: [800, 1600],
-        maxLevel: 2
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.ELF_BUNGALOW]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.ELF_BUNGALOW]; }
     },
     // Dwarf Windmill (0x2c)
     [BuildingType.DWARF_WINDMILL]: {
         name: 'Dwarven Settlement',
         canRecruit: true,
-        recruitCost: 500,
+        get recruitCost() { return RECRUIT_COSTS.DWARF; },
         recruitUnit: 'DWARF',
         recruitName: 'Dwarf',
         canUpgrade: true,
-        upgradeCost: [1000, 2000],
-        maxLevel: 2
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.DWARF_WINDMILL]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.DWARF_WINDMILL]; }
     },
     // Gnome Hovel (0x2e)
     [BuildingType.GNOME_HOVEL]: {
         name: 'Gnome Hovel',
         canRecruit: true,
-        recruitCost: 450,
+        get recruitCost() { return RECRUIT_COSTS.GNOME; },
         recruitUnit: 'GNOME',
         recruitName: 'Gnome',
         canUpgrade: true,
-        upgradeCost: [800, 1600],
-        maxLevel: 2
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.GNOME_HOVEL]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.GNOME_HOVEL]; }
     },
     // Inn (0x30)
     [BuildingType.INN]: {
         name: 'Inn',
         canUpgrade: true,
-        upgradeCost: [500, 1000],
-        maxLevel: 2
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.INN]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.INN]; }
     },
     // Library (0x31)
     [BuildingType.LIBRARY]: {
         name: 'Library',
         canUpgrade: true,
-        upgradeCost: [1500, 3000],
-        maxLevel: 2
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.LIBRARY]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.LIBRARY]; }
     }
 };
 
@@ -557,8 +567,8 @@ export class BuildingMenu {
         this.game.gold -= cost;
         this.currentBuilding.level++;
 
-        // Increase building stats
-        this.currentBuilding.maxHealth += 100;
+        // Increase building stats - use GameConfig value
+        this.currentBuilding.maxHealth += COMBAT_CONSTANTS.BUILDING_UPGRADE_HP_BONUS;
         this.currentBuilding.health = this.currentBuilding.maxHealth;
 
         this.game.showMessage(`${this.currentBuilding.getName()} upgraded to level ${this.currentBuilding.level}!`);
@@ -586,8 +596,8 @@ export class BuildingMenu {
         this.game.gold -= cost;
         this.game.weaponUpgradeLevel = (this.game.weaponUpgradeLevel || 0) + 1;
 
-        // Apply damage bonus to all heroes
-        const damageBonus = 3;  // +3 damage per level
+        // Apply damage bonus to all heroes - use GameConfig value
+        const damageBonus = COMBAT_CONSTANTS.BLACKSMITH_WEAPON_BONUS;
         for (const entity of this.game.entities) {
             if (entity.team === 'player') {
                 entity.damage = (entity.baseDamage || entity.damage) + (this.game.weaponUpgradeLevel * damageBonus);
@@ -619,8 +629,8 @@ export class BuildingMenu {
         this.game.gold -= cost;
         this.game.armorUpgradeLevel = (this.game.armorUpgradeLevel || 0) + 1;
 
-        // Apply armor bonus to all heroes
-        const armorBonus = 2;  // +2 armor per level
+        // Apply armor bonus to all heroes - use GameConfig value
+        const armorBonus = COMBAT_CONSTANTS.BLACKSMITH_ARMOR_BONUS;
         for (const entity of this.game.entities) {
             if (entity.team === 'player') {
                 entity.armor = (entity.baseArmor || entity.armor || 0) + (this.game.armorUpgradeLevel * armorBonus);

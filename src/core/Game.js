@@ -21,7 +21,14 @@ import { MapLoader } from '../world/MapLoader.js';
 import { SpawnManager } from '../systems/SpawnManager.js';
 import { BuildingMenu } from '../ui/BuildingMenu.js';
 import { UnitMenu } from '../ui/UnitMenu.js';
-import { UNIT_TYPE } from '../config/GameConfig.js';
+import {
+    UNIT_TYPE,
+    GAME_RULES,
+    AI_CONFIG,
+    VISUAL,
+    TIMERS,
+    GRID_CONFIG,
+} from '../config/GameConfig.js';
 
 export class Game {
     constructor(app, input, assetLoader) {
@@ -48,7 +55,7 @@ export class Game {
         this.missiles = [];
 
         // Game data
-        this.gold = 1000;  // DEBUG: High starting gold for testing
+        this.gold = GAME_RULES.STARTING_GOLD;
         this.ticks = 0;
 
         // Game end flag (prevent multiple victory/defeat triggers)
@@ -57,8 +64,8 @@ export class Game {
         // Grid/Map
         this.grid = null;
         this.mapLoader = null;  // Loaded map data
-        this.gridWidth = 64;    // Default, will be overridden by map
-        this.gridHeight = 64;
+        this.gridWidth = GRID_CONFIG.DEFAULT_GRID_WIDTH;    // Default, will be overridden by map
+        this.gridHeight = GRID_CONFIG.DEFAULT_GRID_HEIGHT;
 
         // World size (calculated from grid)
         this.worldWidth = SCREEN_WIDTH * 2;
@@ -638,7 +645,7 @@ export class Game {
         hero.game = this;
         hero.team = 'player';
         hero.autoPlay = true;  // Heroes act autonomously
-        hero.sightRange = 12;
+        hero.sightRange = AI_CONFIG.PLAYER_HERO_SIGHT_RANGE;
 
         // Set unit type for sounds
         hero.unitType = configName.toLowerCase();
@@ -1144,7 +1151,7 @@ export class Game {
                 enemy.initSprite();
                 enemy.setBodyColor(0xff4444);  // Red for enemies
                 enemy.autoPlay = true;
-                enemy.sightRange = 10;  // Enemies can see further
+                enemy.sightRange = AI_CONFIG.ENEMY_SIGHT_RANGE;
                 enemy.setGrid(this.grid);
                 enemy.game = this;
                 enemy.team = 'enemy';
@@ -1174,7 +1181,7 @@ export class Game {
                 friendly.autoPlay = true;  // Autonomous behavior
                 friendly.isRanged = true;  // Make friendlies ranged for variety
                 friendly.rangedRange = 6;
-                friendly.sightRange = 12;  // Friendlies can see even further
+                friendly.sightRange = AI_CONFIG.PLAYER_HERO_SIGHT_RANGE;
                 friendly.unitType = 'ranger';  // For death sounds
                 this.grid.container.addChild(friendly.sprite);
                 this.entities.push(friendly);
@@ -1697,7 +1704,7 @@ export class Game {
      * Handle keyboard camera movement
      */
     handleKeyboardMovement() {
-        const speed = 15;
+        const speed = VISUAL.KEYBOARD_CAMERA_SPEED;
 
         if (this.input.isKeyDown('arrowleft')) {
             this.camera.pan(speed, 0);  // Move camera left (see content on left)
@@ -1726,18 +1733,19 @@ export class Game {
 
         // Cheat: Press G to add gold
         if (this.input.isKeyJustPressed('g')) {
-            this.gold += 500;
-            this.showMessage('+500 Gold');
-            console.log('Cheat: Added 500 gold. Total:', this.gold);
+            this.gold += GAME_RULES.CHEAT_GOLD_AMOUNT;
+            this.showMessage(`+${GAME_RULES.CHEAT_GOLD_AMOUNT} Gold`);
+            console.log(`Cheat: Added ${GAME_RULES.CHEAT_GOLD_AMOUNT} gold. Total:`, this.gold);
         }
 
-        // Cheat: Press X to give +500 XP to selected unit
+        // Cheat: Press X to give XP to selected unit
         if (this.input.isKeyJustPressed('x')) {
             if (this.selectedUnit && this.selectedUnit.gainExperience) {
                 const prevLevel = this.selectedUnit.level;
-                this.selectedUnit.gainExperience(500);
-                this.showMessage(`+500 XP (${this.selectedUnit.experience} total)`);
-                console.log('Cheat: Added 500 XP to', this.selectedUnit.unitType,
+                const xpAmount = GAME_RULES.CHEAT_XP_AMOUNT;
+                this.selectedUnit.gainExperience(xpAmount);
+                this.showMessage(`+${xpAmount} XP (${this.selectedUnit.experience} total)`);
+                console.log(`Cheat: Added ${xpAmount} XP to`, this.selectedUnit.unitType,
                     '- Total:', this.selectedUnit.experience,
                     '- Level:', this.selectedUnit.level,
                     '- Next level at:', this.selectedUnit.prevExp + this.selectedUnit.levelUpXp);
@@ -1873,7 +1881,7 @@ export class Game {
         if (this.gameEnded) return;
 
         // Don't check during early game (allow spawning to complete)
-        if (this.ticks < 300) return; // ~5 seconds grace period
+        if (this.ticks < TIMERS.GRACE_PERIOD_TICKS) return;
 
         // Check castle destruction (primary defeat condition)
         if (this.playerCastle && !this.playerCastle.isAlive()) {
@@ -2021,7 +2029,7 @@ export class Game {
         enemy.game = this;
         enemy.team = 'enemy';
         enemy.autoPlay = true;
-        enemy.sightRange = 10;
+        enemy.sightRange = AI_CONFIG.ENEMY_SIGHT_RANGE;
 
         // Set unit type for sounds based on config name
         enemy.unitType = configName.toLowerCase().replace('_', '');
@@ -2048,7 +2056,7 @@ export class Game {
         const missile = createMissile(
             missileType,
             attacker.worldX,
-            attacker.worldY - 15,  // Offset to spawn from "hand" height
+            attacker.worldY + VISUAL.MISSILE_SPAWN_Y_OFFSET,
             target,
             attacker.damage,
             attacker

@@ -21,6 +21,7 @@ import {
     UNIT_TYPE, ATTACK_TYPE, OBJECT_TYPE,
     UNIT_BASE_STATS, LEVEL_UP, COMBAT, EXPERIENCE, GOLD,
     EQUIPMENT, ITEMS, SPEED,
+    COMBAT_CONSTANTS, AI_CONFIG, VISUAL, GAME_RULES,
     getUnitStats, rollStat
 } from '../config/GameConfig.js';
 
@@ -232,19 +233,19 @@ export class DynamicEntity extends Entity {
      */
     calculateDamageFromStats() {
         // Base damage formula (simplified from original)
-        const weaponBonus = (this.weaponLevel - 1) * 2;
-        const enchantBonus = this.enchantedWeaponLevel * EQUIPMENT.WEAPON_ENCHANT_DAMAGE_BONUS;
+        const weaponBonus = (this.weaponLevel - 1) * COMBAT_CONSTANTS.WEAPON_DAMAGE_PER_LEVEL;
+        const enchantBonus = this.enchantedWeaponLevel * COMBAT_CONSTANTS.WEAPON_ENCHANT_BONUS;
 
         if (this.attackType === ATTACK_TYPE.MELEE) {
-            this.minDamage = Math.floor(this.strength / 3) + weaponBonus + enchantBonus;
-            this.maxDamage = Math.floor(this.strength / 2) + weaponBonus + enchantBonus + 5;
+            this.minDamage = Math.floor(this.strength / COMBAT_CONSTANTS.MELEE_MIN_DIVISOR) + weaponBonus + enchantBonus;
+            this.maxDamage = Math.floor(this.strength / COMBAT_CONSTANTS.MELEE_MAX_DIVISOR) + weaponBonus + enchantBonus + COMBAT_CONSTANTS.MELEE_BASE_MAX;
         } else if (this.attackType === ATTACK_TYPE.RANGED) {
-            this.minDamage = Math.floor(this.artifice / 4) + weaponBonus + enchantBonus;
-            this.maxDamage = Math.floor(this.artifice / 2) + weaponBonus + enchantBonus + 3;
+            this.minDamage = Math.floor(this.artifice / COMBAT_CONSTANTS.RANGED_MIN_DIVISOR) + weaponBonus + enchantBonus;
+            this.maxDamage = Math.floor(this.artifice / COMBAT_CONSTANTS.RANGED_MAX_DIVISOR) + weaponBonus + enchantBonus + COMBAT_CONSTANTS.RANGED_BASE_MAX;
         } else {
-            // Magic
-            this.minDamage = Math.floor(this.intelligence / 3) + enchantBonus;
-            this.maxDamage = Math.floor(this.intelligence / 2) + enchantBonus + 5;
+            // Magic - uses same formula as melee but with intelligence
+            this.minDamage = Math.floor(this.intelligence / COMBAT_CONSTANTS.MELEE_MIN_DIVISOR) + enchantBonus;
+            this.maxDamage = Math.floor(this.intelligence / COMBAT_CONSTANTS.MELEE_MAX_DIVISOR) + enchantBonus + COMBAT_CONSTANTS.MELEE_BASE_MAX;
         }
     }
 
@@ -255,10 +256,10 @@ export class DynamicEntity extends Entity {
         let total = this.armor;
 
         // Armor from equipment level
-        total += (this.armorLevel - 1) * 3;
+        total += (this.armorLevel - 1) * COMBAT_CONSTANTS.ARMOR_DEFENSE_PER_LEVEL;
 
         // Enchantment bonus
-        total += this.enchantedArmorLevel * EQUIPMENT.ARMOR_ENCHANT_DEFENSE_BONUS;
+        total += this.enchantedArmorLevel * COMBAT_CONSTANTS.ARMOR_ENCHANT_BONUS;
 
         // Ring of protection bonus
         if (this.hasRingOfProtection) {
@@ -326,7 +327,7 @@ export class DynamicEntity extends Entity {
         this.animSprite = new AnimatedSprite(this.animLoader, this.animPackage, animId);
 
         // Center the animation container
-        this.animSprite.container.y = -20;  // Offset to match placeholder positioning
+        this.animSprite.container.y = VISUAL.UNIT_SPRITE_Y_OFFSET;
 
         this.sprite.addChild(this.animSprite.container);
     }
@@ -425,17 +426,22 @@ export class DynamicEntity extends Entity {
      */
     createHealthBar() {
         const container = new PIXI.Container();
-        container.y = -38;
+        container.y = VISUAL.HEALTH_BAR_Y_OFFSET;
+
+        const barWidth = VISUAL.HEALTH_BAR_WIDTH;
+        const barHeight = VISUAL.HEALTH_BAR_HEIGHT;
+        const fillWidth = VISUAL.HEALTH_BAR_FILL_WIDTH;
+        const halfWidth = barWidth / 2;
 
         // Background
         const bg = new PIXI.Graphics();
-        bg.rect(-15, 0, 30, 4);
+        bg.rect(-halfWidth, 0, barWidth, barHeight);
         bg.fill(0x333333);
         container.addChild(bg);
 
         // Health fill
         const fill = new PIXI.Graphics();
-        fill.rect(-14, 1, 28, 2);
+        fill.rect(-halfWidth + 1, 1, fillWidth, barHeight - 2);
         fill.fill(0x00ff00);
         container.addChild(fill);
         this.healthBarFill = fill;
@@ -450,8 +456,12 @@ export class DynamicEntity extends Entity {
         if (!this.healthBarFill) return;
 
         const healthPercent = this.health / this.maxHealth;
+        const fillWidth = VISUAL.HEALTH_BAR_FILL_WIDTH;
+        const halfWidth = VISUAL.HEALTH_BAR_WIDTH / 2;
+        const barHeight = VISUAL.HEALTH_BAR_HEIGHT;
+
         this.healthBarFill.clear();
-        this.healthBarFill.rect(-14, 1, 28 * healthPercent, 2);
+        this.healthBarFill.rect(-halfWidth + 1, 1, fillWidth * healthPercent, barHeight - 2);
 
         // Color based on health
         let color = 0x00ff00; // Green
@@ -579,7 +589,7 @@ export class DynamicEntity extends Entity {
         }
 
         // Idle behavior - random wandering
-        if (!this.moving && !this.attackTarget && Math.random() < 0.005) {
+        if (!this.moving && !this.attackTarget && Math.random() < AI_CONFIG.WANDER_CHANCE) {
             this.wanderRandomly();
         }
     }
@@ -616,7 +626,7 @@ export class DynamicEntity extends Entity {
         if (!nearestEnemy && this.game.buildings) {
             const targetTeam = this.team === 'enemy' ? 0 : 1;
             // Use much larger range for buildings (will pathfind to them)
-            const buildingSearchRange = 50;  // Cells
+            const buildingSearchRange = AI_CONFIG.BUILDING_SEARCH_RANGE;
 
             for (const building of this.game.buildings) {
                 if (!building.isAlive()) continue;
@@ -816,8 +826,8 @@ export class DynamicEntity extends Entity {
         const targetJ = this.attackTarget.gridJ;
         const distFromDest = Math.abs(destI - targetI) + Math.abs(destJ - targetJ);
 
-        // If target has moved more than 2 tiles from where we're heading, reroute
-        if (distFromDest > 2) {
+        // If target has moved significantly from where we're heading, reroute
+        if (distFromDest > AI_CONFIG.REROUTE_THRESHOLD) {
             // Recalculate path to new position
             const newTarget = this.findAttackPosition(targetI, targetJ);
             if (newTarget && (newTarget.i !== destI || newTarget.j !== destJ)) {
@@ -1079,8 +1089,8 @@ export class DynamicEntity extends Entity {
         let alpha = 1.0;
         let yOffset = 0;
         const fadeCallback = () => {
-            alpha -= 0.05;
-            yOffset -= 1;
+            alpha -= VISUAL.MISS_TEXT_FADE_RATE;
+            yOffset -= VISUAL.MISS_TEXT_RISE_SPEED;
             missText.alpha = alpha;
             missText.y = target.worldY - 30 + yOffset;
             if (alpha <= 0) {
@@ -1156,7 +1166,7 @@ export class DynamicEntity extends Entity {
         // Fade out using PIXI ticker (better than setInterval)
         let alpha = 1.0;
         const fadeCallback = () => {
-            alpha -= 0.08;  // Slightly slower for smoother fade at 60fps
+            alpha -= VISUAL.MELEE_EFFECT_FADE_RATE;
             slash.alpha = alpha;
             if (alpha <= 0) {
                 PIXI.Ticker.shared.remove(fadeCallback);
@@ -1312,8 +1322,8 @@ export class DynamicEntity extends Entity {
         let scale = 1.0;
         let yOffset = 0;
         const animCallback = () => {
-            alpha -= 0.03;
-            scale += 0.05;
+            alpha -= VISUAL.LEVEL_UP_FADE_RATE;
+            scale += VISUAL.LEVEL_UP_SCALE_RATE;
             yOffset -= 0.5;
 
             ring.alpha = alpha;
@@ -1356,7 +1366,7 @@ export class DynamicEntity extends Entity {
 
         // If a hero dies, drop their gold
         if (this.objectType === OBJECT_TYPE.HERO && this.game) {
-            const droppedGold = Math.floor((this.gold + this.taxGold) * 0.5);  // Lose 50%
+            const droppedGold = Math.floor((this.gold + this.taxGold) * GAME_RULES.HERO_DEATH_GOLD_LOSS);
             if (droppedGold > 0) {
                 console.log(`Hero died! Lost ${this.gold + this.taxGold - droppedGold} gold`);
                 // TODO: Create gold pile at death location
