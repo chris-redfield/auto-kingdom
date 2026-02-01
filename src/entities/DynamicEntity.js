@@ -1353,6 +1353,16 @@ export class DynamicEntity extends Entity {
         // Vacate the cell we're on
         this.vacateCell(this.gridI, this.gridJ);
 
+        // Deselect this unit if it was selected
+        if (this.game && this.game.selectedUnit === this) {
+            this.setSelected(false);
+            this.game.selectedUnit = null;
+            // Hide unit menu
+            if (this.game.unitMenu) {
+                this.game.unitMenu.hide();
+            }
+        }
+
         // Award gold to player treasury when enemy dies (not collected by hero)
         if (this.team === 'enemy' && this.game) {
             const goldReward = this.getGoldReward();

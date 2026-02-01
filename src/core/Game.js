@@ -330,7 +330,8 @@ export class Game {
                     this.handleBuildingClick(clickedBuilding, screenX, screenY);
                 } else if (this.grid.isInBounds(gridPos.i, gridPos.j) &&
                            this.grid.isWalkable(gridPos.i, gridPos.j) &&
-                           this.selectedUnit) {
+                           this.selectedUnit &&
+                           this.selectedUnit.isAlive()) {
                     // Clear attack target when moving to empty tile
                     this.selectedUnit.clearAttackTarget();
 
@@ -606,23 +607,51 @@ export class Game {
     }
 
     /**
-     * Find a spawn position near a building
+     * Find a spawn position near a building (outside its footprint)
      */
     findSpawnPositionNearBuilding(building) {
-        // Check positions around the building (southeast first, then other directions)
-        const offsets = [
-            [2, 2], [1, 2], [2, 1],     // Southeast (preferred spawn direction)
-            [0, 2],                      // South
-            [2, 0],                      // East
-            [-1, 1], [-1, 0],           // West
-            [0, -1], [1, -1], [2, -1]   // North (fallback)
-        ];
+        const sizeI = building.sizeI || 2;
+        const sizeJ = building.sizeJ || 2;
 
-        for (const [di, dj] of offsets) {
+        // Generate positions around the building perimeter
+        // Southeast edge first (preferred spawn direction), then other edges
+        const positions = [];
+
+        // Southeast edge (bottom of building in isometric view) - preferred
+        for (let di = 0; di < sizeI; di++) {
+            positions.push([di, sizeJ]);  // South edge
+        }
+        for (let dj = 0; dj < sizeJ; dj++) {
+            positions.push([sizeI, dj]);  // East edge
+        }
+        positions.push([sizeI, sizeJ]);  // Southeast corner
+
+        // Southwest edge
+        for (let dj = 0; dj < sizeJ; dj++) {
+            positions.push([-1, dj]);
+        }
+
+        // Northeast edge
+        for (let di = 0; di < sizeI; di++) {
+            positions.push([di, -1]);
+        }
+
+        // Northwest corner
+        positions.push([-1, -1]);
+
+        // Check each position for walkability
+        for (const [di, dj] of positions) {
             const i = building.gridI + di;
             const j = building.gridJ + dj;
             if (this.grid.isInBounds(i, j) && this.grid.isWalkable(i, j)) {
-                return { i, j };
+                // Also check it's not occupied by another unit
+                const occupied = this.entities.some(e =>
+                    e.isAlive && e.isAlive() &&
+                    Math.floor(e.gridI) === i && Math.floor(e.gridJ) === j
+                );
+                if (!occupied) {
+                    return { i, j };
+                }
             }
         }
         return null;
@@ -879,6 +908,9 @@ export class Game {
         // Initialize unit menu UI
         this.unitMenu = new UnitMenu(this);
 
+        // Lock building cells BEFORE creating entities so they don't spawn on buildings
+        this.lockMapBuildingCells();
+
         // Create test unit on the grid
         this.createTestUnit();
 
@@ -1121,7 +1153,8 @@ export class Game {
         playerUnit.setGrid(this.grid);  // Link to grid for cell occupancy
         playerUnit.game = this;  // Link to game for combat
         playerUnit.team = 'player';  // Team for combat targeting
-        playerUnit.autoPlay = false;  // Player controls this unit manually
+        playerUnit.autoPlay = true;  // Auto-attack enemies like other heroes
+        playerUnit.sightRange = AI_CONFIG.PLAYER_HERO_SIGHT_RANGE;
         playerUnit.unitType = 'knight';  // For death sounds
         this.grid.container.addChild(playerUnit.sprite);
         this.entities.push(playerUnit);
@@ -1508,15 +1541,14 @@ export class Game {
             buildingsRendered++;
 
             // Lock grid cells so units can't walk through buildings
-            // Buildings are typically 2x2 or 3x3 tiles
-            const buildingSize = this.getBuildingSize(obj.type);
-            for (let di = 0; di < buildingSize; di++) {
-                for (let dj = 0; dj < buildingSize; dj++) {
+            const buildingSize = this.getBuildingSizeForType(obj.type);
+            for (let di = 0; di < buildingSize.i; di++) {
+                for (let dj = 0; dj < buildingSize.j; dj++) {
                     this.grid.lock(obj.gridI + di, obj.gridJ + dj);
                 }
             }
 
-            console.log(`Building type ${obj.type} at (${obj.gridI}, ${obj.gridJ}) - size: ${buildingSize}x${buildingSize}`);
+            console.log(`Building type ${obj.type} at (${obj.gridI}, ${obj.gridJ}) - size: ${buildingSize.i}x${buildingSize.j}`);
         }
 
         console.log(`Rendered ${buildingsRendered} map buildings`);
@@ -1524,11 +1556,60 @@ export class Game {
 
     /**
      * Get building size in grid cells based on type
+     * Returns {i, j} object matching BUILDING_SIZE config format
      */
-    getBuildingSize(buildingType) {
-        // Most buildings are 2x2, larger ones are 3x3
-        const largeBuildingTypes = [0x20, 0x2b]; // Castle, Palace
-        return largeBuildingTypes.includes(buildingType) ? 3 : 2;
+    getBuildingSizeForType(buildingType) {
+        // Import from GameConfig if available, otherwise use defaults
+        const sizes = {
+            0x20: { i: 3, j: 3 },  // Castle
+            0x2b: { i: 3, j: 3 },  // Palace
+        };
+        return sizes[buildingType] || { i: 2, j: 2 };
+    }
+
+    /**
+     * Lock building cells early (before animations load) so entities don't spawn on buildings
+     * This is called before createTestUnit() to ensure walkability checks work
+     */
+    lockMapBuildingCells() {
+        if (!this.mapLoader || !this.grid) return;
+
+        const objects = this.mapLoader.objects;
+        if (!objects) return;
+
+        // Building types that should lock cells (all building types)
+        const buildingTypes = [
+            0x20, // Castle
+            0x21, // Warrior Guild
+            0x22, // Blacksmith
+            0x23, // Ranger Guild
+            0x24, // Wizard Guild
+            0x25, // Marketplace
+            0x26, // Guardtower
+            0x27, // Library
+            0x28, // Inn
+            0x29, // Temple of Krypta
+            0x2a, // Temple of Agrela
+            0x2b, // Palace
+            0x2c, // Elf Bungalow
+            0x2d, // Dwarf Windmill
+            0x2e, // Gnome Hovel
+        ];
+
+        let lockedCount = 0;
+        for (const obj of objects) {
+            if (!buildingTypes.includes(obj.type)) continue;
+
+            const size = this.getBuildingSizeForType(obj.type);
+            for (let di = 0; di < size.i; di++) {
+                for (let dj = 0; dj < size.j; dj++) {
+                    this.grid.lock(obj.gridI + di, obj.gridJ + dj);
+                    lockedCount++;
+                }
+            }
+        }
+
+        console.log(`Locked ${lockedCount} building cells early (before entity spawn)`);
     }
 
     /**
@@ -1581,8 +1662,8 @@ export class Game {
 
         this.pathGraphics.clear();
 
-        // Draw path for selected unit if moving
-        if (this.selectedUnit && this.selectedUnit.moving && this.selectedUnit.path.length > 0) {
+        // Draw path for selected unit if moving and alive
+        if (this.selectedUnit && this.selectedUnit.isAlive() && this.selectedUnit.moving && this.selectedUnit.path.length > 0) {
             // Draw remaining path
             const path = [
                 { i: this.selectedUnit.targetI, j: this.selectedUnit.targetJ },

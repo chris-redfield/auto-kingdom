@@ -831,6 +831,14 @@
                 }
 
                 if (castle && game.buildingMenu) {
+                    // Deselect unit and hide unit menu first (menus overlap at same position)
+                    if (game.selectedUnit) {
+                        game.selectedUnit.setSelected(false);
+                        game.selectedUnit = null;
+                    }
+                    if (game.unitMenu) {
+                        game.unitMenu.hide();
+                    }
                     game.buildingMenu.show(castle);
                 } else {
                     showMessage('No castle available!');
