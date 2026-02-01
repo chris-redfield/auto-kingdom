@@ -83,18 +83,6 @@
             overflow: hidden;
         }
 
-        /* Left panel for building menu */
-        #left-panel {
-            width: 240px;
-            min-width: 240px;
-            background: linear-gradient(to right, #1a1a2e, #151525);
-            border-right: 2px solid #3a3a5a;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-        }
-
         /* Game Container - Fills remaining space */
         #game-wrapper {
             flex: 1;
@@ -308,15 +296,19 @@
             font-family: monospace;
         }
 
-        /* Building Menu - In left panel */
+        /* Building Menu - Floating overlay */
         #building-menu {
+            position: absolute;
+            left: 10px;
+            top: 10px;
             background: rgba(26, 26, 46, 0.95);
             border: 2px solid #5a5a7a;
             border-radius: 8px;
             padding: 0;
-            width: 100%;
+            width: 220px;
             display: none;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            z-index: 100;
         }
 
         #building-menu.visible {
@@ -446,16 +438,19 @@
             margin: 2px 0;
         }
 
-        /* Unit Menu - In left panel (same structure as building menu) */
+        /* Unit Menu - Floating overlay */
         #unit-menu {
+            position: absolute;
+            left: 10px;
+            top: 10px;
             background: rgba(26, 26, 46, 0.95);
             border: 2px solid #5a7a5a;
             border-radius: 8px;
             padding: 0;
-            width: 100%;
+            width: 220px;
             display: none;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-            margin-top: 10px;
+            z-index: 100;
         }
 
         #unit-menu.visible {
@@ -695,10 +690,11 @@
         <div class="game-status" id="game-status">Playing</div>
     </div>
 
-    <!-- Main content area with left panel and game -->
+    <!-- Main content area -->
     <div id="main-content">
-        <!-- Left Panel for Building Menu -->
-        <div id="left-panel">
+        <!-- Game Canvas -->
+        <div id="game-wrapper">
+            <!-- Building Menu - Floating overlay -->
             <div id="building-menu">
                 <div class="building-menu-header">
                     <span id="building-menu-title">Building</span>
@@ -718,7 +714,7 @@
                 </div>
             </div>
 
-            <!-- Unit Menu (for heroes) -->
+            <!-- Unit Menu - Floating overlay -->
             <div id="unit-menu">
                 <div class="unit-menu-header">
                     <span id="unit-menu-title">Hero</span>
@@ -743,10 +739,6 @@
                     <!-- Options will be dynamically added -->
                 </div>
             </div>
-        </div>
-
-        <!-- Game Canvas -->
-        <div id="game-wrapper">
             <div id="game-container">
                 <div id="loading">Loading Majesty...</div>
             </div>
