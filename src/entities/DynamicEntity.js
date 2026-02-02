@@ -1485,6 +1485,10 @@ export class DynamicEntity extends Entity {
         this.stopMoving();
         this.clearAttackTarget();
 
+        // Update health bar to show 0 HP before hiding
+        this.updateHealthBar();
+        this.hideHealthBar();
+
         // Vacate the cell we're on
         this.vacateCell(this.gridI, this.gridJ);
 

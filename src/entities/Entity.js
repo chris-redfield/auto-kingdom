@@ -153,9 +153,9 @@ export class Entity {
      * @returns {boolean} True if entity died
      */
     takeDamage(amount, source = null) {
-        // Apply armor reduction
-        const actualDamage = Math.max(1, amount - this.armor);
-        this.health -= actualDamage;
+        // NOTE: Armor is already applied in rollDamage() -> COMBAT.calculateDamage()
+        // Do NOT apply armor here again - amount is already the final damage
+        this.health -= amount;
 
         if (this.health <= 0) {
             this.health = 0;
