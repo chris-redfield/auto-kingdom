@@ -947,7 +947,16 @@ export class Grid {
         gScore.set(key(startI, startJ), 0);
         fScore.set(key(startI, startJ), IsoMath.gridDistanceEuclidean(startI, startJ, endI, endJ));
 
+        // Safety limit to prevent infinite loops / browser freeze
+        const MAX_ITERATIONS = 500;
+        let iterations = 0;
+
         while (openSet.length > 0) {
+            iterations++;
+            if (iterations > MAX_ITERATIONS) {
+                console.warn(`Pathfinding exceeded ${MAX_ITERATIONS} iterations, aborting`);
+                return [];
+            }
             // Get node with lowest fScore
             openSet.sort((a, b) => {
                 return (fScore.get(key(a.i, a.j)) || Infinity) - (fScore.get(key(b.i, b.j)) || Infinity);

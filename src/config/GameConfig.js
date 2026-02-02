@@ -58,6 +58,50 @@ export const OBJECT_TYPE = {
 };
 
 // =============================================================================
+// WEAPON DAMAGE TABLE (from Script.smali getWeaponDamage)
+// Heroes use weapon damage, NOT minDamage/maxDamage
+// Damage = rnd(1, weaponDamage) + enchantedWeaponLevel
+// =============================================================================
+export const WEAPON_DAMAGE = {
+    // Melee weapons (swords)
+    0: 10,   // Basic sword
+    1: 11,
+    2: 12,
+    3: 13,
+    // Ranged weapons (bows)
+    4: 6,    // Basic bow (Ranger starting)
+    5: 7,
+    6: 8,
+    7: 9,
+    // Better melee weapons
+    8: 16,
+    9: 17,
+    10: 18,
+    11: 19,
+    // Advanced weapons
+    12: 22,
+    13: 23,
+    14: 24,
+    15: 25,
+    // Special weapons
+    16: 12,
+    17: 13,
+    18: 14,
+    19: 15,
+    // Magic staffs
+    22: 12,  // Wizard staff (0x16)
+};
+
+/**
+ * Get weapon damage by weapon ID
+ * @param {number} weaponId - Weapon type ID
+ * @returns {number} Max damage for this weapon
+ */
+export function getWeaponDamage(weaponId) {
+    return WEAPON_DAMAGE[weaponId] ?? 1;
+}
+
+// =============================================================================
 // BASE STATS BY UNIT TYPE
 // Extracted from DynamicObject.smali Init() method
 // Format: { stat: [min, max] } for random range, or { stat: value } for fixed
@@ -86,30 +130,35 @@ export const UNIT_BASE_STATS = {
         visionRange: 8,
         // HP
         life: 40,               // Starting HP
+        weapon: 0,              // Basic sword (damage 10) - heroes use weapon damage!
+        armor: 5,               // Starting armor
         // Gold and XP rewards
         deadExp: [300, 600],
         deadGold: [50, 100],
     },
 
     // TYPE_RANGER (1) - Ranger Guild hero
+    // From init_ranger in DynamicObject.smali
     [UNIT_TYPE.RANGER]: {
-        speed: 0xc00,           // 3072 - faster
+        speed: 0xc00,           // 3072 - faster than warriors
         levelUp: 0x4e2,         // 1250 XP per level
         maxLevel: 10,
-        strength: [8, 12],
-        intelligence: [22, 26], // High INT - 0x16 to 0x1a
-        artifice: [3, 8],
-        vitality: [6, 8],
+        strength: [13, 17],     // rnd(0xd, 0x11)
+        intelligence: [14, 18], // rnd(0xe, 0x12)
+        artifice: [16, 20],     // rnd(0x10, 0x14)
+        vitality: [11, 15],     // rnd(0xb, 0xf)
         willpower: 18,          // 0x12
-        H2H: 0,
-        ranged: 70,             // 0x46 - ranged skill
-        parry: 10,
-        dodge: 25,
-        resist: 30,             // 0x1e
-        attackRange: 8,         // Ranged
+        H2H: 0,                 // No melee skill
+        ranged: 75,             // 0x4b - ranged skill
+        parry: 25,              // 0x19
+        dodge: 25,              // Same as speed in some configs
+        resist: 0,              // Low magic resist
+        attackRange: 8,         // 0x8 - ranged
         attackType: ATTACK_TYPE.RANGED,
         visionRange: 10,
-        life: 27,               // 0x1b - lower HP
+        life: 17,               // 0x11 - lower HP
+        weapon: 4,              // Basic bow (damage 6) - heroes use weapon damage!
+        armor: 5,               // Starting armor
         deadExp: [300, 600],
         deadGold: [50, 100],
     },
@@ -133,6 +182,8 @@ export const UNIT_BASE_STATS = {
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 8,
         life: 35,               // 0x23
+        weapon: 0,              // Sword (damage 10)
+        armor: 5,
         deadExp: [1200, 4800],
         deadGold: 200,
     },
@@ -180,6 +231,8 @@ export const UNIT_BASE_STATS = {
         attackType: ATTACK_TYPE.MAGIC,
         visionRange: 8,
         life: 18,               // 0x12
+        weapon: 22,             // Magic staff (damage 12)
+        armor: 2,
         deadExp: [800, 1200],
         deadGold: 200,
     },
@@ -227,6 +280,8 @@ export const UNIT_BASE_STATS = {
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 8,
         life: 40,
+        weapon: 0,              // Axe/Sword (damage 10)
+        armor: 8,               // Dwarves have good armor
         deadExp: [300, 600],
         deadGold: [50, 100],
     },
@@ -250,6 +305,8 @@ export const UNIT_BASE_STATS = {
         attackType: ATTACK_TYPE.RANGED,
         visionRange: 10,
         life: 27,               // 0x1b
+        weapon: 4,              // Elven bow (damage 6)
+        armor: 3,
         deadExp: [1500, 2500],  // 0x5dc to 0x9c4
         deadGold: [200, 500],   // 0xc8 to 0x1f4
     },
@@ -273,6 +330,8 @@ export const UNIT_BASE_STATS = {
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 8,
         life: 50,
+        weapon: 0,              // Heavy weapon (damage 10)
+        armor: 3,               // Light armor, relies on HP
         deadExp: [400, 800],
         deadGold: [75, 150],
     },

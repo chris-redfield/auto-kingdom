@@ -667,7 +667,26 @@ export class Game {
             return null;
         }
 
+        // Map config name to UNIT_TYPE for proper stats (including speed!)
+        const configToUnitType = {
+            'WARRIOR': UNIT_TYPE.WARRIOR,
+            'RANGER': UNIT_TYPE.RANGER,
+            'WIZARD': UNIT_TYPE.WIZARD,
+            'PALADIN': UNIT_TYPE.PALADIN,
+            'HEALER': UNIT_TYPE.HEALER,
+            'ELF': UNIT_TYPE.ELF,
+            'DWARF': UNIT_TYPE.DWARF,
+            'GNOME': UNIT_TYPE.GNOME,
+        };
+
         const hero = new DynamicEntity(gridI, gridJ);
+
+        // Initialize stats from unit type (sets speed, HP, damage, etc.)
+        const unitTypeId = configToUnitType[configName];
+        if (unitTypeId !== undefined) {
+            hero.initFromUnitType(unitTypeId);
+        }
+
         hero.initSprite();
         hero.setBodyColor(0x44ff44);  // Green for player heroes
         hero.setGrid(this.grid);
@@ -684,33 +703,13 @@ export class Game {
             hero.setAnimations(this.animLoader, animConfig);
         }
 
-        // Set stats based on type
-        if (configName === 'WARRIOR') {
-            hero.maxHealth = 100;
-            hero.health = 100;
-            hero.damage = 15;
-            hero.isRanged = false;
-        } else if (configName === 'RANGER') {
-            hero.maxHealth = 60;
-            hero.health = 60;
-            hero.damage = 12;
-            hero.isRanged = true;
-            hero.rangedRange = 8;
-        } else if (configName === 'WIZARD') {
-            hero.maxHealth = 40;
-            hero.health = 40;
-            hero.damage = 18;
-            hero.isRanged = true;
-            hero.rangedRange = 10;
-        }
-
         // Add to grid container and entities
         if (this.grid) {
             this.grid.container.addChild(hero.sprite);
         }
         this.entities.push(hero);
 
-        console.log(`Spawned ${configName} hero at (${gridI}, ${gridJ})`);
+        console.log(`Spawned ${configName} hero at (${gridI}, ${gridJ}) - speed: ${hero.speed}`);
         return hero;
     }
 
@@ -1148,6 +1147,7 @@ export class Game {
 
         // Spawn player knight near castle (offset to the side)
         const playerUnit = new DynamicEntity(castleI + 4, castleJ + 2);
+        playerUnit.initFromUnitType(UNIT_TYPE.WARRIOR);  // Use warrior stats (includes speed!)
         playerUnit.initSprite();
         playerUnit.setBodyColor(0x4488ff);  // Blue for player
         playerUnit.setGrid(this.grid);  // Link to grid for cell occupancy
@@ -1206,14 +1206,13 @@ export class Game {
         for (const pos of friendlyPositions) {
             if (this.grid.isWalkable(pos.i, pos.j)) {
                 const friendly = new DynamicEntity(pos.i, pos.j);
+                friendly.initFromUnitType(UNIT_TYPE.RANGER);  // Use ranger stats (includes speed!)
                 friendly.initSprite();
                 friendly.setBodyColor(0x44ff44);  // Green for friendlies
                 friendly.setGrid(this.grid);
                 friendly.game = this;
                 friendly.team = 'player';  // Same team as player
                 friendly.autoPlay = true;  // Autonomous behavior
-                friendly.isRanged = true;  // Make friendlies ranged for variety
-                friendly.rangedRange = 6;
                 friendly.sightRange = AI_CONFIG.PLAYER_HERO_SIGHT_RANGE;
                 friendly.unitType = 'ranger';  // For death sounds
                 this.grid.container.addChild(friendly.sprite);
@@ -2132,14 +2131,19 @@ export class Game {
 
     /**
      * Spawn a missile from attacker to target
+     * @param {DynamicEntity} attacker - The unit firing the missile
+     * @param {DynamicEntity} target - The target to hit
+     * @param {object} missileType - Missile visual type (default: ARROW)
+     * @param {number} damage - Pre-rolled damage amount (if not provided, uses attacker.damage)
      */
-    spawnMissile(attacker, target, missileType = MissileType.ARROW) {
+    spawnMissile(attacker, target, missileType = MissileType.ARROW, damage = null) {
+        const actualDamage = damage !== null ? damage : attacker.damage;
         const missile = createMissile(
             missileType,
             attacker.worldX,
             attacker.worldY + VISUAL.MISSILE_SPAWN_Y_OFFSET,
             target,
-            attacker.damage,
+            actualDamage,
             attacker
         );
         missile.initSprite();

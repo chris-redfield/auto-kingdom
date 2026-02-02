@@ -888,27 +888,130 @@ Based on typical gameplay, estimates are:
 - Enables future modding support
 - Cleaner code (no magic numbers scattered throughout)
 
-### Phase 2.7.5: Collision System Fixes 🔧 PENDING
-- [ ] **Building collision** - Units can currently walk through buildings
-  - Buildings should block pathfinding (mark building tiles as unwalkable)
-  - Units should path around buildings, not through them
-  - Need to update Grid.js pathfinding to respect building footprints
-  - Building footprint is typically 2x2 tiles (sizeI × sizeJ)
-  - May need to mark tiles as FLD_BUSY when building is placed
+---
 
-- [ ] **Unit stacking fix** - Multiple units can occupy the same tile
-  - Currently 10+ knights can all stand on same tile attacking one enemy
-  - Units should collide with each other and occupy unique tiles
-  - When moving to attack, units should find nearest unoccupied tile adjacent to target
-  - Consider implementing "surround" behavior - units spread around target
-  - May need to improve pathfinding to find alternate tiles when target tile is occupied
-  - Should apply to both melee attackers and idle units
+## 📚 REVERSE ENGINEERING DOCUMENTATION
 
-**Implementation Notes:**
-- Building collision: Update `renderMapBuildings()` and `tryPlaceBuilding()` to mark grid cells
-- Unit collision: Update `processAI()` and movement logic to check cell occupancy
-- May need to add `findNearestEmptyTile(targetI, targetJ)` helper function
-- Consider implementing formation/spacing when multiple units pursue same target
+### Combat Damage System (from DynamicObject.smali)
+
+The original game has **two separate damage calculation systems** based on entity type:
+
+#### 1. HERO Damage (objectType = 1)
+
+Heroes (player units like Warriors, Rangers, Wizards) use **weapon-based damage**:
+
+```
+damage = rnd(1, getWeaponDamage(weapon)) + enchantedWeaponLevel
+```
+
+- `weapon` field determines the weapon type (0-22)
+- `getWeaponDamage()` returns the max damage for that weapon type
+- `enchantedWeaponLevel` adds bonus damage from enchantments at the Library
+
+**Weapon Damage Table (from Script.smali getWeaponDamage):**
+| Weapon ID | Damage | Description |
+|-----------|--------|-------------|
+| 0 | 10 | Basic sword (Warrior/Paladin/Dwarf/Barbarian start) |
+| 1 | 11 | Improved sword |
+| 2 | 12 | Steel sword |
+| 3 | 13 | Fine sword |
+| 4 | 6 | Basic bow (Ranger/Elf start) |
+| 5 | 7 | Improved bow |
+| 6 | 8 | Elven bow |
+| 7 | 9 | Master bow |
+| 8-11 | 16-19 | Advanced melee weapons |
+| 12-15 | 22-25 | Elite weapons |
+| 16-19 | 12-15 | Special weapons |
+| 22 | 12 | Magic staff (Wizard start) |
+
+**How Heroes Get Better Weapons:**
+- Buy from Marketplace (higher weapon tiers)
+- Enchant at Library (+enchantedWeaponLevel bonus)
+
+#### 2. MONSTER Damage (objectType = 2)
+
+Monsters (enemies like Rats, Trolls, Goblins) use **stat-based damage**:
+
+```
+damage = rnd(minDamage, maxDamage)
+```
+
+- `minDamage` and `maxDamage` are fixed per monster type
+- Defined in UNIT_BASE_STATS in GameConfig.js
+
+**Example Monster Damage Values:**
+| Monster | Min Damage | Max Damage |
+|---------|------------|------------|
+| Rat | 2 | 5 |
+| Goblin | 5 | 12 |
+| Troll | 10 | 20 |
+
+#### Damage Formula (after type-specific calculation)
+
+```javascript
+// From COMBAT.calculateDamage
+baseDamage = rnd(minDmg, maxDmg)
+armorReduction = Math.floor(baseDamage * targetArmor / 100)
+finalDamage = Math.max(1, baseDamage - armorReduction)
+```
+
+#### Files Modified for Damage System:
+- `src/config/GameConfig.js`:
+  - Added `WEAPON_DAMAGE` table with all 22 weapon types
+  - Added `getWeaponDamage(weaponId)` helper function
+  - Updated all hero configs: removed `minDamage/maxDamage`, added `weapon` field
+  - Monster configs keep `minDamage/maxDamage`
+
+- `src/entities/DynamicEntity.js`:
+  - Updated `rollDamage()` to check `objectType`:
+    - HERO: Use weapon damage
+    - MONSTER: Use minDamage/maxDamage
+  - Updated `initFromUnitType()` to initialize `weapon` field
+
+#### Hero Starting Weapons:
+| Hero Type | Weapon ID | Max Damage |
+|-----------|-----------|------------|
+| Warrior | 0 | 10 |
+| Ranger | 4 | 6 |
+| Paladin | 0 | 10 |
+| Barbarian | 0 | 10 |
+| Dwarf | 0 | 10 |
+| Elf | 4 | 6 |
+| Wizard | 22 | 12 |
+| Healer | 22 | 12 |
+| Necromancer | 21 | ? |
+
+**Note:** Rangers and Elves have lower starting damage (1-6) but attack from range (8 tiles), making them safer. They improve significantly with better bows from the Marketplace.
+
+---
+
+### Phase 2.7.5: Collision System Fixes ✅ COMPLETE
+
+**Building Collision - DONE:**
+- [x] Buildings now block pathfinding (tiles marked as FLD_LOCK)
+- [x] Units spawn OUTSIDE building footprint using `findSpawnPositionNearBuilding()`
+- [x] Buildings have 1-tile collision padding around their footprint
+- [x] `lockMapBuildingCells()` called during map initialization
+- [x] `Building.lockCells()` marks occupied + surrounding tiles
+
+**Unit Stacking - PARTIALLY DONE:**
+- [x] Added `isCellTargetedByOther()` to check if another unit is heading to a cell
+- [x] Units now try to avoid cells that are targeted by other units
+- [x] Fallback to first walkable cell if all cells are targeted (prevents freeze)
+- [ ] Could still improve with formation/spacing for large groups
+
+**Performance Optimizations - DONE:**
+- [x] Pathfinding iteration limit (500 max) - prevents browser freeze
+- [x] AI throttling (every 5-10 frames, staggered by entity ID) - O(n²) → O(n)
+- [x] `findNearestEnemy()` limit (30 checks + early exit if distance < 3)
+- [x] `isCellTargetedByOther()` limit (20 entity checks)
+- [x] Game now handles 60+ units without freezing
+
+**Other Fixes:**
+- [x] Dead units no longer remain selected
+- [x] Build button works when unit is selected (deselects unit first)
+- [x] First knight now attacks enemies (autoPlay = true, sightRange from config)
+- [x] Player units have correct speed (initFromUnitType called)
 
 ### Phase 2.8: Unit Training Progress 🎯 NEXT PRIORITY
 - [x] Recruit units from guild buildings (DONE in earlier phase)

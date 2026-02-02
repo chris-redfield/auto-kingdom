@@ -22,7 +22,7 @@ import {
     UNIT_BASE_STATS, LEVEL_UP, COMBAT, EXPERIENCE, GOLD,
     EQUIPMENT, ITEMS, SPEED,
     COMBAT_CONSTANTS, AI_CONFIG, VISUAL, GAME_RULES,
-    getUnitStats, rollStat
+    getUnitStats, rollStat, getWeaponDamage
 } from '../config/GameConfig.js';
 
 export class DynamicEntity extends Entity {
@@ -195,13 +195,20 @@ export class DynamicEntity extends Entity {
         this.health = stats.life;
         this.maxHealth = stats.life;
 
-        // Damage (if specified, otherwise calculate from strength)
+        // Weapon for heroes (damage comes from weapon, not minDamage/maxDamage)
+        if (stats.weapon !== undefined) {
+            this.weapon = stats.weapon;
+        }
+
+        // Armor from config
+        if (stats.armor !== undefined) {
+            this.armor = stats.armor;
+        }
+
+        // Damage for monsters (heroes use weapon-based damage instead)
         if (stats.minDamage !== undefined) {
             this.minDamage = stats.minDamage;
             this.maxDamage = stats.maxDamage;
-        } else {
-            // Calculate damage from strength (heroes)
-            this.calculateDamageFromStats();
         }
 
         // Speed (convert from original format)
@@ -549,6 +556,16 @@ export class DynamicEntity extends Entity {
                 );
                 if (targetCell) {
                     this.moveTo(targetCell.i, targetCell.j, this.grid);
+                } else {
+                    // Fallback: no perfect attack position, try to move towards target anyway
+                    // Pick a random walkable cell near the target
+                    const fallbackCell = this.findFallbackMovePosition(
+                        this.attackTarget.gridI,
+                        this.attackTarget.gridJ
+                    );
+                    if (fallbackCell) {
+                        this.moveTo(fallbackCell.i, fallbackCell.j, this.grid);
+                    }
                 }
             } else if (this.moving && this.attackTarget) {
                 // Currently moving - check if target has moved and we need to reroute
@@ -572,12 +589,29 @@ export class DynamicEntity extends Entity {
 
     /**
      * AI processing - autonomous behavior
+     * Throttled to reduce CPU load with many units
      */
     processAI(deltaTime) {
         // Don't process if already engaged in combat or moving
         if (this.attackTarget && this.attackTarget.isAlive()) {
             return;  // Already has a target, let combat logic handle it
         }
+
+        // If already moving towards something, don't interrupt
+        if (this.moving) {
+            return;
+        }
+
+        // Throttle expensive AI operations - only run every 5-10 frames
+        // BUT always run immediately for newly spawned units (aiThrottle undefined)
+        if (this.aiThrottle !== undefined) {
+            this.aiThrottle++;
+            const throttleRate = 5 + (this.id % 5);  // Stagger between 5-10 frames
+            if (this.aiThrottle < throttleRate) {
+                return;
+            }
+        }
+        this.aiThrottle = 0;
 
         // Look for enemies to fight
         if (!this.attackTarget && this.game) {
@@ -597,12 +631,17 @@ export class DynamicEntity extends Entity {
     /**
      * Find nearest enemy within sight range
      * Searches both units and buildings
+     * Limited checks to prevent performance issues
      */
     findNearestEnemy() {
         if (!this.game) return null;
 
         let nearestEnemy = null;
         let nearestDist = this.sightRange;
+
+        // Limit checks to prevent O(n²) with many units
+        const MAX_CHECKS = 30;
+        let checks = 0;
 
         // First, check enemy units
         if (this.game.entities) {
@@ -612,11 +651,16 @@ export class DynamicEntity extends Entity {
                 if (!entity.isAlive()) continue;
                 if (entity.team === this.team) continue;
 
+                checks++;
                 const dist = this.distanceTo(entity);
                 if (dist < nearestDist) {
                     nearestDist = dist;
                     nearestEnemy = entity;
+                    // Early exit if we found something very close
+                    if (dist < 3) break;
                 }
+
+                if (checks >= MAX_CHECKS) break;
             }
         }
 
@@ -860,11 +904,49 @@ export class DynamicEntity extends Entity {
             const j = targetJ + dir.dj;
 
             if (this.grid.isInBounds(i, j) && this.grid.isWalkable(i, j)) {
+                // Also check if another unit is already heading to this cell
+                if (!this.isCellTargetedByOther(i, j)) {
+                    return { i, j };
+                }
+            }
+        }
+
+        // Fallback: return first walkable cell even if targeted (better than nothing)
+        for (const dir of directions) {
+            const i = targetI + dir.di;
+            const j = targetJ + dir.dj;
+            if (this.grid.isInBounds(i, j) && this.grid.isWalkable(i, j)) {
                 return { i, j };
             }
         }
 
         return null;
+    }
+
+    /**
+     * Check if another unit is already moving towards this cell
+     * Limited check to prevent O(n²) performance issues with many units
+     */
+    isCellTargetedByOther(i, j) {
+        if (!this.game || !this.game.entities) return false;
+
+        // Limit checks to prevent performance issues with many units
+        const MAX_CHECKS = 20;
+        let checks = 0;
+
+        for (const entity of this.game.entities) {
+            if (entity === this) continue;
+            if (!entity.isAlive || !entity.isAlive()) continue;
+
+            checks++;
+            if (checks > MAX_CHECKS) break;  // Stop checking after limit
+
+            // Check if this entity is moving towards the cell (simple check only)
+            if (entity.moving && entity.targetI === i && entity.targetJ === j) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -921,6 +1003,38 @@ export class DynamicEntity extends Entity {
     }
 
     /**
+     * Find a fallback position to move towards when no attack position is available
+     * Tries to find ANY walkable cell closer to the target
+     */
+    findFallbackMovePosition(targetI, targetJ) {
+        if (!this.grid) return null;
+
+        const myI = Math.floor(this.gridI);
+        const myJ = Math.floor(this.gridJ);
+
+        // Calculate direction towards target
+        const dI = targetI - myI;
+        const dJ = targetJ - myJ;
+        const dist = Math.sqrt(dI * dI + dJ * dJ);
+
+        if (dist < 2) return null;  // Already very close
+
+        // Try to move partway towards the target (about halfway or less)
+        const maxSteps = Math.min(5, Math.floor(dist / 2));
+
+        for (let steps = maxSteps; steps >= 1; steps--) {
+            const checkI = Math.round(myI + (dI / dist) * steps);
+            const checkJ = Math.round(myJ + (dJ / dist) * steps);
+
+            if (this.grid.isInBounds(checkI, checkJ) && this.grid.isWalkable(checkI, checkJ)) {
+                return { i: checkI, j: checkJ };
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Get effective attack range
      */
     getAttackRange() {
@@ -963,9 +1077,10 @@ export class DynamicEntity extends Entity {
         this.setAnimState('attack');
 
         if (this.isRanged) {
-            // Ranged attack - spawn missile
+            // Ranged attack - roll damage and spawn missile
+            const damage = this.rollDamage(target);
             if (this.game && this.game.spawnMissile) {
-                this.game.spawnMissile(this, target);
+                this.game.spawnMissile(this, target, undefined, damage);
             }
             // Play ranged attack sound
             if (this.game && this.game.playSoundAt) {
@@ -1041,6 +1156,9 @@ export class DynamicEntity extends Entity {
 
     /**
      * Roll damage for an attack
+     * Original game has two damage systems:
+     * - Heroes (objectType=1): damage = rnd(1, weaponDamage) + enchantedWeaponLevel
+     * - Monsters (objectType=2): damage = rnd(minDamage, maxDamage)
      * @param {DynamicEntity} target
      * @returns {number} Damage amount
      */
@@ -1054,11 +1172,28 @@ export class DynamicEntity extends Entity {
             attackerBonus = COMBAT.PALADIN_ATTACK_BONUS;
         }
 
+        let minDmg, maxDmg;
+
+        // Heroes use weapon-based damage
+        if (this.objectType === OBJECT_TYPE.HERO && this.weapon !== undefined) {
+            const weaponDamage = getWeaponDamage(this.weapon);
+            minDmg = 1;
+            maxDmg = weaponDamage;
+            // Add enchanted weapon bonus
+            const enchantBonus = this.enchantedWeaponLevel || 0;
+            minDmg += enchantBonus;
+            maxDmg += enchantBonus;
+        } else {
+            // Monsters use minDamage/maxDamage
+            minDmg = this.minDamage || 1;
+            maxDmg = this.maxDamage || 5;
+        }
+
         // Calculate base damage with target's armor
         const targetArmor = target.getTotalArmor ? target.getTotalArmor() : (target.armor || 0);
         return COMBAT.calculateDamage(
-            this.minDamage + attackerBonus,
-            this.maxDamage + attackerBonus,
+            minDmg + attackerBonus,
+            maxDmg + attackerBonus,
             targetArmor
         );
     }
