@@ -9,34 +9,33 @@
 // UNIT TYPE IDs (from Const.smali)
 // =============================================================================
 export const UNIT_TYPE = {
+    // Heroes (from Const.smali)
     WARRIOR: 0,
     RANGER: 1,
     PALADIN: 2,
-    BARBARIAN: 3,
-    DWARF_WARRIOR: 4,
-    ELF: 5,
-    DWARF: 6,
+    BARBARIAN: 4,       // TYPE_BARBARIAN = 0x4
+    ELF: 5,             // TYPE_ELF = 0x5
+    DWARF: 6,           // TYPE_DWARF = 0x6
     WIZARD: 7,
     WIZARD_HEALER: 8,
     WIZARD_NECROMANCER: 9,
-    // Monsters
-    RAT: 0x50,          // 80
-    SPIDER: 0x51,       // 81
-    SKELETON: 0x52,     // 82
-    ZOMBIE: 0x53,       // 83
-    TAX_COLLECTOR: 0x54, // 84
-    TROLL: 0x57,        // 87
-    GOBLIN: 0x58,       // 88
-    GOBLIN_ARCHER: 0x59, // 89
-    GOBLIN_CHAMPION: 0x5A, // 90
-    GOBLIN_SHAMAN: 0x5B,   // 91
-    MINOTAUR: 0x5C,     // 92
-    VAMPIRE: 0x5D,      // 93
-    GARPY: 0x5E,        // 94
-    GOLEM: 0x5F,        // 95
-    DRAGON: 0x61,       // 97
-    BLACK_DRAGON: 0x62, // 98
-    DUBOLOM: 0x63,      // 99
+    // Monsters (from Const.smali - corrected IDs)
+    RAT: 0x50,          // TYPE_GIANT_RAT
+    MINOTAUR: 0x51,     // TYPE_MINOTAUR
+    SPIDER: 0x52,       // TYPE_SPIDER
+    GARPY: 0x53,        // TYPE_GARPY (harpy)
+    SKELETON: 0x54,     // TYPE_SKELET
+    VAMPIRE: 0x55,      // TYPE_VAMPIRE
+    ZOMBIE: 0x56,       // TYPE_ZOMBIE
+    TROLL: 0x57,        // TYPE_TROLL
+    DUBOLOM: 0x58,      // TYPE_DUBOLOM (tree monster)
+    GOBLIN: 0x59,       // TYPE_GOBLIN
+    GOBLIN_CHAMPION: 0x5A, // TYPE_GOBLIN_CHAMPION
+    GOBLIN_ARCHER: 0x5B,   // TYPE_GOBLIN_ARCHER
+    GOLEM: 0x5C,        // TYPE_GOLEM
+    GOBLIN_SHAMAN: 0x5D,   // TYPE_GOBLIN_SHAMAN
+    RED_DRAGON: 0x5E,   // TYPE_RED_DRAGON
+    BLACK_DRAGON: 0x5F, // TYPE_BLACK_DRAGON
 };
 
 // =============================================================================
@@ -129,9 +128,9 @@ export const UNIT_BASE_STATS = {
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 8,
         // HP
-        life: 40,               // Starting HP
+        life: 18,               // 0x12 - Starting HP
         weapon: 0,              // Basic sword (damage 10) - heroes use weapon damage!
-        armor: 5,               // Starting armor
+        armor: 9,               // Armor VALUE (not type) - gives 5-9 flat reduction
         // Gold and XP rewards
         deadExp: [300, 600],
         deadGold: [50, 100],
@@ -158,7 +157,7 @@ export const UNIT_BASE_STATS = {
         visionRange: 10,
         life: 17,               // 0x11 - lower HP
         weapon: 4,              // Basic bow (damage 6) - heroes use weapon damage!
-        armor: 5,               // Starting armor
+        armor: 3,               // Armor VALUE - light armor, gives 2-3 flat reduction
         deadExp: [300, 600],
         deadGold: [50, 100],
     },
@@ -183,7 +182,7 @@ export const UNIT_BASE_STATS = {
         visionRange: 8,
         life: 35,               // 0x23
         weapon: 0,              // Sword (damage 10)
-        armor: 5,
+        armor: 9,               // Heavy armor like warrior
         deadExp: [1200, 4800],
         deadGold: 200,
     },
@@ -208,6 +207,7 @@ export const UNIT_BASE_STATS = {
         visionRange: 8,
         life: 18,               // Low HP
         weapon: 22,             // 0x16
+        armor: 3,               // Light robes
         deadExp: [400, 800],
         deadGold: [50, 100],
     },
@@ -232,7 +232,7 @@ export const UNIT_BASE_STATS = {
         visionRange: 8,
         life: 18,               // 0x12
         weapon: 22,             // Magic staff (damage 12)
-        armor: 2,
+        armor: 3,               // Light robes
         deadExp: [800, 1200],
         deadGold: 200,
     },
@@ -257,6 +257,7 @@ export const UNIT_BASE_STATS = {
         visionRange: 8,
         life: 10,
         weapon: 21,             // 0x15
+        armor: 2,               // Dark robes (minimal protection)
         deadExp: [400, 800],
         deadGold: [50, 100],
     },
@@ -281,7 +282,7 @@ export const UNIT_BASE_STATS = {
         visionRange: 8,
         life: 40,
         weapon: 0,              // Axe/Sword (damage 10)
-        armor: 8,               // Dwarves have good armor
+        armor: 6,               // Dwarves have good armor (3-6 flat reduction)
         deadExp: [300, 600],
         deadGold: [50, 100],
     },
@@ -306,7 +307,7 @@ export const UNIT_BASE_STATS = {
         visionRange: 10,
         life: 27,               // 0x1b
         weapon: 4,              // Elven bow (damage 6)
-        armor: 3,
+        armor: 5,               // Light elven armor (3-5 flat reduction)
         deadExp: [1500, 2500],  // 0x5dc to 0x9c4
         deadGold: [200, 500],   // 0xc8 to 0x1f4
     },
@@ -331,7 +332,7 @@ export const UNIT_BASE_STATS = {
         visionRange: 8,
         life: 50,
         weapon: 0,              // Heavy weapon (damage 10)
-        armor: 3,               // Light armor, relies on HP
+        armor: 4,               // Light armor, relies on HP (2-4 flat reduction)
         deadExp: [400, 800],
         deadGold: [75, 150],
     },
@@ -341,6 +342,7 @@ export const UNIT_BASE_STATS = {
     // ==========================================================================
 
     // TYPE_RAT (0x50) - Giant Rat
+    // Smali: life=0x13=19, damage=6-7
     [UNIT_TYPE.RAT]: {
         speed: 0xc00,
         levelUp: 0,             // Monsters don't level up
@@ -358,14 +360,15 @@ export const UNIT_BASE_STATS = {
         attackRange: 1,
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 6,
-        life: 12,
-        minDamage: 2,
-        maxDamage: 5,
+        life: 19,               // Was 12, smali=0x13
+        minDamage: 6,           // Was 2, smali=6
+        maxDamage: 7,           // Was 5, smali=7
         deadExp: [50, 100],
         deadGold: [5, 15],
     },
 
     // TYPE_TROLL (0x57) - Troll
+    // Smali: life=0x44=68, damage=9-12
     [UNIT_TYPE.TROLL]: {
         speed: 0x800,
         levelUp: 0,
@@ -383,14 +386,15 @@ export const UNIT_BASE_STATS = {
         attackRange: 1,
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 8,
-        life: 80,
-        minDamage: 10,
-        maxDamage: 20,
+        life: 68,               // Was 80, smali=0x44
+        minDamage: 9,           // Was 10, smali=9
+        maxDamage: 12,          // Was 20, smali=0xc=12
         deadExp: [200, 400],
         deadGold: [30, 75],
     },
 
-    // TYPE_GOBLIN (0x58) - Goblin
+    // TYPE_GOBLIN (0x59) - Goblin
+    // Smali: life=0x14=20, damage=5-8
     [UNIT_TYPE.GOBLIN]: {
         speed: 0xc00,
         levelUp: 0,
@@ -408,14 +412,15 @@ export const UNIT_BASE_STATS = {
         attackRange: 1,
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 7,
-        life: 25,
+        life: 20,               // Was 25, smali=0x14
         minDamage: 5,
-        maxDamage: 12,
+        maxDamage: 8,           // Was 12, smali=8
         deadExp: [100, 200],
         deadGold: [15, 40],
     },
 
-    // TYPE_GOBLIN_ARCHER (0x59)
+    // TYPE_GOBLIN_ARCHER (0x5B)
+    // Smali: life=20, damage=6-10, ranged=20
     [UNIT_TYPE.GOBLIN_ARCHER]: {
         speed: 0xc00,
         levelUp: 0,
@@ -426,7 +431,7 @@ export const UNIT_BASE_STATS = {
         vitality: 6,
         willpower: 5,
         H2H: 15,
-        ranged: 40,
+        ranged: 20,             // Was 40, smali=0x14=20
         parry: 10,
         dodge: 40,
         resist: 20,
@@ -434,13 +439,14 @@ export const UNIT_BASE_STATS = {
         attackType: ATTACK_TYPE.RANGED,
         visionRange: 8,
         life: 20,
-        minDamage: 4,
+        minDamage: 6,           // Was 4, smali=6
         maxDamage: 10,
         deadExp: [100, 200],
         deadGold: [15, 40],
     },
 
-    // TYPE_SKELETON (0x52) - Skeleton
+    // TYPE_SKELETON (0x54) - Skeleton
+    // Smali: life=30, damage=6-6, dodge=0x58=88
     [UNIT_TYPE.SKELETON]: {
         speed: 0x800,
         levelUp: 0,
@@ -453,19 +459,20 @@ export const UNIT_BASE_STATS = {
         H2H: 40,
         ranged: 0,
         parry: 25,
-        dodge: 15,
+        dodge: 88,              // Was 15, smali=0x58=88
         resist: 50,             // High magic resist (undead)
         attackRange: 1,
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 6,
         life: 30,
         minDamage: 6,
-        maxDamage: 14,
+        maxDamage: 6,           // Was 14, smali=6 (same as min)
         deadExp: [75, 150],
         deadGold: [10, 30],
     },
 
-    // TYPE_ZOMBIE (0x53) - Zombie
+    // TYPE_ZOMBIE (0x56) - Zombie
+    // Smali: life=45, damage=6-9
     [UNIT_TYPE.ZOMBIE]: {
         speed: 0x400,           // Slow
         levelUp: 0,
@@ -484,13 +491,14 @@ export const UNIT_BASE_STATS = {
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 5,
         life: 45,
-        minDamage: 8,
-        maxDamage: 16,
+        minDamage: 6,           // Was 8, smali=6
+        maxDamage: 9,           // Was 16, smali=9
         deadExp: [100, 200],
         deadGold: [15, 35],
     },
 
-    // TYPE_VAMPIRE (0x5D) - Vampire
+    // TYPE_VAMPIRE (0x55) - Vampire
+    // Smali: life=0x32=50, damage=12-15
     [UNIT_TYPE.VAMPIRE]: {
         speed: 0x800,
         levelUp: 0,
@@ -508,14 +516,15 @@ export const UNIT_BASE_STATS = {
         attackRange: 1,
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 10,
-        life: 70,
+        life: 50,               // Was 70, smali=0x32=50
         minDamage: 12,
-        maxDamage: 25,
+        maxDamage: 15,          // Was 25, smali=0xf=15
         deadExp: [300, 600],
         deadGold: [75, 150],
     },
 
-    // TYPE_MINOTAUR (0x5C) - Minotaur
+    // TYPE_MINOTAUR (0x51) - Minotaur
+    // Smali: life=0x4b=75, damage=10-14
     [UNIT_TYPE.MINOTAUR]: {
         speed: 0x800,
         levelUp: 0,
@@ -533,9 +542,9 @@ export const UNIT_BASE_STATS = {
         attackRange: 1,
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 8,
-        life: 100,
-        minDamage: 15,
-        maxDamage: 30,
+        life: 75,               // Was 100, smali=0x4b=75
+        minDamage: 10,          // Was 15, smali=0xa=10
+        maxDamage: 14,          // Was 30, smali=0xe=14
         deadExp: [400, 800],
         deadGold: [100, 200],
     },
@@ -641,13 +650,20 @@ export const COMBAT = {
 
     /**
      * Calculate damage with armor reduction
-     * Armor reduces damage by a percentage
+     * Original game formula: flat reduction with randomness
+     * reduction = (armor/2) + rnd(armor/2 + 1) + (armor % 2 ? 1 : 0)
      */
     calculateDamage(minDamage, maxDamage, defenderArmor) {
         const baseDamage = minDamage + Math.floor(Math.random() * (maxDamage - minDamage + 1));
-        // Armor reduces damage (each point = ~1% reduction, capped at 75%)
-        const reduction = Math.min(0.75, defenderArmor / 100);
-        return Math.max(1, Math.floor(baseDamage * (1 - reduction)));
+
+        // Original game uses flat reduction with randomness
+        // Formula: half + rnd(half + 1) + oddBonus
+        const half = Math.floor(defenderArmor / 2);
+        const randomPart = Math.floor(Math.random() * (half + 1));
+        const oddBonus = defenderArmor % 2;
+        const reduction = half + randomPart + oddBonus;
+
+        return Math.max(1, baseDamage - reduction);
     },
 
     /**
@@ -762,9 +778,11 @@ export const ITEMS = {
 // SPEED CONVERSION
 // =============================================================================
 export const SPEED = {
-    // Original game uses fixed-point speed values
-    // Convert to pixels per tick for our game
-    SCALE: 1 / 512,  // Divide original speed by 512 to get pixels/tick
+    // Original game uses fixed-point math with 10-bit precision:
+    //   fp_x += speed  (each tick)
+    //   x = fp_x >> 10 (convert to screen pixels)
+    // So screen movement = speed / 1024 pixels per tick
+    SCALE: 1 / 1024,
 
     /**
      * Convert original speed value to pixels per tick
@@ -774,10 +792,11 @@ export const SPEED = {
     },
 
     // Common speed values (in pixels per tick after conversion)
-    SLOW: 0x400 / 512,      // ~2
-    NORMAL: 0x800 / 512,    // ~4
-    FAST: 0xc00 / 512,      // ~6
-    VERY_FAST: 0x1000 / 512, // ~8
+    // These match the original game exactly
+    SLOW: 0x400 / 1024,      // 1 pixel/tick
+    NORMAL: 0x800 / 1024,    // 2 pixels/tick (Warrior)
+    FAST: 0xc00 / 1024,      // 3 pixels/tick (Ranger)
+    VERY_FAST: 0x1000 / 1024, // 4 pixels/tick (Elf)
 };
 
 // =============================================================================
@@ -825,6 +844,8 @@ export function getUnitStats(unitTypeId) {
         attackType: baseStats.attackType || ATTACK_TYPE.MELEE,
         visionRange: baseStats.visionRange || 8,
         life: rollStat(baseStats.life || 30),
+        weapon: baseStats.weapon,           // Hero weapon ID (undefined for monsters)
+        armor: baseStats.armor || 0,        // Starting armor
         minDamage: baseStats.minDamage || 5,
         maxDamage: baseStats.maxDamage || 15,
         deadExp: rollStat(baseStats.deadExp || [50, 100]),
@@ -854,6 +875,8 @@ function getDefaultStats() {
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 8,
         life: 30,
+        weapon: undefined,  // No weapon by default (uses minDamage/maxDamage)
+        armor: 0,           // No armor by default
         minDamage: 5,
         maxDamage: 15,
         deadExp: 100,

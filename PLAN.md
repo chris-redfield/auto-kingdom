@@ -985,6 +985,59 @@ finalDamage = Math.max(1, baseDamage - armorReduction)
 
 ---
 
+### Movement Speed System (from DynamicObject.smali)
+
+The original game uses **fixed-point math** for smooth sub-pixel movement:
+
+#### Fixed-Point Coordinates
+
+```java
+// Internal position (high precision)
+fp_x += speed;        // or -= depending on direction
+fp_y += speed >> 1;   // Y moves at half speed (isometric perspective)
+
+// Convert to screen pixels
+x = fp_x >> 10;       // Right-shift by 10 = divide by 1024
+y = fp_y >> 10;
+```
+
+#### Speed Conversion Formula
+
+```
+Screen pixels per tick = speed / 1024
+```
+
+| Unit Type | Speed Value | Pixels/Tick | Time to Cross Tile* |
+|-----------|-------------|-------------|---------------------|
+| Warrior | 0x800 (2048) | 2 | ~1.4 sec |
+| Ranger | 0xC00 (3072) | 3 | ~0.95 sec |
+| Elf | 0x1000 (4096) | 4 | ~0.7 sec |
+| Troll | 0x800 (2048) | 2 | ~1.4 sec |
+
+*Assuming 64-pixel tile width, 25 FPS
+
+#### setVel() Resolution Scaling
+
+The `setVel()` function in Script.smali adjusts speed for different screen resolutions:
+- If cellWidth == 48: `speed = speed * 0.75`
+- If cellWidth == 24: `speed = speed * 0.5`
+- Otherwise: speed unchanged
+
+Our game uses 64-pixel tiles, so no adjustment is needed.
+
+#### Attack Timing
+
+From smali: `attack_pause = 0x16` (22 ticks)
+- Attack cooldown = 22 ticks / 25 FPS = **0.88 seconds**
+- Our implementation uses 1000ms (1 second) - close enough
+
+#### Files Modified:
+- `src/config/GameConfig.js`:
+  - Fixed `SPEED.SCALE` from `1/512` to `1/1024` (was 2x too fast!)
+  - Added documentation explaining the fixed-point math
+
+---
+
 ### Phase 2.7.5: Collision System Fixes ✅ COMPLETE
 
 **Building Collision - DONE:**
