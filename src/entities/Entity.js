@@ -10,6 +10,7 @@
 
 import * as IsoMath from '../world/IsoMath.js';
 import { EntityState } from '../utils/Constants.js';
+import { TIMERS } from '../config/GameConfig.js';
 
 // Entity types
 export const EntityType = {
@@ -57,7 +58,7 @@ export class Entity {
         // Combat
         this.damage = 0;
         this.attackRange = 1;
-        this.attackSpeed = 1000;  // ms between attacks
+        this.attackSpeed = TIMERS.DEFAULT_ATTACK_COOLDOWN;  // ms between attacks
 
         // Visual
         this.sprite = null;

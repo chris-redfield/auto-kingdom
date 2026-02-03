@@ -1119,12 +1119,8 @@ export class Game {
                     entity.setAnimations(this.animLoader, UNIT_ANIMS.WARRIOR);
                 }
             } else if (entity.team === 'enemy') {
-                // Alternate between GIANT_RAT and TROLL for enemy variety
-                const useRat = Math.random() < 0.5;
-                entity.setAnimations(
-                    this.animLoader,
-                    useRat ? UNIT_ANIMS.GIANT_RAT : UNIT_ANIMS.TROLL
-                );
+                // All rats for testing
+                entity.setAnimations(this.animLoader, UNIT_ANIMS.GIANT_RAT);
             }
         }
     }
@@ -1177,9 +1173,8 @@ export class Game {
             if (this.grid.isWalkable(pos.i, pos.j)) {
                 const enemy = new DynamicEntity(pos.i, pos.j);
 
-                // Initialize stats from unit type (alternating rat/troll)
-                const isRat = (idx % 2 === 0);
-                enemy.initFromUnitType(isRat ? UNIT_TYPE.RAT : UNIT_TYPE.TROLL);
+                // All rats for testing
+                enemy.initFromUnitType(UNIT_TYPE.RAT);
 
                 enemy.initSprite();
                 enemy.setBodyColor(0xff4444);  // Red for enemies
@@ -1188,7 +1183,7 @@ export class Game {
                 enemy.setGrid(this.grid);
                 enemy.game = this;
                 enemy.team = 'enemy';
-                enemy.unitType = isRat ? 'rat' : 'troll';  // For death sounds
+                enemy.unitType = 'rat';
                 this.grid.container.addChild(enemy.sprite);
                 this.entities.push(enemy);
 
@@ -1882,13 +1877,10 @@ export class Game {
             }
         }
 
-        // Randomly pick enemy type
-        const enemyTypes = ['GIANT_RAT', 'TROLL'];
-        const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-
-        const enemy = this.spawnEnemy(type, spawnI, spawnJ);
+        // All rats for testing
+        const enemy = this.spawnEnemy('GIANT_RAT', spawnI, spawnJ);
         if (enemy) {
-            console.log(`Test spawn: ${type} at (${spawnI}, ${spawnJ})`);
+            console.log(`Test spawn: GIANT_RAT at (${spawnI}, ${spawnJ})`);
         }
     }
 
@@ -1940,6 +1932,11 @@ export class Game {
         // Update unit menu (real-time stats display)
         if (this.unitMenu) {
             this.unitMenu.update();
+        }
+
+        // Update building menu (training progress)
+        if (this.buildingMenu) {
+            this.buildingMenu.update();
         }
 
         // Check victory/defeat conditions

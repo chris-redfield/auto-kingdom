@@ -665,7 +665,10 @@ The minimap is functional but terrain color detection needs refinement. Some roa
 ```javascript
 // Melee: rnd(200) + attacker.H2H >= defender.parry + 100
 // Ranged: rnd(200) + attacker.ranged >= defender.dodge + 100
+// Note: undefined parry/dodge (buildings) treated as 0
 ```
+
+**Bug Fix (2026-02-02):** Buildings had `parry:undefined` which caused hit checks to return `false` (NaN comparison). Fixed `COMBAT.meleeHitCheck()` and `COMBAT.rangedHitCheck()` in GameConfig.js to treat undefined parry/dodge as 0.
 
 *Damage Formula:*
 ```javascript
@@ -813,12 +816,15 @@ Based on typical gameplay, estimates are:
 
 **TODO (Future):** Implement per-building construction times based on HP values above.
 
-### Phase 2.7.3: Unit Menu System 🔄 IN PROGRESS (2026-01-29)
+### Phase 2.7.3: Unit Menu System ✅ COMPLETE (2026-02-02)
 - [x] Created `src/ui/UnitMenu.js` - menu for hero unit interactions
 - [x] Added unit menu HTML/CSS to `index.html` (left panel, same location as building menu)
 - [x] Integrated UnitMenu with Game.js entity selection system
 - [x] Menu shows when clicking on player heroes, hides when clicking buildings/enemies/ground
 - [x] Fixed menu button click issues (stopPropagation to prevent menu closing)
+- [x] Created `src/entities/Inventory.js` - equipment and item management for heroes
+- [x] Heroes now have Inventory instance (created in `initFromUnitType()`)
+- [x] `getTotalArmor()` and `rollDamage()` now use inventory values
 
 **Unit Menu Features:**
 - Stats display: STR, INT, VIT, ART, H2H, RNG, PAR, DOD
@@ -852,6 +858,8 @@ Based on typical gameplay, estimates are:
 - `src/ui/BuildingMenu.js` (bug fixes)
 - `src/core/Game.js` (UnitMenu integration)
 - `index.html` (unit menu HTML/CSS)
+- `src/entities/Inventory.js` (NEW - equipment/item management)
+- `src/entities/DynamicEntity.js` (inventory creation, armor/damage calculations)
 
 ### Phase 2.7.4: Game Configuration File ✅ COMPLETE
 - [x] Created `src/config/GameConfig.js` - centralized configuration for game parameters
@@ -1029,7 +1037,10 @@ Our game uses 64-pixel tiles, so no adjustment is needed.
 
 From smali: `attack_pause = 0x16` (22 ticks)
 - Attack cooldown = 22 ticks / 25 FPS = **0.88 seconds**
-- Our implementation uses 1000ms (1 second) - close enough
+- **UPDATE (2026-02-02):** Changed to 1760ms (44 ticks) to account for animation timing
+  - Original game starts attack animation every 22 ticks, but damage is dealt at `fireFrame`
+  - Our code deals damage immediately, so longer cooldown needed to match perceived speed
+  - Config: `TIMERS.DEFAULT_ATTACK_COOLDOWN = 1760` in GameConfig.js
 
 #### Files Modified:
 - `src/config/GameConfig.js`:
@@ -1066,23 +1077,60 @@ From smali: `attack_pause = 0x16` (22 ticks)
 - [x] First knight now attacks enemies (autoPlay = true, sightRange from config)
 - [x] Player units have correct speed (initFromUnitType called)
 
-### Phase 2.8: Unit Training Progress 🎯 NEXT PRIORITY
+### Phase 2.8: Unit Training Progress ✅ COMPLETE (2026-02-02)
 - [x] Recruit units from guild buildings (DONE in earlier phase)
 - [x] Gold cost system (deduct from player gold) (DONE)
-- [ ] Recruitment queue/timer per guild (not instant spawn)
-- [ ] **Progress bar above guild** showing hero training progress
-- [ ] Unit spawn at building location when training complete
-- [ ] Recruitment cooldown per guild
-- [ ] Different unit types per guild (Warrior Guild → Warriors, etc.)
-- [ ] Training time varies by unit type (Warriors faster than Wizards?)
+- [x] Recruitment queue/timer per guild (not instant spawn)
+- [x] **Progress bar in building menu** showing hero training progress
+- [x] Unit spawn at building location when training complete
+- [x] Different unit types per guild (Warrior Guild → Warriors, etc.)
+- [x] Training time varies by unit type (configured in TRAINING_TIMES)
+- [x] **Menu auto-refresh** when training completes (shows recruit button again)
 
-**Hero Training System:**
-- Click "Recruit" on guild → deduct gold → start training timer
-- Guild shows progress bar during training
-- Hero spawns when progress reaches 100%
-- Only one hero training per guild at a time (or queue system?)
+**Implementation Details:**
+- `Building.js`: Added `isTraining`, `trainingProgress`, `trainingUnitType`, `startTraining()`, `completeTraining()`
+- `BuildingMenu.js`: Shows progress bar during training, hides recruit button, auto-refreshes on completion
+- `GameConfig.js`: Added `TRAINING_TIMES` with per-unit training durations
+- `index.html`: Added CSS for `.training-progress`, `.training-bar-fill`, etc.
+- `Game.js`: Calls `buildingMenu.update()` for real-time progress updates
 
-### Phase 2.9: Mission System
+**Bug Fix (2026-02-02):** Menu now tracks `_wasTraining` state to detect when training completes and automatically calls `updateMenu()` to show the recruit button again.
+
+**Training Times:**
+| Unit | Time |
+|------|------|
+| Warrior | 8s |
+| Ranger | 7s |
+| Wizard | 10s |
+| Paladin | 12s |
+| Healer | 9s |
+| Gnome | 6s |
+| Default | 8s |
+
+### Phase 2.9: Shop Buildings (Blacksmith, Marketplace, Library)
+- [ ] **Blacksmith** - Hero weapon/armor upgrades
+  - [ ] Heroes automatically visit when they have gold
+  - [ ] Weapon upgrade tiers (Basic → Iron → Steel → Fine → Mithril → Legendary)
+  - [ ] Armor upgrade tiers (Cloth → Leather → Chain → Plate → Heavy → Mithril)
+  - [ ] Upgrade costs from GameConfig EQUIPMENT prices
+  - [ ] Visual feedback when hero upgrades
+- [ ] **Marketplace** - Potions and accessories
+  - [ ] Heroes can buy: Healing Potions, Cure Potions
+  - [ ] Accessories: Ring of Protection, Amulet of Teleportation, Poison Coating
+  - [ ] Auto-purchase behavior for AI heroes (buy potions when gold > threshold)
+- [ ] **Library** - Equipment enchantments
+  - [ ] Enchant weapon (+1 to +3 damage bonus)
+  - [ ] Enchant armor (+1 to +3 defense bonus)
+  - [ ] Enchantment costs and limits
+- [ ] Test full inventory system with all shop interactions
+
+**Implementation Notes:**
+- Buildings already placeable from Castle menu
+- UnitMenu shows upgrade options when hero is near shop buildings
+- Need to implement: hero AI to seek out shops, automatic purchasing logic
+- Inventory.js already has buy/upgrade methods ready
+
+### Phase 2.10: Mission System
 - [ ] Mission objectives (defeat enemies, protect castle)
 - [ ] Win/lose conditions
 - [ ] Mission complete screen

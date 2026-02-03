@@ -64,6 +64,13 @@ export class Building extends Entity {
         this.constructionTime = getBuildingConstructionTime(buildingType);
         this.idleAnimId = null;           // Store idle animation to switch to after construction
         this.progressBar = null;          // Visual progress bar
+
+        // Training properties (for guild buildings)
+        this.isTraining = false;          // Currently training a hero
+        this.trainingProgress = 0;        // 0 to 1
+        this.trainingUnitType = null;     // Unit type being trained
+        this.trainingTime = 5000;         // Training duration in ms (default 5 seconds)
+        this.trainingCallback = null;     // Function to call when training completes
     }
 
     /**
@@ -322,6 +329,73 @@ export class Building extends Entity {
     }
 
     /**
+     * Start training a hero unit
+     * @param {string} unitType - Type of unit to train (e.g., 'WARRIOR')
+     * @param {number} trainingTime - Time to train in ms
+     * @param {function} callback - Called when training completes with (unitType)
+     */
+    startTraining(unitType, trainingTime, callback) {
+        if (this.isTraining) {
+            console.warn('Building is already training a unit');
+            return false;
+        }
+
+        this.isTraining = true;
+        this.trainingProgress = 0;
+        this.trainingUnitType = unitType;
+        this.trainingTime = trainingTime;
+        this.trainingCallback = callback;
+
+        console.log(`Started training ${unitType} (${trainingTime}ms)`);
+        return true;
+    }
+
+    /**
+     * Complete training - spawn the unit
+     */
+    completeTraining() {
+        if (!this.isTraining) return;
+
+        const unitType = this.trainingUnitType;
+        const callback = this.trainingCallback;
+
+        // Reset training state
+        this.isTraining = false;
+        this.trainingProgress = 0;
+        this.trainingUnitType = null;
+        this.trainingCallback = null;
+
+        // Call the callback to spawn the unit
+        if (callback) {
+            callback(unitType);
+        }
+
+        console.log(`Training complete: ${unitType}`);
+    }
+
+    /**
+     * Cancel training (refund handled by caller)
+     */
+    cancelTraining() {
+        if (!this.isTraining) return false;
+
+        this.isTraining = false;
+        this.trainingProgress = 0;
+        this.trainingUnitType = null;
+        this.trainingCallback = null;
+
+        console.log('Training cancelled');
+        return true;
+    }
+
+    /**
+     * Get training progress (0 to 1)
+     */
+    getTrainingProgress() {
+        return this.trainingProgress;
+    }
+
+    /**
      * Complete construction - switch to idle animation
      */
     completeConstruction() {
@@ -369,6 +443,16 @@ export class Building extends Entity {
                 }
             }
             return;  // Don't run normal animation cycling during construction
+        }
+
+        // Update training progress
+        if (this.isTraining) {
+            this.trainingProgress += deltaTime / this.trainingTime;
+
+            if (this.trainingProgress >= 1) {
+                this.trainingProgress = 1;
+                this.completeTraining();
+            }
         }
 
         // Animate completed building (flags waving, smoke, etc.) - cycles continuously

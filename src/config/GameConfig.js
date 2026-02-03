@@ -6,6 +6,15 @@
  */
 
 // =============================================================================
+// DEBUG FLAGS
+// =============================================================================
+export const DEBUG = {
+    COMBAT: false,      // Log combat details (attacks, hits, damage)
+    PATHFINDING: false, // Log pathfinding calculations
+    AI: false,          // Log AI decisions
+};
+
+// =============================================================================
 // UNIT TYPE IDs (from Const.smali)
 // =============================================================================
 export const UNIT_TYPE = {
@@ -636,7 +645,9 @@ export const COMBAT = {
      */
     meleeHitCheck(attackerH2H, defenderParry, defenderBonus = 0) {
         const roll = Math.floor(Math.random() * this.HIT_ROLL_MAX);
-        return (roll + attackerH2H) >= (defenderParry + this.BASE_DEFENSE + defenderBonus);
+        // Handle undefined parry (e.g., buildings) - treat as 0
+        const parry = defenderParry || 0;
+        return (roll + attackerH2H) >= (parry + this.BASE_DEFENSE + defenderBonus);
     },
 
     /**
@@ -645,7 +656,9 @@ export const COMBAT = {
      */
     rangedHitCheck(attackerRanged, defenderDodge, defenderBonus = 0) {
         const roll = Math.floor(Math.random() * this.HIT_ROLL_MAX);
-        return (roll + attackerRanged) >= (defenderDodge + this.BASE_DEFENSE + defenderBonus);
+        // Handle undefined dodge (e.g., buildings) - treat as 0
+        const dodge = defenderDodge || 0;
+        return (roll + attackerRanged) >= (dodge + this.BASE_DEFENSE + defenderBonus);
     },
 
     /**
@@ -1040,6 +1053,21 @@ export const RECRUIT_COSTS = {
     BARBARIAN: 600,
 };
 
+// Hero training times (in milliseconds)
+export const TRAINING_TIMES = {
+    WARRIOR: 8000,      // 8 seconds
+    RANGER: 7000,       // 7 seconds
+    WIZARD: 10000,      // 10 seconds
+    PALADIN: 12000,     // 12 seconds
+    HEALER: 9000,       // 9 seconds
+    NECROMANCER: 11000, // 11 seconds
+    ELF: 8000,          // 8 seconds
+    DWARF: 9000,        // 9 seconds
+    GNOME: 6000,        // 6 seconds
+    BARBARIAN: 10000,   // 10 seconds
+    DEFAULT: 8000,      // Default fallback
+};
+
 // =============================================================================
 // COMBAT CONSTANTS
 // =============================================================================
@@ -1066,7 +1094,13 @@ export const COMBAT_CONSTANTS = {
     MAX_ARMOR_REDUCTION: 0.75,       // 75% max damage reduction from armor
 
     // Attack cooldown
-    DEFAULT_ATTACK_SPEED: 1000,      // ms between attacks
+    // Original game: ATTACK_PAUSE = 0x16 = 22 ticks = 880ms
+    // However, this only controls when attack animations START, not when damage is dealt
+    // Damage is dealt at fireFrame within the animation (adds visual delay)
+    // We deal damage immediately, so we need a longer cooldown to match perceived speed
+    ATTACK_PAUSE_TICKS: 22,          // Original: 22 ticks between attack starts
+    ATTACK_PAUSE_MS: 880,            // 22 * 40ms = 880ms (original timing)
+    DEFAULT_ATTACK_SPEED: 1760,      // Doubled to account for animation timing differences
 
     // Building upgrade HP bonus
     BUILDING_UPGRADE_HP_BONUS: 100,  // +100 HP per building level
@@ -1135,7 +1169,9 @@ export const TIMERS = {
     UNIT_ANIM_SPEED: 80,             // ms per unit animation frame (approx)
 
     // Combat
-    DEFAULT_ATTACK_COOLDOWN: 1000,   // ms between attacks
+    // Original: 22 ticks (880ms) but animation adds perceived delay
+    // Using 1760ms (44 ticks) to better match original game feel
+    DEFAULT_ATTACK_COOLDOWN: 1760,   // ms between attacks
 
     // Construction
     DEFAULT_CONSTRUCTION_TIME: 5000, // 5 seconds default build time

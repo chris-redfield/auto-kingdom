@@ -15,6 +15,7 @@ import {
     BUILDING_UPGRADE_COSTS,
     BUILDING_MAX_LEVEL,
     RECRUIT_COSTS,
+    TRAINING_TIMES,
     COMBAT_CONSTANTS,
     BLACKSMITH_CONFIG,
 } from '../config/GameConfig.js';
@@ -295,25 +296,31 @@ export class BuildingMenu {
 
         // Recruit option (only if building is fully constructed)
         if (config.canRecruit) {
-            const canRecruit = building.constructed && this.game.gold >= config.recruitCost;
-            this.addOption({
-                icon: '⚔️',
-                text: building.constructed ? `Recruit ${config.recruitName}` : `Recruit ${config.recruitName} (building...)`,
-                cost: config.recruitCost,
-                enabled: canRecruit,
-                onClick: () => this.recruitHero(config.recruitUnit, config.recruitCost)
-            });
-
-            // Alternative recruit (e.g., Paladin from Warrior Guild)
-            if (config.altRecruit && this.hasBuilding(config.altRecruit.requires)) {
-                const canAltRecruit = building.constructed && this.game.gold >= config.altRecruit.cost;
+            // Check if currently training
+            if (building.isTraining) {
+                // Show training progress instead of recruit button
+                this.addTrainingProgress(building, config);
+            } else {
+                const canRecruit = building.constructed && this.game.gold >= config.recruitCost;
                 this.addOption({
-                    icon: '🛡️',
-                    text: building.constructed ? `Recruit ${config.altRecruit.name}` : `Recruit ${config.altRecruit.name} (building...)`,
-                    cost: config.altRecruit.cost,
-                    enabled: canAltRecruit,
-                    onClick: () => this.recruitHero(config.altRecruit.unit, config.altRecruit.cost)
+                    icon: '⚔️',
+                    text: building.constructed ? `Recruit ${config.recruitName}` : `Recruit ${config.recruitName} (building...)`,
+                    cost: config.recruitCost,
+                    enabled: canRecruit,
+                    onClick: () => this.recruitHero(config.recruitUnit, config.recruitCost)
                 });
+
+                // Alternative recruit (e.g., Paladin from Warrior Guild)
+                if (config.altRecruit && this.hasBuilding(config.altRecruit.requires)) {
+                    const canAltRecruit = building.constructed && this.game.gold >= config.altRecruit.cost;
+                    this.addOption({
+                        icon: '🛡️',
+                        text: building.constructed ? `Recruit ${config.altRecruit.name}` : `Recruit ${config.altRecruit.name} (building...)`,
+                        cost: config.altRecruit.cost,
+                        enabled: canAltRecruit,
+                        onClick: () => this.recruitHero(config.altRecruit.unit, config.altRecruit.cost)
+                    });
+                }
             }
         }
 
@@ -384,6 +391,33 @@ export class BuildingMenu {
         }
 
         this.optionsContainer.appendChild(option);
+    }
+
+    /**
+     * Add training progress display to menu
+     */
+    addTrainingProgress(building, config) {
+        const progressContainer = document.createElement('div');
+        progressContainer.className = 'training-progress';
+
+        const unitName = building.trainingUnitType ?
+            building.trainingUnitType.charAt(0).toUpperCase() + building.trainingUnitType.slice(1).toLowerCase() :
+            config.recruitName;
+
+        const progressPct = Math.floor(building.trainingProgress * 100);
+
+        progressContainer.innerHTML = `
+            <div class="training-header">
+                <span class="training-icon">⏳</span>
+                <span class="training-text">Training ${unitName}...</span>
+            </div>
+            <div class="training-bar-container">
+                <div class="training-bar-fill" style="width: ${progressPct}%"></div>
+            </div>
+            <div class="training-percent">${progressPct}%</div>
+        `;
+
+        this.optionsContainer.appendChild(progressContainer);
     }
 
     /**
@@ -510,12 +544,51 @@ export class BuildingMenu {
     }
 
     /**
-     * Recruit a hero from the building
+     * Light update - just refresh training progress without rebuilding entire menu
+     * Called periodically from game loop
+     */
+    update() {
+        if (!this.visible || !this.currentBuilding) return;
+
+        // Check if training is in progress
+        if (this.currentBuilding.isTraining) {
+            // Find and update the training progress bar
+            const progressFill = this.optionsContainer.querySelector('.training-bar-fill');
+            const progressPercent = this.optionsContainer.querySelector('.training-percent');
+
+            if (progressFill && progressPercent) {
+                const pct = Math.floor(this.currentBuilding.trainingProgress * 100);
+                progressFill.style.width = `${pct}%`;
+                progressPercent.textContent = `${pct}%`;
+            } else {
+                // Progress bar not found, rebuild menu to show it
+                this.updateMenu();
+            }
+            // Track that we were training (to detect completion)
+            this._wasTraining = true;
+        } else if (this._wasTraining) {
+            // Training just completed - refresh menu to show recruit button again
+            this._wasTraining = false;
+            this.updateMenu();
+        }
+    }
+
+    /**
+     * Recruit a hero from the building (starts training)
      */
     recruitHero(unitType, cost) {
         // Check if building is under construction
         if (this.currentBuilding && !this.currentBuilding.constructed) {
             this.game.showMessage('Building under construction!');
+            if (this.game.playSound) {
+                this.game.playSound(SOUNDS.CLICK_DENY);
+            }
+            return;
+        }
+
+        // Check if already training
+        if (this.currentBuilding && this.currentBuilding.isTraining) {
+            this.game.showMessage('Already training a hero!');
             if (this.game.playSound) {
                 this.game.playSound(SOUNDS.CLICK_DENY);
             }
@@ -530,26 +603,51 @@ export class BuildingMenu {
             return;
         }
 
-        // Find spawn position near building
-        const spawnPos = this.game.findSpawnPositionNearBuilding(this.currentBuilding);
+        // Deduct gold and start training
+        this.game.gold -= cost;
 
-        if (spawnPos) {
-            this.game.gold -= cost;
-            this.game.spawnHero(unitType, spawnPos.i, spawnPos.j);
+        // Get training time for this unit type
+        const trainingTime = TRAINING_TIMES[unitType] || TRAINING_TIMES.DEFAULT;
 
-            const config = BUILDING_CONFIG[this.currentBuilding.buildingType];
-            const heroName = config ? config.recruitName : unitType;
-            this.game.showMessage(`${heroName} recruited!`);
+        // Store reference to building for callback
+        const building = this.currentBuilding;
+        const game = this.game;
 
-            // Play sound
-            if (this.game.playSound) {
-                this.game.playSound(SOUNDS.GOLD);
+        // Start training with callback to spawn hero when done
+        building.startTraining(unitType, trainingTime, (completedUnitType) => {
+            // Find spawn position near building
+            const spawnPos = game.findSpawnPositionNearBuilding(building);
+
+            if (spawnPos) {
+                game.spawnHero(completedUnitType, spawnPos.i, spawnPos.j);
+
+                const config = BUILDING_CONFIG[building.buildingType];
+                const heroName = config ? config.recruitName : completedUnitType;
+                game.showMessage(`${heroName} ready!`);
+
+                // Play sound
+                if (game.playSound) {
+                    game.playSound(SOUNDS.HERO_READY || SOUNDS.GOLD);
+                }
+
+                console.log(`Training complete: ${completedUnitType}`);
+            } else {
+                game.showMessage('No space to spawn hero!');
+                // Refund gold if can't spawn
+                game.gold += cost;
             }
+        });
 
-            console.log(`Recruited ${unitType} for ${cost} gold`);
-        } else {
-            this.game.showMessage('No space to spawn hero!');
+        const config = BUILDING_CONFIG[this.currentBuilding.buildingType];
+        const heroName = config ? config.recruitName : unitType;
+        this.game.showMessage(`Training ${heroName}...`);
+
+        // Play sound
+        if (this.game.playSound) {
+            this.game.playSound(SOUNDS.GOLD);
         }
+
+        console.log(`Started training ${unitType} for ${cost} gold (${trainingTime}ms)`);
     }
 
     /**

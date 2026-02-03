@@ -17,11 +17,13 @@ import { EntityState, FLD_BUSY, FLD_EMPTY } from '../utils/Constants.js';
 import { AnimatedSprite } from '../graphics/AnimationLoader.js';
 import { UNIT_ANIMS, GAME_DIR_TO_ANIM_DIR, getAnimId } from '../utils/AnimationConstants.js';
 import { SOUNDS, getDeathSoundForUnit } from '../audio/SoundConstants.js';
+import { Inventory } from './Inventory.js';
 import {
+    DEBUG,
     UNIT_TYPE, ATTACK_TYPE, OBJECT_TYPE,
     UNIT_BASE_STATS, LEVEL_UP, COMBAT, EXPERIENCE, GOLD,
     EQUIPMENT, ITEMS, SPEED,
-    COMBAT_CONSTANTS, AI_CONFIG, VISUAL, GAME_RULES,
+    COMBAT_CONSTANTS, AI_CONFIG, VISUAL, GAME_RULES, TIMERS,
     getUnitStats, rollStat, getWeaponDamage
 } from '../config/GameConfig.js';
 
@@ -94,7 +96,7 @@ export class DynamicEntity extends Entity {
         // Combat parameters
         this.attackRange = 1;     // Tiles
         this.attackType = ATTACK_TYPE.MELEE;
-        this.attackSpeed = 1000;  // ms between attacks
+        this.attackSpeed = TIMERS.DEFAULT_ATTACK_COOLDOWN;  // ms between attacks (1760ms default)
         this.sightRange = 8;      // Tiles for spotting enemies
 
         // Gold (for heroes)
@@ -111,7 +113,8 @@ export class DynamicEntity extends Entity {
         this.enchantedWeaponLevel = 0;  // Enchantment bonus
         this.enchantedArmorLevel = 0;
 
-        // Inventory
+        // Inventory (created in initFromUnitType for heroes)
+        this.inventory = null;
         this.curePotionsCount = 0;
         this.hasRingOfProtection = false;
         this.hasAmuletOfTeleportation = false;
@@ -224,6 +227,8 @@ export class DynamicEntity extends Entity {
             this.objectType = OBJECT_TYPE.MONSTER;
         } else {
             this.objectType = OBJECT_TYPE.HERO;
+            // Create inventory for heroes (for equipment, potions, accessories)
+            this.inventory = new Inventory(this);
         }
 
         // Apply level-ups if starting above level 1
@@ -262,14 +267,19 @@ export class DynamicEntity extends Entity {
     getTotalArmor() {
         let total = this.armor;
 
+        // Get values from inventory if available, otherwise use direct properties
+        const armorLevel = this.inventory ? this.inventory.armorLevel : this.armorLevel;
+        const enchantedArmorLevel = this.inventory ? this.inventory.enchantedArmorLevel : this.enchantedArmorLevel;
+        const hasRing = this.inventory ? this.inventory.hasRingOfProtection : this.hasRingOfProtection;
+
         // Armor from equipment level
-        total += (this.armorLevel - 1) * COMBAT_CONSTANTS.ARMOR_DEFENSE_PER_LEVEL;
+        total += (armorLevel - 1) * COMBAT_CONSTANTS.ARMOR_DEFENSE_PER_LEVEL;
 
         // Enchantment bonus
-        total += this.enchantedArmorLevel * COMBAT_CONSTANTS.ARMOR_ENCHANT_BONUS;
+        total += enchantedArmorLevel * COMBAT_CONSTANTS.ARMOR_ENCHANT_BONUS;
 
         // Ring of protection bonus
-        if (this.hasRingOfProtection) {
+        if (hasRing) {
             total += ITEMS.RING_OF_PROTECTION.bonus;
         }
 
@@ -526,6 +536,11 @@ export class DynamicEntity extends Entity {
 
         // Update animation
         this.updateAnimation();
+
+        // Update inventory (for heroes)
+        if (this.inventory) {
+            this.inventory.update(deltaTime);
+        }
 
         // Update movement
         if (this.moving) {
@@ -1091,10 +1106,22 @@ export class DynamicEntity extends Entity {
             // Melee attack - check hit with stats
             const hitResult = this.rollAttackHit(target);
 
+            if (DEBUG.COMBAT) {
+                const dmgInfo = this.weapon !== undefined ? `weapon:${this.weapon}` : `dmg:${this.minDamage}-${this.maxDamage}`;
+                console.log(`[COMBAT] ${this.unitType || 'unit'}(HP:${this.health}/${this.maxHealth}, H2H:${this.H2H}, ${dmgInfo}, objType:${this.objectType}) attacks ${target.unitType || 'target'}(HP:${target.health}/${target.maxHealth}, parry:${target.parry}, armor:${target.armor})`);
+                console.log(`  Hit check: ${hitResult.hit ? 'HIT' : 'MISS'}`);
+            }
+
             if (hitResult.hit) {
                 // Calculate damage using stats
                 const damage = this.rollDamage(target);
+                if (DEBUG.COMBAT) {
+                    console.log(`  Damage: ${damage}, Target HP before: ${target.health}`);
+                }
                 const killed = target.takeDamage(damage, this);
+                if (DEBUG.COMBAT) {
+                    console.log(`  Target HP after: ${target.health}, Killed: ${killed}`);
+                }
 
                 // Visual feedback for melee hit
                 this.showMeleeEffect(target);
@@ -1179,8 +1206,10 @@ export class DynamicEntity extends Entity {
             const weaponDamage = getWeaponDamage(this.weapon);
             minDmg = 1;
             maxDmg = weaponDamage;
-            // Add enchanted weapon bonus
-            const enchantBonus = this.enchantedWeaponLevel || 0;
+            // Add enchanted weapon bonus (from inventory if available)
+            const enchantBonus = this.inventory ?
+                this.inventory.enchantedWeaponLevel :
+                (this.enchantedWeaponLevel || 0);
             minDmg += enchantBonus;
             maxDmg += enchantBonus;
         } else {
