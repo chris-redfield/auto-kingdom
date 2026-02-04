@@ -8,7 +8,7 @@
  * - XP and level progress
  */
 
-import { EQUIPMENT, ITEMS, ATTACK_TYPE } from '../config/GameConfig.js';
+import { EQUIPMENT, ITEMS, ATTACK_TYPE, getWeaponID } from '../config/GameConfig.js';
 import { SOUNDS } from '../audio/SoundConstants.js';
 import { getWeaponName, getArmorName } from '../entities/Inventory.js';
 
@@ -531,31 +531,45 @@ export class UnitMenu {
     // =========================================================================
 
     upgradeWeapon(unit, cost) {
+        let upgraded = false;
         if (unit.inventory) {
             if (unit.inventory.upgradeWeapon()) {
-                this.game.showMessage('Weapon upgraded!');
-                this.playSound(SOUNDS.UPGRADE_COMPLETE);
+                upgraded = true;
             }
         } else if (unit.gold >= cost) {
             unit.gold -= cost;
             unit.weaponLevel = (unit.weaponLevel || 1) + 1;
+            // Update weapon ID for damage calculation (like inventory does)
+            unit.weapon = getWeaponID(unit.unitTypeId, unit.weaponLevel);
             unit.calculateDamageFromStats();
+            upgraded = true;
+        }
+
+        if (upgraded) {
             this.game.showMessage('Weapon upgraded!');
             this.playSound(SOUNDS.UPGRADE_COMPLETE);
+            // Refresh display to show new stats
+            this.showForUnit(unit);
         }
     }
 
     upgradeArmor(unit, cost) {
+        let upgraded = false;
         if (unit.inventory) {
             if (unit.inventory.upgradeArmor()) {
-                this.game.showMessage('Armor upgraded!');
-                this.playSound(SOUNDS.UPGRADE_COMPLETE);
+                upgraded = true;
             }
         } else if (unit.gold >= cost) {
             unit.gold -= cost;
             unit.armorLevel = (unit.armorLevel || 1) + 1;
+            upgraded = true;
+        }
+
+        if (upgraded) {
             this.game.showMessage('Armor upgraded!');
             this.playSound(SOUNDS.UPGRADE_COMPLETE);
+            // Refresh display to show new stats
+            this.showForUnit(unit);
         }
     }
 

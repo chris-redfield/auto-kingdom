@@ -754,7 +754,7 @@ Multiple attackers do NOT share gold (unlike XP which is distributed by damage).
 - Enchantments 0-3 (+3 weapon damage, +5 armor per level)
 
 ### Phase 2.7.1: Debug Tools ✅ COMPLETE
-- [x] Keyboard shortcut: 'G' key adds +500 gold
+- [x] Keyboard shortcut: 'G' key adds +500 gold to treasury, +100 gold to selected hero
 - [x] Keyboard shortcut: 'X' key adds +500 XP to selected unit
 - [x] Keyboard shortcut: 'L' key instantly levels up selected unit
 - [x] Console logging for XP gains (shows base XP, adjusted XP, level, progress)
@@ -1107,6 +1107,38 @@ From smali: `attack_pause = 0x16` (22 ticks)
 
 **Result:** Warriors (1,500 XP/level) now level up after 1-3 Rat kills instead of 15-30.
 
+### Phase 2.7.7: Monster Gold Values Fix ✅ COMPLETE (2026-02-03)
+
+**Problem:** Heroes weren't getting much gold from monster kills - values didn't match original.
+
+**Root Cause:** `deadGold` values in `GameConfig.js` were random ranges but original game uses fixed values.
+
+**Fixed Monster Gold Values (from DynamicObject.smali):**
+| Monster | Old Gold | New Gold (from smali) |
+|---------|----------|----------------------|
+| RAT | [5, 15] | **25** |
+| TROLL | [30, 75] | **12** |
+| GOBLIN | [15, 40] | **10** |
+| GOBLIN_ARCHER | [15, 40] | **11** |
+| SKELETON | [10, 30] | **50** |
+| ZOMBIE | [15, 35] | **12** |
+| VAMPIRE | [75, 150] | **200** |
+| MINOTAUR | [100, 200] | **200** |
+| SPIDER | [25, 60] | **75** |
+| GARPY | [30, 70] | **200** |
+| DUBOLOM | [50, 120] | **400** |
+| GOLEM | [80, 180] | **400** |
+| GOBLIN_CHAMPION | [25, 60] | **20** |
+| GOBLIN_SHAMAN | [20, 50] | **17** |
+| RED_DRAGON | [200, 500] | **500** |
+| BLACK_DRAGON | [300, 700] | **10,000** (boss reward!) |
+
+**Key Findings:**
+- Original game uses FIXED gold values (not random ranges)
+- Tougher monsters (DUBOLOM, GOLEM, BLACK_DRAGON) were giving way too little gold
+- BLACK_DRAGON is the ultimate boss reward: 10,000 gold
+- Small monsters (GOBLIN, TROLL, ZOMBIE) actually give less gold in original
+
 ### Phase 2.8: Unit Training Progress ✅ COMPLETE (2026-02-02)
 - [x] Recruit units from guild buildings (DONE in earlier phase)
 - [x] Gold cost system (deduct from player gold) (DONE)
@@ -1174,14 +1206,44 @@ The Blacksmith has TWO separate systems (from smali analysis):
 | 1→2 | 570 gold |
 | 2→3 | 760 gold |
 
-**Tasks:**
-- [ ] Add `weaponLevel` and `armorLevel` fields to Building.js (tracks unlocked tiers)
-- [ ] Add unlock buttons to BuildingMenu.js for Blacksmith
-- [ ] Display current unlocked tier in building menu
-- [ ] Hero auto-visit logic (RND_*_GO_BLACKSMITH chances from smali)
-- [ ] Hero upgrade logic (check building tier, deduct gold, update weaponLevel)
-- [ ] Visual feedback when upgrade happens
-- [ ] Blacksmith building upgrades (levels 1-3)
+**Tasks:** ✅ ALL COMPLETE (2026-02-03)
+- [x] Add `weaponLevel` and `armorLevel` fields to Building.js (tracks unlocked tiers)
+- [x] Add unlock buttons to BuildingMenu.js for Blacksmith
+- [x] Display current unlocked tier in building menu
+- [x] Hero auto-visit logic (RND_*_GO_BLACKSMITH chances from smali)
+- [x] Hero upgrade logic (check building tier, deduct gold, update weaponLevel)
+- [x] Visual feedback when upgrade happens (floating text + flash effect)
+- [x] Blacksmith building upgrades (levels 1-3, unlock higher tiers)
+
+**Implementation Summary:**
+- `Building.js`: Added `weaponLevel`, `armorLevel` fields + unlock methods. Starting tier = 2 so level-1 heroes can buy.
+- `GameConfig.js`: Added `BLACKSMITH_CONFIG` with all costs from smali
+- `BuildingMenu.js`: Added tier unlock UI with level requirements
+- `DynamicEntity.js`: Added hero AI to visit Blacksmith, purchase upgrades, visual effects
+- `Inventory.js`: Fixed `upgradeWeapon()` to sync `owner.weapon` field and call `calculateDamageFromStats()`
+- `UnitMenu.js`: Fixed UI refresh after manual upgrade with `showForUnit(unit)`
+
+**Bug Fixes (2026-02-03):**
+1. **Heroes standing near blacksmith but not buying:**
+   - Root cause: `distanceTo(blacksmith)` measured to building's top-left corner, not center
+   - For a 2x2 building, hero adjacent to building could still be > 2 tiles from corner
+   - Fix: Calculate distance to building CENTER instead of corner
+   - Also: Try 8 tiles around building instead of just one for pathfinding
+
+2. **Heroes couldn't upgrade at level 1 blacksmith:**
+   - Root cause: Hero weaponLevel=1, blacksmith weaponLevel=1, condition `hero >= blacksmith` was true
+   - Fix: Changed blacksmith starting `weaponLevel`/`armorLevel` from 1 to 2
+
+3. **Weapon damage not updating after blacksmith purchase:**
+   - Root cause: `purchaseBlacksmithUpgrades()` updated weaponLevel but didn't call `calculateDamageFromStats()`
+   - Fix: Added `this.calculateDamageFromStats()` after weapon upgrade in `purchaseBlacksmithUpgrades()`
+
+4. **Weapon damage not updating for rangers (manual upgrade via UI):**
+   - Root cause: UI wasn't refreshing after upgrade - showed old damage values
+   - Fix: Added `this.showForUnit(unit)` after upgrade in UnitMenu.js
+
+**Known Issues (TODO):**
+- Heroes path to the SOUTH of the blacksmith instead of the correct entrance position. The pathfinding target tiles need adjustment to match the original game's building entry points.
 
 #### Phase 2.9.2: Marketplace (Future)
 - [ ] Heroes can buy: Healing Potions, Cure Potions
@@ -1341,7 +1403,7 @@ python -m http.server 8080
 - S: Screen shake test
 - D: Toggle debug overlay
 - T: Spawn test enemy
-- G: Add 500 gold (cheat)
+- G: Add 500 gold to treasury + 100 gold to selected hero (cheat)
 - X: Add 500 XP to selected unit (cheat)
 - L: Instant level up selected unit (cheat)
 - M: Toggle music

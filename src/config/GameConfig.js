@@ -109,6 +109,48 @@ export function getWeaponDamage(weaponId) {
     return WEAPON_DAMAGE[weaponId] ?? 1;
 }
 
+/**
+ * Get weapon ID for a unit type at a given weapon level
+ * From Script.smali getWeaponID(unitType, weaponLevel)
+ * Higher levels give higher weapon IDs with more damage
+ * @param {number} unitType - Unit type ID (WARRIOR=0, RANGER=1, etc)
+ * @param {number} weaponLevel - Weapon upgrade level (1-4)
+ * @returns {number} Weapon ID to use for damage calculation
+ */
+export function getWeaponID(unitType, weaponLevel) {
+    const level = Math.max(1, Math.min(4, weaponLevel)); // Clamp to 1-4
+
+    switch (unitType) {
+        case UNIT_TYPE.WARRIOR:
+        case UNIT_TYPE.PALADIN:
+            // Swords: 0, 1, 2, 3 (damage 10, 11, 12, 13)
+            return level - 1;
+
+        case UNIT_TYPE.RANGER:
+        case UNIT_TYPE.ELF:
+            // Bows: 4, 5, 6, 7 (damage 6, 7, 8, 9)
+            return 4 + (level - 1);
+
+        case UNIT_TYPE.BARBARIAN:
+            // Heavy weapons: 12, 13, 14, 15 (damage 22, 23, 24, 25)
+            return 12 + (level - 1);
+
+        case UNIT_TYPE.DWARF:
+            // Dwarf weapons: 16, 17, 18, 19 (damage 12, 13, 14, 15)
+            return 16 + (level - 1);
+
+        case UNIT_TYPE.WIZARD:
+        case UNIT_TYPE.WIZARD_HEALER:
+        case UNIT_TYPE.WIZARD_NECROMANCER:
+            // Wizards use staff (fixed weapon 22, damage 12)
+            return 22;
+
+        default:
+            // Unknown type - use basic sword progression
+            return level - 1;
+    }
+}
+
 // =============================================================================
 // BASE STATS BY UNIT TYPE
 // Extracted from DynamicObject.smali Init() method
@@ -374,7 +416,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 6,           // Was 2, smali=6
         maxDamage: 7,           // Was 5, smali=7
         deadExp: [500, 1500],   // Fixed: was [50, 100], smali=0x1f4-0x5dc
-        deadGold: [5, 15],
+        deadGold: 25,           // Fixed: smali=0x19=25
     },
 
     // TYPE_TROLL (0x57) - Troll
@@ -401,7 +443,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 9,           // Was 10, smali=9
         maxDamage: 12,          // Was 20, smali=0xc=12
         deadExp: [3000, 4000],  // Fixed: was [200, 400], smali=0xbb8-0xfa0
-        deadGold: [30, 75],
+        deadGold: 12,           // Fixed: smali=0xc=12
     },
 
     // TYPE_GOBLIN (0x59) - Goblin
@@ -428,7 +470,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 5,
         maxDamage: 8,           // Was 12, smali=8
         deadExp: [1000, 2000],  // Fixed: was [100, 200], smali=0x3e8-0x7d0
-        deadGold: [15, 40],
+        deadGold: 10,           // Fixed: smali=0xa=10
     },
 
     // TYPE_GOBLIN_ARCHER (0x5B)
@@ -455,7 +497,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 6,           // Was 4, smali=6
         maxDamage: 10,
         deadExp: [1000, 2000],  // Fixed: was [100, 200], smali=0x3e8-0x7d0
-        deadGold: [15, 40],
+        deadGold: 11,           // Fixed: smali=0xb=11
     },
 
     // TYPE_SKELETON (0x54) - Skeleton
@@ -482,7 +524,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 6,
         maxDamage: 6,           // Was 14, smali=6 (same as min)
         deadExp: [1000, 2000],  // Fixed: was [75, 150], smali=0x3e8-0x7d0
-        deadGold: [10, 30],
+        deadGold: 50,           // Fixed: smali=0x32=50
     },
 
     // TYPE_ZOMBIE (0x56) - Zombie
@@ -509,7 +551,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 6,           // Was 8, smali=6
         maxDamage: 9,           // Was 16, smali=9
         deadExp: [1500, 2500],  // Fixed: was [100, 200], smali=0x5dc-0x9c4
-        deadGold: [15, 35],
+        deadGold: 12,           // Fixed: smali=0xc=12
     },
 
     // TYPE_VAMPIRE (0x55) - Vampire
@@ -536,7 +578,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 12,
         maxDamage: 15,          // Was 25, smali=0xf=15
         deadExp: [3000, 7000],  // Fixed: was [300, 600], smali=0xbb8-0x1b58
-        deadGold: [75, 150],
+        deadGold: 200,          // Fixed: smali=0xc8=200
     },
 
     // TYPE_MINOTAUR (0x51) - Minotaur
@@ -563,7 +605,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 10,          // Was 15, smali=0xa=10
         maxDamage: 14,          // Was 30, smali=0xe=14
         deadExp: [2000, 6000],  // Fixed: was [400, 800], smali=0x7d0-0x1770
-        deadGold: [100, 200],
+        deadGold: 200,          // Fixed: smali=0xc8=200
     },
 
     // TYPE_SPIDER (0x52) - Spider
@@ -590,7 +632,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 8,
         maxDamage: 12,
         deadExp: [2000, 5000],  // smali=0x7d0-0x1388
-        deadGold: [25, 60],
+        deadGold: 75,           // Fixed: smali=0x4b=75
     },
 
     // TYPE_GARPY (0x53) - Harpy
@@ -617,7 +659,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 7,
         maxDamage: 11,
         deadExp: [1200, 4800],  // smali=0x4b0-0x12c0
-        deadGold: [30, 70],
+        deadGold: 200,          // Fixed: smali=0xc8=200
     },
 
     // TYPE_DUBOLOM (0x58) - Tree Monster
@@ -643,7 +685,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 12,
         maxDamage: 18,
         deadExp: [4000, 8000],  // smali=0xfa0-0x1f40
-        deadGold: [50, 120],
+        deadGold: 400,          // Fixed: smali=0x190=400
     },
 
     // TYPE_GOLEM (0x5C) - Golem
@@ -669,7 +711,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 15,
         maxDamage: 25,
         deadExp: [5000, 10000], // smali=0x1388-0x2710
-        deadGold: [80, 180],
+        deadGold: 400,          // Fixed: smali=0x190=400
     },
 
     // TYPE_GOBLIN_CHAMPION (0x5A) - Stronger goblin
@@ -695,7 +737,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 8,
         maxDamage: 14,
         deadExp: [1500, 2500],  // smali=0x5dc-0x9c4
-        deadGold: [25, 60],
+        deadGold: 20,           // Fixed: smali=0x14=20
     },
 
     // TYPE_GOBLIN_SHAMAN (0x5D) - Magic goblin
@@ -721,7 +763,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 6,
         maxDamage: 12,
         deadExp: [1000, 2000],  // smali=0x3e8-0x7d0
-        deadGold: [20, 50],
+        deadGold: 17,           // Fixed: smali=0x11=17
     },
 
     // TYPE_RED_DRAGON (0x5E) - Red Dragon
@@ -745,8 +787,8 @@ export const UNIT_BASE_STATS = {
         life: 150,
         minDamage: 20,
         maxDamage: 45,
-        deadExp: [7000, 12000],
-        deadGold: [200, 500],
+        deadExp: [7000, 12000], // smali=0x1b58-0x2ee0
+        deadGold: 500,          // Fixed: smali=0x1f4=500
     },
 
     // TYPE_BLACK_DRAGON (0x5F) - Black Dragon (stronger)
@@ -772,7 +814,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 25,
         maxDamage: 55,
         deadExp: [10000, 15000], // smali=0x2710-0x3a98
-        deadGold: [300, 700],
+        deadGold: 10000,         // Fixed: smali=0x2710=10000 (boss reward!)
     },
 
     // TYPE_DRAGON (0x61) - Dragon
@@ -797,7 +839,7 @@ export const UNIT_BASE_STATS = {
         minDamage: 20,
         maxDamage: 45,
         deadExp: [7000, 12000], // 0x1b58 to 0x2ee0
-        deadGold: [200, 500],
+        deadGold: 500,          // Same as RED_DRAGON
     },
 };
 

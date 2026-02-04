@@ -7,7 +7,7 @@
  * - Accessories (rings, amulets)
  */
 
-import { EQUIPMENT, ITEMS } from '../config/GameConfig.js';
+import { EQUIPMENT, ITEMS, getWeaponID } from '../config/GameConfig.js';
 
 /**
  * Inventory class for managing hero equipment and items
@@ -64,6 +64,9 @@ export class Inventory {
         if (this.owner.gold >= price) {
             this.owner.gold -= price;
             this.weaponLevel++;
+            // Sync weapon level to owner and update weapon ID for damage calculation
+            this.owner.weaponLevel = this.weaponLevel;
+            this.owner.weapon = getWeaponID(this.owner.unitTypeId, this.weaponLevel);
             this.owner.calculateDamageFromStats();
             return true;
         }
@@ -115,6 +118,8 @@ export class Inventory {
         if (this.owner.gold >= price) {
             this.owner.gold -= price;
             this.armorLevel++;
+            // Sync armor level to owner for getTotalArmor calculation
+            this.owner.armorLevel = this.armorLevel;
             return true;
         }
         return false;

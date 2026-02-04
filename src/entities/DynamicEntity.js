@@ -13,7 +13,7 @@
 
 import { Entity, EntityType } from './Entity.js';
 import * as IsoMath from '../world/IsoMath.js';
-import { EntityState, FLD_BUSY, FLD_EMPTY } from '../utils/Constants.js';
+import { EntityState, FLD_BUSY, FLD_EMPTY, BuildingType } from '../utils/Constants.js';
 import { AnimatedSprite } from '../graphics/AnimationLoader.js';
 import { UNIT_ANIMS, GAME_DIR_TO_ANIM_DIR, getAnimId } from '../utils/AnimationConstants.js';
 import { SOUNDS, getDeathSoundForUnit } from '../audio/SoundConstants.js';
@@ -24,7 +24,8 @@ import {
     UNIT_BASE_STATS, LEVEL_UP, COMBAT, EXPERIENCE, GOLD,
     EQUIPMENT, ITEMS, SPEED,
     COMBAT_CONSTANTS, AI_CONFIG, VISUAL, GAME_RULES, TIMERS,
-    getUnitStats, rollStat, getWeaponDamage
+    BLACKSMITH_CONFIG,
+    getUnitStats, rollStat, getWeaponDamage, getWeaponID
 } from '../config/GameConfig.js';
 
 export class DynamicEntity extends Entity {
@@ -119,6 +120,9 @@ export class DynamicEntity extends Entity {
         this.hasRingOfProtection = false;
         this.hasAmuletOfTeleportation = false;
         this.amuletOfTeleportationTicks = 9999;
+
+        // AI state for building visits
+        this.targetBlacksmith = null;  // Persists until hero purchases or can't afford
 
         // =====================================================================
         // END RPG STATS
@@ -637,8 +641,23 @@ export class DynamicEntity extends Entity {
             }
         }
 
-        // Idle behavior - random wandering
-        if (!this.moving && !this.attackTarget && Math.random() < AI_CONFIG.WANDER_CHANCE) {
+        // Continue going to blacksmith if we have a target (persistent state)
+        if (!this.attackTarget && this.targetBlacksmith) {
+            if (this.tryVisitBlacksmith()) {
+                return;  // Hero is heading to or at blacksmith
+            }
+            // If tryVisitBlacksmith returns false, target is cleared (purchased or can't afford)
+        }
+
+        // No enemies and no blacksmith target - consider visiting Blacksmith
+        if (!this.attackTarget && !this.targetBlacksmith && this.shouldVisitBlacksmith()) {
+            if (this.tryVisitBlacksmith()) {
+                return;  // Hero started heading to blacksmith
+            }
+        }
+
+        // Idle behavior - random wandering (only if not heading somewhere)
+        if (!this.moving && !this.attackTarget && !this.targetBlacksmith && Math.random() < AI_CONFIG.WANDER_CHANCE) {
             this.wanderRandomly();
         }
     }
@@ -729,6 +748,271 @@ export class DynamicEntity extends Entity {
             }
         }
     }
+
+    // =========================================================================
+    // BLACKSMITH VISITING (Hero AI)
+    // =========================================================================
+
+    /**
+     * Check if this hero should visit the Blacksmith
+     * Based on: has gold, can upgrade, random chance per unit type
+     */
+    shouldVisitBlacksmith() {
+        // Only player heroes visit blacksmith
+        if (this.team !== 'player') return false;
+        if (this.objectType !== OBJECT_TYPE.HERO) return false;
+
+        // Wizards don't use blacksmith (from smali: RND_WIZARD_GO_BLACKSMITH = -1)
+        const unitTypeName = this.getUnitTypeName();
+        const visitChance = BLACKSMITH_CONFIG.VISIT_CHANCE[unitTypeName];
+        if (visitChance === undefined || visitChance < 0) return false;
+
+        // Check if hero has enough gold for any upgrade
+        const totalGold = (this.gold || 0) + (this.taxGold || 0);
+        const minWeaponCost = BLACKSMITH_CONFIG.HERO_WEAPON_PRICES[0];
+        const minArmorCost = BLACKSMITH_CONFIG.HERO_ARMOR_PRICES[0];
+
+        if (totalGold < Math.min(minWeaponCost, minArmorCost)) {
+            return false;  // Can't afford any upgrade
+        }
+
+        // Random chance based on unit type (higher = more likely)
+        return Math.random() * 1000 < visitChance;
+    }
+
+    /**
+     * Get unit type name for config lookup
+     */
+    getUnitTypeName() {
+        const typeNames = {
+            [UNIT_TYPE.WARRIOR]: 'WARRIOR',
+            [UNIT_TYPE.RANGER]: 'RANGER',
+            [UNIT_TYPE.PALADIN]: 'PALADIN',
+            [UNIT_TYPE.WIZARD]: 'WIZARD',
+            [UNIT_TYPE.WIZARD_HEALER]: 'WIZARD_HEALER',
+            [UNIT_TYPE.WIZARD_NECROMANCER]: 'WIZARD_NECROMANCER',
+            [UNIT_TYPE.BARBARIAN]: 'BARBARIAN',
+            [UNIT_TYPE.DWARF]: 'DWARF',
+            [UNIT_TYPE.ELF]: 'ELF',
+        };
+        return typeNames[this.unitTypeId] || 'WARRIOR';
+    }
+
+    /**
+     * Find the nearest player-owned Blacksmith
+     */
+    findNearestBlacksmith() {
+        if (!this.game || !this.game.buildings) return null;
+
+        let nearest = null;
+        let nearestDist = Infinity;
+
+        for (const building of this.game.buildings) {
+            // Must be player-owned Blacksmith that's fully constructed
+            if (building.buildingType !== BuildingType.BLACKSMITH) continue;
+            if (building.team !== 0) continue;
+            if (!building.constructed) continue;
+
+            const dist = this.distanceTo(building);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = building;
+            }
+        }
+
+        return nearest;
+    }
+
+    /**
+     * Try to visit the Blacksmith for upgrades
+     * Called from processAI when hero is idle or has targetBlacksmith set
+     * @returns {boolean} True if hero is heading to or at blacksmith
+     */
+    tryVisitBlacksmith() {
+        // Use existing target or find nearest
+        const blacksmith = this.targetBlacksmith || this.findNearestBlacksmith();
+        if (!blacksmith) {
+            this.targetBlacksmith = null;
+            return false;
+        }
+
+        // Check if we can actually upgrade at this blacksmith
+        const canUpgradeWeapon = this.canUpgradeWeaponAt(blacksmith);
+        const canUpgradeArmor = this.canUpgradeArmorAt(blacksmith);
+
+        if (!canUpgradeWeapon && !canUpgradeArmor) {
+            this.targetBlacksmith = null;  // Clear target - nothing to buy
+            return false;
+        }
+
+        // Calculate distance to building CENTER (not top-left corner)
+        const buildingSizeI = blacksmith.sizeI || 2;
+        const buildingSizeJ = blacksmith.sizeJ || 2;
+        const centerI = blacksmith.gridI + buildingSizeI / 2;
+        const centerJ = blacksmith.gridJ + buildingSizeJ / 2;
+        const dx = this.gridI - centerI;
+        const dy = this.gridJ - centerJ;
+        const distToCenter = Math.sqrt(dx * dx + dy * dy);
+
+        // Check if we're already at the blacksmith (adjacent to building)
+        if (distToCenter <= 2.5) {
+            // We're at the blacksmith - purchase upgrades!
+            this.purchaseBlacksmithUpgrades(blacksmith);
+            this.targetBlacksmith = null;  // Clear target after purchase
+            return true;
+        }
+
+        // Set persistent target so we keep heading there
+        this.targetBlacksmith = blacksmith;
+
+        // Try tiles around the blacksmith (prioritize front, then sides)
+        const offsets = [
+            { i: 0, j: 2 },   // Front
+            { i: 0, j: -1 },  // Back
+            { i: 2, j: 0 },   // Right
+            { i: -1, j: 0 },  // Left
+            { i: 1, j: 2 },   // Front-right
+            { i: -1, j: 2 },  // Front-left
+            { i: 2, j: 1 },   // Right-front
+            { i: -1, j: 1 },  // Left-front
+        ];
+
+        for (const offset of offsets) {
+            const targetI = Math.floor(centerI + offset.i);
+            const targetJ = Math.floor(centerJ + offset.j);
+
+            if (this.grid && this.grid.isWalkable(targetI, targetJ)) {
+                this.moveTo(targetI, targetJ, this.grid);
+                return true;
+            }
+        }
+
+        this.targetBlacksmith = null;  // Clear target - can't reach
+        return false;
+    }
+
+    /**
+     * Check if hero can upgrade weapon at this blacksmith
+     */
+    canUpgradeWeaponAt(blacksmith) {
+        // Hero's weapon level must be below building's unlocked tier
+        if (this.weaponLevel >= blacksmith.weaponLevel) return false;
+
+        // Hero must have enough gold
+        const upgradeCost = BLACKSMITH_CONFIG.HERO_WEAPON_PRICES[this.weaponLevel - 1] || 0;
+        const totalGold = (this.gold || 0) + (this.taxGold || 0);
+
+        return totalGold >= upgradeCost;
+    }
+
+    /**
+     * Check if hero can upgrade armor at this blacksmith
+     */
+    canUpgradeArmorAt(blacksmith) {
+        // Hero's armor level must be below building's unlocked tier
+        if (this.armorLevel >= blacksmith.armorLevel) return false;
+
+        // Hero must have enough gold
+        const upgradeCost = BLACKSMITH_CONFIG.HERO_ARMOR_PRICES[this.armorLevel - 1] || 0;
+        const totalGold = (this.gold || 0) + (this.taxGold || 0);
+
+        return totalGold >= upgradeCost;
+    }
+
+    /**
+     * Purchase upgrades at the Blacksmith
+     * Hero spends their personal gold (taxGold first, then gold)
+     */
+    purchaseBlacksmithUpgrades(blacksmith) {
+        let upgraded = false;
+
+        // Try weapon upgrade first
+        if (this.canUpgradeWeaponAt(blacksmith)) {
+            const cost = BLACKSMITH_CONFIG.HERO_WEAPON_PRICES[this.weaponLevel - 1];
+            this.spendGold(cost);
+            this.weaponLevel++;
+
+            // Update weapon ID based on unit type and new level
+            // This is what actually increases damage (from smali)
+            this.weapon = getWeaponID(this.unitTypeId, this.weaponLevel);
+
+            // Update inventory if present
+            if (this.inventory) {
+                this.inventory.weaponLevel = this.weaponLevel;
+            }
+
+            // Recalculate damage with new weapon level
+            this.calculateDamageFromStats();
+
+            console.log(`${this.unitType} upgraded weapon to level ${this.weaponLevel} (weapon ID: ${this.weapon}) for ${cost}g, damage: ${this.minDamage}-${this.maxDamage}`);
+            upgraded = true;
+
+            // Show visual effect
+            this.showUpgradeEffect('weapon');
+
+            // Show message
+            if (this.game && this.game.showMessage) {
+                this.game.showMessage(`${this.unitType} upgraded weapon!`);
+            }
+        }
+
+        // Try armor upgrade (with slight delay if weapon was also upgraded)
+        if (this.canUpgradeArmorAt(blacksmith)) {
+            const doArmorUpgrade = () => {
+                const cost = BLACKSMITH_CONFIG.HERO_ARMOR_PRICES[this.armorLevel - 1];
+                this.spendGold(cost);
+                this.armorLevel++;
+
+                // Update armor defense
+                if (this.inventory) {
+                    this.inventory.armorLevel = this.armorLevel;
+                }
+
+                console.log(`${this.unitType} upgraded armor to level ${this.armorLevel} for ${cost}g`);
+
+                // Show visual effect
+                this.showUpgradeEffect('armor');
+
+                // Show message
+                if (this.game && this.game.showMessage) {
+                    this.game.showMessage(`${this.unitType} upgraded armor!`);
+                }
+            };
+
+            // Delay armor upgrade visual if weapon was also upgraded
+            if (upgraded) {
+                setTimeout(doArmorUpgrade, 800);
+            } else {
+                doArmorUpgrade();
+            }
+            upgraded = true;
+        }
+
+        // Play upgrade sound
+        if (upgraded && this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.UPGRADE_COMPLETE || SOUNDS.GOLD, this.worldX, this.worldY);
+        }
+    }
+
+    /**
+     * Spend gold (uses taxGold first, then personal gold)
+     */
+    spendGold(amount) {
+        // First use taxGold
+        if (this.taxGold >= amount) {
+            this.taxGold -= amount;
+            return;
+        }
+
+        // Use all taxGold and remainder from personal gold
+        const remainder = amount - this.taxGold;
+        this.taxGold = 0;
+        this.gold = Math.max(0, (this.gold || 0) - remainder);
+    }
+
+    // =========================================================================
+    // END BLACKSMITH VISITING
+    // =========================================================================
 
     /**
      * Set grid reference and occupy initial cell
@@ -1349,6 +1633,8 @@ export class DynamicEntity extends Entity {
     setAttackTarget(target) {
         this.attackTarget = target;
         this.target = target;
+        // Combat takes priority - abandon blacksmith visit
+        this.targetBlacksmith = null;
     }
 
     /**
@@ -1501,6 +1787,66 @@ export class DynamicEntity extends Entity {
                 if (levelText.parent) levelText.parent.removeChild(levelText);
                 ring.destroy();
                 levelText.destroy();
+            }
+        };
+        PIXI.Ticker.shared.add(animCallback);
+    }
+
+    /**
+     * Show upgrade visual effect (floating text + flash)
+     * @param {string} upgradeType - 'weapon' or 'armor'
+     */
+    showUpgradeEffect(upgradeType) {
+        if (!this.sprite || !this.sprite.parent) return;
+
+        // Color based on upgrade type
+        const color = upgradeType === 'weapon' ? 0xff6644 : 0x44aaff;
+        const text = upgradeType === 'weapon' ? '+Weapon' : '+Armor';
+
+        // Create flash effect (brief color overlay)
+        const flash = new PIXI.Graphics();
+        flash.circle(0, -20, 25);
+        flash.fill({ color: color, alpha: 0.6 });
+        flash.x = this.worldX;
+        flash.y = this.worldY;
+        flash.zIndex = 99998;
+        this.sprite.parent.addChild(flash);
+
+        // Create floating text
+        const upgradeText = new PIXI.Text({
+            text: text,
+            style: {
+                fontSize: 14,
+                fill: color,
+                fontWeight: 'bold',
+                stroke: { color: 0x000000, width: 2 }
+            }
+        });
+        upgradeText.anchor.set(0.5);
+        upgradeText.x = this.worldX;
+        upgradeText.y = this.worldY - 35;
+        upgradeText.zIndex = 99999;
+        this.sprite.parent.addChild(upgradeText);
+
+        // Animate: flash fades quickly, text floats up
+        let alpha = 1.0;
+        let flashAlpha = 0.6;
+        let yOffset = 0;
+        const animCallback = () => {
+            alpha -= 0.025;
+            flashAlpha -= 0.1;  // Flash fades faster
+            yOffset -= 0.8;
+
+            flash.alpha = Math.max(0, flashAlpha);
+            upgradeText.alpha = alpha;
+            upgradeText.y = this.worldY - 35 + yOffset;
+
+            if (alpha <= 0) {
+                PIXI.Ticker.shared.remove(animCallback);
+                if (flash.parent) flash.parent.removeChild(flash);
+                if (upgradeText.parent) upgradeText.parent.removeChild(upgradeText);
+                flash.destroy();
+                upgradeText.destroy();
             }
         };
         PIXI.Ticker.shared.add(animCallback);

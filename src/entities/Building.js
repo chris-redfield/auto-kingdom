@@ -61,8 +61,10 @@ export class Building extends Entity {
 
         // Blacksmith upgrade tiers (max level heroes can purchase)
         // These are unlocked by the player paying gold
-        this.weaponLevel = 1;     // Max weapon tier available (1-4)
-        this.armorLevel = 1;      // Max armor tier available (1-4)
+        // Start at 2 so heroes at level 1 can buy their first upgrade
+        // Player then upgrades building to unlock tiers 3 and 4
+        this.weaponLevel = 2;     // Max weapon tier available (1-4)
+        this.armorLevel = 2;      // Max armor tier available (1-4)
 
         // Construction properties
         this.constructionProgress = 0;    // 0 to 1

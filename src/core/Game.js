@@ -23,6 +23,7 @@ import { BuildingMenu } from '../ui/BuildingMenu.js';
 import { UnitMenu } from '../ui/UnitMenu.js';
 import {
     UNIT_TYPE,
+    OBJECT_TYPE,
     GAME_RULES,
     AI_CONFIG,
     VISUAL,
@@ -1806,10 +1807,19 @@ export class Game {
             console.log('Wave Spawns:', this.spawnManager.waveSpawns.length);
         }
 
-        // Cheat: Press G to add gold
+        // Cheat: Press G to add gold (player + selected hero)
         if (this.input.isKeyJustPressed('g')) {
             this.gold += GAME_RULES.CHEAT_GOLD_AMOUNT;
-            this.showMessage(`+${GAME_RULES.CHEAT_GOLD_AMOUNT} Gold`);
+            let msg = `+${GAME_RULES.CHEAT_GOLD_AMOUNT} Gold`;
+
+            // Also give 100 gold to selected hero
+            if (this.selectedUnit && this.selectedUnit.objectType === OBJECT_TYPE.HERO) {
+                this.selectedUnit.gold = (this.selectedUnit.gold || 0) + 100;
+                msg += ` (+100 to ${this.selectedUnit.unitType || 'hero'})`;
+                console.log(`Cheat: Added 100 gold to hero. Hero gold:`, this.selectedUnit.gold);
+            }
+
+            this.showMessage(msg);
             console.log(`Cheat: Added ${GAME_RULES.CHEAT_GOLD_AMOUNT} gold. Total:`, this.gold);
         }
 
