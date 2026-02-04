@@ -127,14 +127,23 @@ const BUILDING_CONFIG = {
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.KROLM_TEMPLE]; }
     },
     // Blacksmith (0x27)
+    // Uses two-tier system:
+    // 1. Player UNLOCKS weapon/armor tiers (costs TIER_UNLOCK_*)
+    // 2. Heroes then visit and PURCHASE upgrades (costs HERO_*_PRICES)
     [BuildingType.BLACKSMITH]: {
         name: 'Blacksmith',
-        canUpgradeWeapons: true,
-        canUpgradeArmor: true,
-        get weaponUpgradeCost() { return BLACKSMITH_CONFIG.WEAPON_UPGRADE_COSTS; },
-        get armorUpgradeCost() { return BLACKSMITH_CONFIG.ARMOR_UPGRADE_COSTS; },
-        get maxWeaponLevel() { return BLACKSMITH_CONFIG.MAX_WEAPON_LEVEL; },
-        get maxArmorLevel() { return BLACKSMITH_CONFIG.MAX_ARMOR_LEVEL; }
+        isBlacksmith: true,
+        canUpgrade: true,
+        get upgradeCost() { return BLACKSMITH_CONFIG.BUILDING_UPGRADE_COSTS; },
+        maxLevel: 3,
+        // Unlock costs (player pays to make tier available)
+        get tierUnlockWeaponCost() { return BLACKSMITH_CONFIG.TIER_UNLOCK_WEAPON; },
+        get tierUnlockArmorCost() { return BLACKSMITH_CONFIG.TIER_UNLOCK_ARMOR; },
+        get maxWeaponTier() { return BLACKSMITH_CONFIG.MAX_WEAPON_TIER; },
+        get maxArmorTier() { return BLACKSMITH_CONFIG.MAX_ARMOR_TIER; },
+        // Hero upgrade prices (for display in unit menu)
+        get heroWeaponPrices() { return BLACKSMITH_CONFIG.HERO_WEAPON_PRICES; },
+        get heroArmorPrices() { return BLACKSMITH_CONFIG.HERO_ARMOR_PRICES; }
     },
     // Guard Tower (0x28)
     [BuildingType.GUARD_TOWER]: {
@@ -336,33 +345,9 @@ export class BuildingMenu {
             });
         }
 
-        // Blacksmith special options
-        if (config.canUpgradeWeapons) {
-            const weaponLevel = this.game.weaponUpgradeLevel || 0;
-            if (weaponLevel < config.maxWeaponLevel) {
-                const cost = config.weaponUpgradeCost[weaponLevel];
-                this.addOption({
-                    icon: '🗡️',
-                    text: `Upgrade Weapons (Lv${weaponLevel + 1})`,
-                    cost: cost,
-                    enabled: this.game.gold >= cost,
-                    onClick: () => this.upgradeWeapons(cost)
-                });
-            }
-        }
-
-        if (config.canUpgradeArmor) {
-            const armorLevel = this.game.armorUpgradeLevel || 0;
-            if (armorLevel < config.maxArmorLevel) {
-                const cost = config.armorUpgradeCost[armorLevel];
-                this.addOption({
-                    icon: '🛡️',
-                    text: `Upgrade Armor (Lv${armorLevel + 1})`,
-                    cost: cost,
-                    enabled: this.game.gold >= cost,
-                    onClick: () => this.upgradeArmor(cost)
-                });
-            }
+        // Blacksmith special options - unlock weapon/armor tiers
+        if (config.isBlacksmith) {
+            this.addBlacksmithOptions(config, building);
         }
 
         // Info section
@@ -680,42 +665,116 @@ export class BuildingMenu {
     }
 
     /**
-     * Upgrade weapons (Blacksmith)
+     * Add Blacksmith-specific options (unlock weapon/armor tiers)
+     *
+     * Tier requirements:
+     * - Tier 2: Blacksmith level 1 (default)
+     * - Tier 3: Blacksmith level 2 required
+     * - Tier 4: Blacksmith level 3 required
      */
-    upgradeWeapons(cost) {
-        if (this.game.gold < cost) {
-            this.game.showMessage(`Need ${cost} gold!`);
-            if (this.game.playSound) {
-                this.game.playSound(SOUNDS.CLICK_DENY);
+    addBlacksmithOptions(config, building) {
+        // Section header
+        const header = document.createElement('div');
+        header.className = 'build-section-header';
+        header.textContent = 'Unlock Upgrades';
+        this.optionsContainer.appendChild(header);
+
+        // Current tiers info
+        const tierInfo = document.createElement('div');
+        tierInfo.className = 'building-info';
+        tierInfo.innerHTML = `
+            <div>Weapon Tier: ${building.weaponLevel}/${config.maxWeaponTier}</div>
+            <div>Armor Tier: ${building.armorLevel}/${config.maxArmorTier}</div>
+        `;
+        this.optionsContainer.appendChild(tierInfo);
+
+        // Get required building level for next tier
+        // Tier 2 = level 1, Tier 3 = level 2, Tier 4 = level 3
+        const getRequiredLevel = (nextTier) => Math.max(1, nextTier - 1);
+
+        // Unlock Weapon Tier button
+        if (building.weaponLevel < config.maxWeaponTier) {
+            const nextTier = building.weaponLevel + 1;
+            const requiredLevel = getRequiredLevel(nextTier);
+            const meetsLevelReq = building.level >= requiredLevel;
+            const cost = config.tierUnlockWeaponCost[building.weaponLevel - 1];
+            const canAfford = this.game.gold >= cost;
+
+            if (!meetsLevelReq) {
+                // Show requirement message
+                const reqInfo = document.createElement('div');
+                reqInfo.className = 'building-option disabled';
+                reqInfo.innerHTML = `<span class="option-icon">🗡️</span><span class="option-text">Weapon Tier ${nextTier} (needs Lv${requiredLevel})</span>`;
+                this.optionsContainer.appendChild(reqInfo);
+            } else {
+                this.addOption({
+                    icon: '🗡️',
+                    text: `Unlock Weapon Tier ${nextTier}`,
+                    cost: cost,
+                    enabled: canAfford && building.constructed,
+                    onClick: () => this.unlockWeaponTier(building, cost)
+                });
             }
-            return;
+        } else {
+            // Max tier reached
+            const maxInfo = document.createElement('div');
+            maxInfo.className = 'building-option disabled';
+            maxInfo.innerHTML = `<span class="option-icon">🗡️</span><span class="option-text">Weapons: Max Tier</span>`;
+            this.optionsContainer.appendChild(maxInfo);
         }
 
-        this.game.gold -= cost;
-        this.game.weaponUpgradeLevel = (this.game.weaponUpgradeLevel || 0) + 1;
+        // Unlock Armor Tier button
+        if (building.armorLevel < config.maxArmorTier) {
+            const nextTier = building.armorLevel + 1;
+            const requiredLevel = getRequiredLevel(nextTier);
+            const meetsLevelReq = building.level >= requiredLevel;
+            const cost = config.tierUnlockArmorCost[building.armorLevel - 1];
+            const canAfford = this.game.gold >= cost;
 
-        // Apply damage bonus to all heroes - use GameConfig value
-        const damageBonus = COMBAT_CONSTANTS.BLACKSMITH_WEAPON_BONUS;
-        for (const entity of this.game.entities) {
-            if (entity.team === 'player') {
-                entity.damage = (entity.baseDamage || entity.damage) + (this.game.weaponUpgradeLevel * damageBonus);
+            if (!meetsLevelReq) {
+                // Show requirement message
+                const reqInfo = document.createElement('div');
+                reqInfo.className = 'building-option disabled';
+                reqInfo.innerHTML = `<span class="option-icon">🛡️</span><span class="option-text">Armor Tier ${nextTier} (needs Lv${requiredLevel})</span>`;
+                this.optionsContainer.appendChild(reqInfo);
+            } else {
+                this.addOption({
+                    icon: '🛡️',
+                    text: `Unlock Armor Tier ${nextTier}`,
+                    cost: cost,
+                    enabled: canAfford && building.constructed,
+                    onClick: () => this.unlockArmorTier(building, cost)
+                });
             }
+        } else {
+            // Max tier reached
+            const maxInfo = document.createElement('div');
+            maxInfo.className = 'building-option disabled';
+            maxInfo.innerHTML = `<span class="option-icon">🛡️</span><span class="option-text">Armor: Max Tier</span>`;
+            this.optionsContainer.appendChild(maxInfo);
         }
 
-        this.game.showMessage(`Weapons upgraded! All heroes +${damageBonus} damage`);
+        // Hero upgrade prices info
+        const pricesHeader = document.createElement('div');
+        pricesHeader.className = 'build-section-header';
+        pricesHeader.style.marginTop = '10px';
+        pricesHeader.textContent = 'Hero Upgrade Costs';
+        this.optionsContainer.appendChild(pricesHeader);
 
-        // Play upgrade sound
-        if (this.game.playSound) {
-            this.game.playSound(SOUNDS.UPGRADE_COMPLETE);
-        }
-
-        console.log(`Weapon upgrade level ${this.game.weaponUpgradeLevel}`);
+        const pricesInfo = document.createElement('div');
+        pricesInfo.className = 'building-info';
+        pricesInfo.innerHTML = `
+            <div style="font-size: 11px; color: #aaa;">Heroes visit to buy upgrades:</div>
+            <div>Weapons: ${config.heroWeaponPrices.slice(0, building.weaponLevel).map((p, i) => `Lv${i+2}:${p}g`).join(', ') || 'None'}</div>
+            <div>Armor: ${config.heroArmorPrices.slice(0, building.armorLevel).map((p, i) => `Lv${i+2}:${p}g`).join(', ') || 'None'}</div>
+        `;
+        this.optionsContainer.appendChild(pricesInfo);
     }
 
     /**
-     * Upgrade armor (Blacksmith)
+     * Unlock next weapon tier at Blacksmith (player pays)
      */
-    upgradeArmor(cost) {
+    unlockWeaponTier(building, cost) {
         if (this.game.gold < cost) {
             this.game.showMessage(`Need ${cost} gold!`);
             if (this.game.playSound) {
@@ -725,24 +784,41 @@ export class BuildingMenu {
         }
 
         this.game.gold -= cost;
-        this.game.armorUpgradeLevel = (this.game.armorUpgradeLevel || 0) + 1;
+        building.unlockWeaponTier();
 
-        // Apply armor bonus to all heroes - use GameConfig value
-        const armorBonus = COMBAT_CONSTANTS.BLACKSMITH_ARMOR_BONUS;
-        for (const entity of this.game.entities) {
-            if (entity.team === 'player') {
-                entity.armor = (entity.baseArmor || entity.armor || 0) + (this.game.armorUpgradeLevel * armorBonus);
-            }
-        }
-
-        this.game.showMessage(`Armor upgraded! All heroes +${armorBonus} armor`);
+        this.game.showMessage(`Weapon Tier ${building.weaponLevel} unlocked! Heroes can now upgrade.`);
 
         // Play upgrade sound
         if (this.game.playSound) {
             this.game.playSound(SOUNDS.UPGRADE_COMPLETE);
         }
 
-        console.log(`Armor upgrade level ${this.game.armorUpgradeLevel}`);
+        console.log(`Blacksmith weapon tier unlocked: ${building.weaponLevel}`);
+    }
+
+    /**
+     * Unlock next armor tier at Blacksmith (player pays)
+     */
+    unlockArmorTier(building, cost) {
+        if (this.game.gold < cost) {
+            this.game.showMessage(`Need ${cost} gold!`);
+            if (this.game.playSound) {
+                this.game.playSound(SOUNDS.CLICK_DENY);
+            }
+            return;
+        }
+
+        this.game.gold -= cost;
+        building.unlockArmorTier();
+
+        this.game.showMessage(`Armor Tier ${building.armorLevel} unlocked! Heroes can now upgrade.`);
+
+        // Play upgrade sound
+        if (this.game.playSound) {
+            this.game.playSound(SOUNDS.UPGRADE_COMPLETE);
+        }
+
+        console.log(`Blacksmith armor tier unlocked: ${building.armorLevel}`);
     }
 
     /**

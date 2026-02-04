@@ -1077,6 +1077,36 @@ From smali: `attack_pause = 0x16` (22 ticks)
 - [x] First knight now attacks enemies (autoPlay = true, sightRange from config)
 - [x] Player units have correct speed (initFromUnitType called)
 
+### Phase 2.7.6: Monster XP Values Fix ✅ COMPLETE (2026-02-03)
+
+**Problem:** Heroes weren't leveling up from combat - monster XP values were ~10x too low.
+
+**Root Cause:** `deadExp` values in `GameConfig.js` didn't match original game's `Const.smali`.
+
+**Fixed Monster XP Values:**
+| Monster | Old XP | New XP (from smali) |
+|---------|--------|---------------------|
+| RAT | 50-100 | **500-1,500** |
+| TROLL | 200-400 | **3,000-4,000** |
+| GOBLIN | 100-200 | **1,000-2,000** |
+| GOBLIN_ARCHER | 100-200 | **1,000-2,000** |
+| SKELETON | 75-150 | **1,000-2,000** |
+| ZOMBIE | 100-200 | **1,500-2,500** |
+| VAMPIRE | 300-600 | **3,000-7,000** |
+| MINOTAUR | 400-800 | **2,000-6,000** |
+
+**Added Missing Monster Definitions:**
+- SPIDER: 2,000-5,000 XP (35 HP)
+- GARPY (Harpy): 1,200-4,800 XP (35 HP)
+- DUBOLOM (Tree Monster): 4,000-8,000 XP (90 HP)
+- GOLEM: 5,000-10,000 XP (120 HP)
+- GOBLIN_CHAMPION: 1,500-2,500 XP (35 HP)
+- GOBLIN_SHAMAN: 1,000-2,000 XP (25 HP)
+- RED_DRAGON: 7,000-12,000 XP (150 HP)
+- BLACK_DRAGON: 10,000-15,000 XP (200 HP)
+
+**Result:** Warriors (1,500 XP/level) now level up after 1-3 Rat kills instead of 15-30.
+
 ### Phase 2.8: Unit Training Progress ✅ COMPLETE (2026-02-02)
 - [x] Recruit units from guild buildings (DONE in earlier phase)
 - [x] Gold cost system (deduct from player gold) (DONE)
@@ -1107,26 +1137,64 @@ From smali: `attack_pause = 0x16` (22 ticks)
 | Gnome | 6s |
 | Default | 8s |
 
-### Phase 2.9: Shop Buildings (Blacksmith, Marketplace, Library)
-- [ ] **Blacksmith** - Hero weapon/armor upgrades
-  - [ ] Heroes automatically visit when they have gold
-  - [ ] Weapon upgrade tiers (Basic → Iron → Steel → Fine → Mithril → Legendary)
-  - [ ] Armor upgrade tiers (Cloth → Leather → Chain → Plate → Heavy → Mithril)
-  - [ ] Upgrade costs from GameConfig EQUIPMENT prices
-  - [ ] Visual feedback when hero upgrades
-- [ ] **Marketplace** - Potions and accessories
-  - [ ] Heroes can buy: Healing Potions, Cure Potions
-  - [ ] Accessories: Ring of Protection, Amulet of Teleportation, Poison Coating
-  - [ ] Auto-purchase behavior for AI heroes (buy potions when gold > threshold)
-- [ ] **Library** - Equipment enchantments
-  - [ ] Enchant weapon (+1 to +3 damage bonus)
-  - [ ] Enchant armor (+1 to +3 defense bonus)
-  - [ ] Enchantment costs and limits
-- [ ] Test full inventory system with all shop interactions
+### Phase 2.9: Shop Buildings (Blacksmith, Marketplace, Library) 🔄 IN PROGRESS
+
+#### Phase 2.9.1: Blacksmith Building 🎯 CURRENT
+The Blacksmith has TWO separate systems (from smali analysis):
+
+**1. Player Unlocks (Building Menu):**
+- Player pays to unlock weapon/armor upgrade TIERS at the building
+- Unlocking increases `building.weaponLevel` / `building.armorLevel`
+- These are GLOBAL maximums - all heroes can then upgrade to that tier
+
+**2. Hero Upgrades (when hero visits):**
+- Heroes pay personal gold to upgrade their `hero.weaponLevel` / `hero.armorLevel`
+- Can only upgrade UP TO the building's unlocked tier
+- Wizards (types 7,8,9) cannot use blacksmith (return -1)
+
+**Costs from Const.smali:**
+
+*Player costs to UNLOCK tiers (COST_BLACKSMITH_UPGRADE_WEAPON/ARMOR):*
+| Tier | Unlock Cost | Required Blacksmith Level |
+|------|-------------|---------------------------|
+| 1→2 | 200 gold | Level 1 (default) |
+| 2→3 | 300 gold | Level 2 |
+| 3→4 | 400 gold | Level 3 |
+
+*Hero costs to PURCHASE upgrades (WEAPON_UPGRADE_PRICES):*
+| Level | Weapon Cost | Armor Cost |
+|-------|-------------|------------|
+| 1→2 | 100 gold | 300 gold |
+| 2→3 | 300 gold | 900 gold |
+| 3→4 | 600 gold | 1800 gold |
+
+*Building upgrade costs (COST_BLACKSMITH_UPGRADE):*
+| Level | Cost |
+|-------|------|
+| 1→2 | 570 gold |
+| 2→3 | 760 gold |
+
+**Tasks:**
+- [ ] Add `weaponLevel` and `armorLevel` fields to Building.js (tracks unlocked tiers)
+- [ ] Add unlock buttons to BuildingMenu.js for Blacksmith
+- [ ] Display current unlocked tier in building menu
+- [ ] Hero auto-visit logic (RND_*_GO_BLACKSMITH chances from smali)
+- [ ] Hero upgrade logic (check building tier, deduct gold, update weaponLevel)
+- [ ] Visual feedback when upgrade happens
+- [ ] Blacksmith building upgrades (levels 1-3)
+
+#### Phase 2.9.2: Marketplace (Future)
+- [ ] Heroes can buy: Healing Potions, Cure Potions
+- [ ] Accessories: Ring of Protection, Amulet of Teleportation, Poison Coating
+- [ ] Auto-purchase behavior for AI heroes (buy potions when gold > threshold)
+
+#### Phase 2.9.3: Library (Future)
+- [ ] Enchant weapon (+1 to +3 damage bonus)
+- [ ] Enchant armor (+1 to +3 defense bonus)
+- [ ] Enchantment costs and limits
 
 **Implementation Notes:**
 - Buildings already placeable from Castle menu
-- UnitMenu shows upgrade options when hero is near shop buildings
 - Need to implement: hero AI to seek out shops, automatic purchasing logic
 - Inventory.js already has buy/upgrade methods ready
 

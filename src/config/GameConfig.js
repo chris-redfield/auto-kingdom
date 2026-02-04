@@ -1460,16 +1460,52 @@ export const GAME_RULES = {
 };
 
 // =============================================================================
-// BLACKSMITH UPGRADES
+// BLACKSMITH UPGRADES (from Const.smali)
 // =============================================================================
 export const BLACKSMITH_CONFIG = {
-    // Weapon upgrade costs per level [0->1, 1->2, 2->3]
-    WEAPON_UPGRADE_COSTS: [500, 1000, 2000],
-    // Armor upgrade costs per level
-    ARMOR_UPGRADE_COSTS: [500, 1000, 2000],
-    // Max upgrade levels
-    MAX_WEAPON_LEVEL: 3,
-    MAX_ARMOR_LEVEL: 3,
+    // Max upgrade levels (tiers 1-4)
+    MAX_WEAPON_TIER: 4,
+    MAX_ARMOR_TIER: 4,
+
+    // -------------------------------------------------------------------------
+    // PLAYER costs to UNLOCK tiers at the Blacksmith building
+    // (COST_BLACKSMITH_UPGRADE_WEAPON/ARMOR from smali)
+    // Index = tier being unlocked (1→2, 2→3, 3→4)
+    // -------------------------------------------------------------------------
+    TIER_UNLOCK_WEAPON: [200, 300, 400],    // 0xc8, 0x12c, 0x190
+    TIER_UNLOCK_ARMOR: [200, 300, 400],     // 0xc8, 0x12c, 0x190
+
+    // -------------------------------------------------------------------------
+    // HERO costs to PURCHASE upgrades (using their personal gold)
+    // (WEAPON_UPGRADE_PRICES / ARMOR_UPGRADE_PRICES from smali)
+    // Index = current level (0=none, so price[level-1] to upgrade FROM that level)
+    // Format: [lv1→2, lv2→3, lv3→4]
+    // -------------------------------------------------------------------------
+    HERO_WEAPON_PRICES: [100, 300, 600],    // 0x64, 0x12c, 0x258
+    HERO_ARMOR_PRICES: [300, 900, 1800],    // 0x12c, 0x384, 0x708
+
+    // -------------------------------------------------------------------------
+    // Building upgrade costs (COST_BLACKSMITH_UPGRADE from smali)
+    // Index = level being upgraded TO (1→2, 2→3)
+    // -------------------------------------------------------------------------
+    BUILDING_UPGRADE_COSTS: [570, 760],     // 0x23a, 0x2f8
+
+    // -------------------------------------------------------------------------
+    // Hero type chances to visit blacksmith (RND_*_GO_BLACKSMITH from smali)
+    // Higher = more likely. -1 = never visits (wizards)
+    // Used for AI hero behavior
+    // -------------------------------------------------------------------------
+    VISIT_CHANCE: {
+        WARRIOR: 100,       // 0x64
+        RANGER: 100,        // 0x64
+        PALADIN: 120,       // 0x78
+        BARBARIAN: 40,      // 0x28
+        DWARF: 50,          // 0x32
+        ELF: 120,           // 0x78
+        WIZARD: -1,         // Can't use blacksmith
+        WIZARD_HEALER: -1,
+        WIZARD_NECROMANCER: -1,
+    },
 };
 
 // =============================================================================

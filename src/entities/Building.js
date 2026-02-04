@@ -59,6 +59,11 @@ export class Building extends Entity {
         this.constructed = true;  // False during construction
         this.level = 1;           // Upgrade level
 
+        // Blacksmith upgrade tiers (max level heroes can purchase)
+        // These are unlocked by the player paying gold
+        this.weaponLevel = 1;     // Max weapon tier available (1-4)
+        this.armorLevel = 1;      // Max armor tier available (1-4)
+
         // Construction properties
         this.constructionProgress = 0;    // 0 to 1
         this.constructionTime = getBuildingConstructionTime(buildingType);
@@ -516,7 +521,59 @@ export class Building extends Entity {
             buildingType: this.buildingType,
             team: this.team,
             level: this.level,
-            constructed: this.constructed
+            constructed: this.constructed,
+            weaponLevel: this.weaponLevel,
+            armorLevel: this.armorLevel
         };
+    }
+
+    /**
+     * Unlock next weapon tier at Blacksmith
+     * @returns {boolean} True if upgrade succeeded
+     */
+    unlockWeaponTier() {
+        if (this.weaponLevel >= 4) {
+            console.log('Weapon tier already at max (4)');
+            return false;
+        }
+        this.weaponLevel++;
+        console.log(`Blacksmith weapon tier unlocked: ${this.weaponLevel}`);
+        return true;
+    }
+
+    /**
+     * Unlock next armor tier at Blacksmith
+     * @returns {boolean} True if upgrade succeeded
+     */
+    unlockArmorTier() {
+        if (this.armorLevel >= 4) {
+            console.log('Armor tier already at max (4)');
+            return false;
+        }
+        this.armorLevel++;
+        console.log(`Blacksmith armor tier unlocked: ${this.armorLevel}`);
+        return true;
+    }
+
+    /**
+     * Check if a hero can upgrade their weapon at this Blacksmith
+     * @param {DynamicEntity} hero - Hero to check
+     * @returns {boolean} True if hero can upgrade
+     */
+    canHeroUpgradeWeapon(hero) {
+        if (!hero) return false;
+        // Hero's weapon level must be below building's unlocked tier
+        return hero.weaponLevel < this.weaponLevel;
+    }
+
+    /**
+     * Check if a hero can upgrade their armor at this Blacksmith
+     * @param {DynamicEntity} hero - Hero to check
+     * @returns {boolean} True if hero can upgrade
+     */
+    canHeroUpgradeArmor(hero) {
+        if (!hero) return false;
+        // Hero's armor level must be below building's unlocked tier
+        return hero.armorLevel < this.armorLevel;
     }
 }
