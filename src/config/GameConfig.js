@@ -352,6 +352,7 @@ export const UNIT_BASE_STATS = {
 
     // TYPE_RAT (0x50) - Giant Rat
     // Smali: life=0x13=19, damage=6-7
+    // XP: RAT_MIN_EXP=0x1f4 (500), RAT_MAX_EXP=0x5dc (1500)
     [UNIT_TYPE.RAT]: {
         speed: 0xc00,
         levelUp: 0,             // Monsters don't level up
@@ -372,12 +373,13 @@ export const UNIT_BASE_STATS = {
         life: 19,               // Was 12, smali=0x13
         minDamage: 6,           // Was 2, smali=6
         maxDamage: 7,           // Was 5, smali=7
-        deadExp: [50, 100],
+        deadExp: [500, 1500],   // Fixed: was [50, 100], smali=0x1f4-0x5dc
         deadGold: [5, 15],
     },
 
     // TYPE_TROLL (0x57) - Troll
     // Smali: life=0x44=68, damage=9-12
+    // XP: TROLL_MIN_EXP=0xbb8 (3000), TROLL_MAX_EXP=0xfa0 (4000)
     [UNIT_TYPE.TROLL]: {
         speed: 0x800,
         levelUp: 0,
@@ -398,12 +400,13 @@ export const UNIT_BASE_STATS = {
         life: 68,               // Was 80, smali=0x44
         minDamage: 9,           // Was 10, smali=9
         maxDamage: 12,          // Was 20, smali=0xc=12
-        deadExp: [200, 400],
+        deadExp: [3000, 4000],  // Fixed: was [200, 400], smali=0xbb8-0xfa0
         deadGold: [30, 75],
     },
 
     // TYPE_GOBLIN (0x59) - Goblin
     // Smali: life=0x14=20, damage=5-8
+    // XP: GOBLIN_MIN_EXP=0x3e8 (1000), GOBLIN_MAX_EXP=0x7d0 (2000)
     [UNIT_TYPE.GOBLIN]: {
         speed: 0xc00,
         levelUp: 0,
@@ -424,12 +427,13 @@ export const UNIT_BASE_STATS = {
         life: 20,               // Was 25, smali=0x14
         minDamage: 5,
         maxDamage: 8,           // Was 12, smali=8
-        deadExp: [100, 200],
+        deadExp: [1000, 2000],  // Fixed: was [100, 200], smali=0x3e8-0x7d0
         deadGold: [15, 40],
     },
 
     // TYPE_GOBLIN_ARCHER (0x5B)
     // Smali: life=20, damage=6-10, ranged=20
+    // XP: GOBLIN_ARCHER_MIN_EXP=0x3e8 (1000), GOBLIN_ARCHER_MAX_EXP=0x7d0 (2000)
     [UNIT_TYPE.GOBLIN_ARCHER]: {
         speed: 0xc00,
         levelUp: 0,
@@ -450,12 +454,13 @@ export const UNIT_BASE_STATS = {
         life: 20,
         minDamage: 6,           // Was 4, smali=6
         maxDamage: 10,
-        deadExp: [100, 200],
+        deadExp: [1000, 2000],  // Fixed: was [100, 200], smali=0x3e8-0x7d0
         deadGold: [15, 40],
     },
 
     // TYPE_SKELETON (0x54) - Skeleton
     // Smali: life=30, damage=6-6, dodge=0x58=88
+    // XP: SKELET_MIN_EXP=0x3e8 (1000), SKELET_MAX_EXP=0x7d0 (2000)
     [UNIT_TYPE.SKELETON]: {
         speed: 0x800,
         levelUp: 0,
@@ -476,12 +481,13 @@ export const UNIT_BASE_STATS = {
         life: 30,
         minDamage: 6,
         maxDamage: 6,           // Was 14, smali=6 (same as min)
-        deadExp: [75, 150],
+        deadExp: [1000, 2000],  // Fixed: was [75, 150], smali=0x3e8-0x7d0
         deadGold: [10, 30],
     },
 
     // TYPE_ZOMBIE (0x56) - Zombie
     // Smali: life=45, damage=6-9
+    // XP: ZOMBIE_MIN_EXP=0x5dc (1500), ZOMBIE_MAX_EXP=0x9c4 (2500)
     [UNIT_TYPE.ZOMBIE]: {
         speed: 0x400,           // Slow
         levelUp: 0,
@@ -502,12 +508,13 @@ export const UNIT_BASE_STATS = {
         life: 45,
         minDamage: 6,           // Was 8, smali=6
         maxDamage: 9,           // Was 16, smali=9
-        deadExp: [100, 200],
+        deadExp: [1500, 2500],  // Fixed: was [100, 200], smali=0x5dc-0x9c4
         deadGold: [15, 35],
     },
 
     // TYPE_VAMPIRE (0x55) - Vampire
     // Smali: life=0x32=50, damage=12-15
+    // XP: VAMPIRE_MIN_EXP=0xbb8 (3000), VAMPIRE_MAX_EXP=0x1b58 (7000)
     [UNIT_TYPE.VAMPIRE]: {
         speed: 0x800,
         levelUp: 0,
@@ -528,12 +535,13 @@ export const UNIT_BASE_STATS = {
         life: 50,               // Was 70, smali=0x32=50
         minDamage: 12,
         maxDamage: 15,          // Was 25, smali=0xf=15
-        deadExp: [300, 600],
+        deadExp: [3000, 7000],  // Fixed: was [300, 600], smali=0xbb8-0x1b58
         deadGold: [75, 150],
     },
 
     // TYPE_MINOTAUR (0x51) - Minotaur
     // Smali: life=0x4b=75, damage=10-14
+    // XP: MINOTAUR_MIN_EXP=0x7d0 (2000), MINOTAUR_MAX_EXP=0x1770 (6000)
     [UNIT_TYPE.MINOTAUR]: {
         speed: 0x800,
         levelUp: 0,
@@ -554,8 +562,217 @@ export const UNIT_BASE_STATS = {
         life: 75,               // Was 100, smali=0x4b=75
         minDamage: 10,          // Was 15, smali=0xa=10
         maxDamage: 14,          // Was 30, smali=0xe=14
-        deadExp: [400, 800],
+        deadExp: [2000, 6000],  // Fixed: was [400, 800], smali=0x7d0-0x1770
         deadGold: [100, 200],
+    },
+
+    // TYPE_SPIDER (0x52) - Spider
+    // XP: SPIDER_MIN_EXP=0x7d0 (2000), SPIDER_MAX_EXP=0x1388 (5000)
+    // Life: 0x23=35, Speed: 0x1000=4096
+    [UNIT_TYPE.SPIDER]: {
+        speed: 0x1000,          // Fast
+        levelUp: 0,
+        maxLevel: 1,
+        strength: 15,
+        intelligence: 3,
+        artifice: 0,
+        vitality: 12,
+        willpower: 5,
+        H2H: 45,
+        ranged: 0,
+        parry: 20,
+        dodge: 40,
+        resist: 15,
+        attackRange: 1,
+        attackType: ATTACK_TYPE.MELEE,
+        visionRange: 5,         // SPIDER_VISION_RANGE = 0x5
+        life: 35,               // SPIDER_LIFE = 0x23
+        minDamage: 8,
+        maxDamage: 12,
+        deadExp: [2000, 5000],  // smali=0x7d0-0x1388
+        deadGold: [25, 60],
+    },
+
+    // TYPE_GARPY (0x53) - Harpy
+    // XP: GARPY_MIN_EXP=0x4b0 (1200), GARPY_MAX_EXP=0x12c0 (4800)
+    // Life: 0x23=35, Speed: 0xc00=3072
+    [UNIT_TYPE.GARPY]: {
+        speed: 0xc00,
+        levelUp: 0,
+        maxLevel: 1,
+        strength: 12,
+        intelligence: 8,
+        artifice: 5,
+        vitality: 10,
+        willpower: 8,
+        H2H: 40,
+        ranged: 0,
+        parry: 25,
+        dodge: 50,              // Flying creature - hard to hit
+        resist: 20,
+        attackRange: 1,
+        attackType: ATTACK_TYPE.MELEE,
+        visionRange: 10,        // GARPY_VISION_RANGE = 0xa
+        life: 35,               // GARPY_LIFE = 0x23
+        minDamage: 7,
+        maxDamage: 11,
+        deadExp: [1200, 4800],  // smali=0x4b0-0x12c0
+        deadGold: [30, 70],
+    },
+
+    // TYPE_DUBOLOM (0x58) - Tree Monster
+    // XP: DUBOLOM_MIN_EXP=0xfa0 (4000), DUBOLOM_MAX_EXP=0x1f40 (8000)
+    [UNIT_TYPE.DUBOLOM]: {
+        speed: 0x600,           // Slow
+        levelUp: 0,
+        maxLevel: 1,
+        strength: 28,
+        intelligence: 2,
+        artifice: 0,
+        vitality: 25,
+        willpower: 5,
+        H2H: 55,
+        ranged: 0,
+        parry: 35,
+        dodge: 5,               // Tree - doesn't dodge
+        resist: 30,
+        attackRange: 1,
+        attackType: ATTACK_TYPE.MELEE,
+        visionRange: 6,
+        life: 90,
+        minDamage: 12,
+        maxDamage: 18,
+        deadExp: [4000, 8000],  // smali=0xfa0-0x1f40
+        deadGold: [50, 120],
+    },
+
+    // TYPE_GOLEM (0x5C) - Golem
+    // XP: GOLEM_MIN_EXP=0x1388 (5000), GOLEM_MAX_EXP=0x2710 (10000)
+    [UNIT_TYPE.GOLEM]: {
+        speed: 0x400,           // Very slow
+        levelUp: 0,
+        maxLevel: 1,
+        strength: 35,
+        intelligence: 1,
+        artifice: 0,
+        vitality: 30,
+        willpower: 0,
+        H2H: 60,
+        ranged: 0,
+        parry: 40,
+        dodge: 0,               // Golem - no dodge
+        resist: 70,             // High magic resist
+        attackRange: 1,
+        attackType: ATTACK_TYPE.MELEE,
+        visionRange: 5,
+        life: 120,
+        minDamage: 15,
+        maxDamage: 25,
+        deadExp: [5000, 10000], // smali=0x1388-0x2710
+        deadGold: [80, 180],
+    },
+
+    // TYPE_GOBLIN_CHAMPION (0x5A) - Stronger goblin
+    // XP: GOBLIN_CHAMPION_MIN_EXP=0x5dc (1500), GOBLIN_CHAMPION_MAX_EXP=0x9c4 (2500)
+    [UNIT_TYPE.GOBLIN_CHAMPION]: {
+        speed: 0xa00,
+        levelUp: 0,
+        maxLevel: 1,
+        strength: 15,
+        intelligence: 7,
+        artifice: 8,
+        vitality: 12,
+        willpower: 5,
+        H2H: 50,
+        ranged: 0,
+        parry: 30,
+        dodge: 30,
+        resist: 20,
+        attackRange: 1,
+        attackType: ATTACK_TYPE.MELEE,
+        visionRange: 8,
+        life: 35,
+        minDamage: 8,
+        maxDamage: 14,
+        deadExp: [1500, 2500],  // smali=0x5dc-0x9c4
+        deadGold: [25, 60],
+    },
+
+    // TYPE_GOBLIN_SHAMAN (0x5D) - Magic goblin
+    // XP: GOBLIN_SHAMAN_MIN_EXP=0x3e8 (1000), GOBLIN_SHAMAN_MAX_EXP=0x7d0 (2000)
+    [UNIT_TYPE.GOBLIN_SHAMAN]: {
+        speed: 0x800,
+        levelUp: 0,
+        maxLevel: 1,
+        strength: 6,
+        intelligence: 15,
+        artifice: 5,
+        vitality: 8,
+        willpower: 12,
+        H2H: 20,
+        ranged: 0,
+        parry: 15,
+        dodge: 25,
+        resist: 40,
+        attackRange: 6,
+        attackType: ATTACK_TYPE.MAGIC,
+        visionRange: 8,
+        life: 25,
+        minDamage: 6,
+        maxDamage: 12,
+        deadExp: [1000, 2000],  // smali=0x3e8-0x7d0
+        deadGold: [20, 50],
+    },
+
+    // TYPE_RED_DRAGON (0x5E) - Red Dragon
+    [UNIT_TYPE.RED_DRAGON]: {
+        speed: 0x800,
+        levelUp: 0,
+        maxLevel: 1,
+        strength: 35,
+        intelligence: 20,
+        artifice: 15,
+        vitality: 30,
+        willpower: 25,
+        H2H: 70,
+        ranged: 60,
+        parry: 40,
+        dodge: 30,
+        resist: 60,
+        attackRange: 5,
+        attackType: ATTACK_TYPE.RANGED,
+        visionRange: 12,
+        life: 150,
+        minDamage: 20,
+        maxDamage: 45,
+        deadExp: [7000, 12000],
+        deadGold: [200, 500],
+    },
+
+    // TYPE_BLACK_DRAGON (0x5F) - Black Dragon (stronger)
+    // XP: BLACK_DRAGON_MIN_EXP=0x2710 (10000), BLACK_DRAGON_MAX_EXP=0x3a98 (15000)
+    [UNIT_TYPE.BLACK_DRAGON]: {
+        speed: 0x800,
+        levelUp: 0,
+        maxLevel: 1,
+        strength: 40,
+        intelligence: 25,
+        artifice: 18,
+        vitality: 35,
+        willpower: 30,
+        H2H: 75,
+        ranged: 70,
+        parry: 45,
+        dodge: 35,
+        resist: 70,
+        attackRange: 6,
+        attackType: ATTACK_TYPE.RANGED,
+        visionRange: 14,
+        life: 200,
+        minDamage: 25,
+        maxDamage: 55,
+        deadExp: [10000, 15000], // smali=0x2710-0x3a98
+        deadGold: [300, 700],
     },
 
     // TYPE_DRAGON (0x61) - Dragon
