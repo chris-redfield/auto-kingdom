@@ -8,7 +8,7 @@
  * - XP and level progress
  */
 
-import { EQUIPMENT, ITEMS, ATTACK_TYPE, getWeaponID } from '../config/GameConfig.js';
+import { EQUIPMENT, ITEMS, ATTACK_TYPE, getWeaponID, BLACKSMITH_CONFIG } from '../config/GameConfig.js';
 import { SOUNDS } from '../audio/SoundConstants.js';
 import { getWeaponName, getArmorName } from '../entities/Inventory.js';
 
@@ -186,32 +186,50 @@ export class UnitMenu {
         this.addInfoRow('Armor', `${armorName}${enchantAText}`, 'armor-icon');
 
         // Upgrade options (if near blacksmith)
-        if (this.isNearBlacksmith(unit)) {
-            const canUpgradeWeapon = weaponLevel < EQUIPMENT.WEAPON_UPGRADE_PRICES.length;
-            const canUpgradeArmor = armorLevel < EQUIPMENT.ARMOR_UPGRADE_PRICES.length;
+        const blacksmith = this.getNearestBlacksmith(unit);
+        if (blacksmith) {
+            // Hero can only upgrade up to the blacksmith's unlocked tier
+            const blacksmithWeaponTier = blacksmith.weaponLevel || 1;
+            const blacksmithArmorTier = blacksmith.armorLevel || 1;
+
+            // Can upgrade if: hero level < blacksmith tier AND within price array bounds
+            // HERO prices are 0-indexed: [0]=lv1→2, [1]=lv2→3, [2]=lv3→4
+            const weaponPriceIndex = weaponLevel - 1;
+            const armorPriceIndex = armorLevel - 1;
+
+            const canUpgradeWeapon = weaponLevel < blacksmithWeaponTier &&
+                                     weaponPriceIndex < BLACKSMITH_CONFIG.HERO_WEAPON_PRICES.length;
+            const canUpgradeArmor = armorLevel < blacksmithArmorTier &&
+                                    armorPriceIndex < BLACKSMITH_CONFIG.HERO_ARMOR_PRICES.length;
 
             if (canUpgradeWeapon) {
-                const cost = EQUIPMENT.WEAPON_UPGRADE_PRICES[weaponLevel];
+                const cost = BLACKSMITH_CONFIG.HERO_WEAPON_PRICES[weaponPriceIndex];
                 const canAfford = (unit.gold || 0) >= cost;
                 this.addOption({
                     icon: '🗡️',
-                    text: 'Upgrade Weapon',
+                    text: `Upgrade Weapon (Tier ${weaponLevel + 1}/${blacksmithWeaponTier})`,
                     cost: cost,
                     enabled: canAfford,
                     onClick: () => this.upgradeWeapon(unit, cost)
                 });
+            } else if (weaponLevel >= blacksmithWeaponTier && weaponPriceIndex < BLACKSMITH_CONFIG.HERO_WEAPON_PRICES.length) {
+                // Show disabled option explaining why
+                this.addInfoRow('Weapon', `Max tier (${blacksmithWeaponTier}) - Upgrade blacksmith`);
             }
 
             if (canUpgradeArmor) {
-                const cost = EQUIPMENT.ARMOR_UPGRADE_PRICES[armorLevel];
+                const cost = BLACKSMITH_CONFIG.HERO_ARMOR_PRICES[armorPriceIndex];
                 const canAfford = (unit.gold || 0) >= cost;
                 this.addOption({
                     icon: '🛡️',
-                    text: 'Upgrade Armor',
+                    text: `Upgrade Armor (Tier ${armorLevel + 1}/${blacksmithArmorTier})`,
                     cost: cost,
                     enabled: canAfford,
                     onClick: () => this.upgradeArmor(unit, cost)
                 });
+            } else if (armorLevel >= blacksmithArmorTier && armorPriceIndex < BLACKSMITH_CONFIG.HERO_ARMOR_PRICES.length) {
+                // Show disabled option explaining why
+                this.addInfoRow('Armor', `Max tier (${blacksmithArmorTier}) - Upgrade blacksmith`);
             }
         }
 
@@ -526,6 +544,25 @@ export class UnitMenu {
         return false;
     }
 
+    /**
+     * Get the nearest blacksmith building (for checking upgrade tiers)
+     */
+    getNearestBlacksmith(unit) {
+        if (!this.game.buildings) return null;
+
+        const range = 5;
+        for (const building of this.game.buildings) {
+            if (building.buildingType === 0x27 && building.team === 0) {
+                const di = Math.abs(unit.gridI - building.gridI);
+                const dj = Math.abs(unit.gridJ - building.gridJ);
+                if (di <= range && dj <= range) {
+                    return building;
+                }
+            }
+        }
+        return null;
+    }
+
     // =========================================================================
     // ACTIONS
     // =========================================================================
@@ -549,7 +586,7 @@ export class UnitMenu {
             this.game.showMessage('Weapon upgraded!');
             this.playSound(SOUNDS.UPGRADE_COMPLETE);
             // Refresh display to show new stats
-            this.showForUnit(unit);
+            this.show(unit);
         }
     }
 
@@ -569,7 +606,7 @@ export class UnitMenu {
             this.game.showMessage('Armor upgraded!');
             this.playSound(SOUNDS.UPGRADE_COMPLETE);
             // Refresh display to show new stats
-            this.showForUnit(unit);
+            this.show(unit);
         }
     }
 

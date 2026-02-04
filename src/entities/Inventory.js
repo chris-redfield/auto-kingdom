@@ -7,7 +7,7 @@
  * - Accessories (rings, amulets)
  */
 
-import { EQUIPMENT, ITEMS, getWeaponID } from '../config/GameConfig.js';
+import { EQUIPMENT, ITEMS, getWeaponID, BLACKSMITH_CONFIG } from '../config/GameConfig.js';
 
 /**
  * Inventory class for managing hero equipment and items
@@ -56,11 +56,13 @@ export class Inventory {
      * @returns {boolean} Success
      */
     upgradeWeapon() {
-        if (this.weaponLevel >= EQUIPMENT.WEAPON_UPGRADE_PRICES.length - 1) {
+        // HERO_WEAPON_PRICES is 0-indexed: [0]=lv1→2, [1]=lv2→3, [2]=lv3→4
+        const priceIndex = this.weaponLevel - 1;
+        if (priceIndex >= BLACKSMITH_CONFIG.HERO_WEAPON_PRICES.length) {
             return false;  // Already max level
         }
 
-        const price = EQUIPMENT.WEAPON_UPGRADE_PRICES[this.weaponLevel];
+        const price = BLACKSMITH_CONFIG.HERO_WEAPON_PRICES[priceIndex];
         if (this.owner.gold >= price) {
             this.owner.gold -= price;
             this.weaponLevel++;
@@ -110,11 +112,13 @@ export class Inventory {
      * @returns {boolean} Success
      */
     upgradeArmor() {
-        if (this.armorLevel >= EQUIPMENT.ARMOR_UPGRADE_PRICES.length - 1) {
+        // HERO_ARMOR_PRICES is 0-indexed: [0]=lv1→2, [1]=lv2→3, [2]=lv3→4
+        const priceIndex = this.armorLevel - 1;
+        if (priceIndex >= BLACKSMITH_CONFIG.HERO_ARMOR_PRICES.length) {
             return false;
         }
 
-        const price = EQUIPMENT.ARMOR_UPGRADE_PRICES[this.armorLevel];
+        const price = BLACKSMITH_CONFIG.HERO_ARMOR_PRICES[priceIndex];
         if (this.owner.gold >= price) {
             this.owner.gold -= price;
             this.armorLevel++;

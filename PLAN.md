@@ -1245,6 +1245,11 @@ The Blacksmith has TWO separate systems (from smali analysis):
 **Known Issues (TODO):**
 - Heroes path to the SOUTH of the blacksmith instead of the correct entrance position. The pathfinding target tiles need adjustment to match the original game's building entry points.
 
+5. **Manual upgrade buttons ignored blacksmith tier:**
+   - Root cause: UnitMenu's upgrade buttons only checked if more levels existed, not the blacksmith's unlocked tier
+   - Fix: Added `getNearestBlacksmith()` helper and check `blacksmith.weaponLevel`/`armorLevel` before showing upgrade buttons
+   - Also shows helpful message when at max tier: "Max tier (X) - Upgrade blacksmith"
+
 #### Phase 2.9.2: Marketplace (Future)
 - [ ] Heroes can buy: Healing Potions, Cure Potions
 - [ ] Accessories: Ring of Protection, Amulet of Teleportation, Poison Coating
