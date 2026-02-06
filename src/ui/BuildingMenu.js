@@ -765,8 +765,8 @@ export class BuildingMenu {
         pricesInfo.className = 'building-info';
         pricesInfo.innerHTML = `
             <div style="font-size: 11px; color: #aaa;">Heroes visit to buy upgrades:</div>
-            <div>Weapons: ${config.heroWeaponPrices.slice(0, building.weaponLevel).map((p, i) => `Lv${i+2}:${p}g`).join(', ') || 'None'}</div>
-            <div>Armor: ${config.heroArmorPrices.slice(0, building.armorLevel).map((p, i) => `Lv${i+2}:${p}g`).join(', ') || 'None'}</div>
+            <div>Weapons: ${config.heroWeaponPrices.slice(0, building.weaponLevel - 1).map((p, i) => `Lv${i+2}:${p}g`).join(', ') || 'None yet - unlock a tier!'}</div>
+            <div>Armor: ${config.heroArmorPrices.slice(0, building.armorLevel - 1).map((p, i) => `Lv${i+2}:${p}g`).join(', ') || 'None yet - unlock a tier!'}</div>
         `;
         this.optionsContainer.appendChild(pricesInfo);
     }

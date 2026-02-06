@@ -63,8 +63,8 @@ export class Building extends Entity {
         // These are unlocked by the player paying gold
         // Start at 2 so heroes at level 1 can buy their first upgrade
         // Player then upgrades building to unlock tiers 3 and 4
-        this.weaponLevel = 2;     // Max weapon tier available (1-4)
-        this.armorLevel = 2;      // Max armor tier available (1-4)
+        this.weaponLevel = 1;     // Max weapon tier available (1-4), player unlocks higher tiers
+        this.armorLevel = 1;      // Max armor tier available (1-4), player unlocks higher tiers
 
         // Construction properties
         this.constructionProgress = 0;    // 0 to 1

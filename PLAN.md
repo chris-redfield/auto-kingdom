@@ -52,10 +52,13 @@ All phases of the Playable Prototype are done:
   - [x] Phase 2.6.1: UI/UX improvements (Build button, building selection, debug tools)
   - [x] **Phase 2.7: Character Stats & Progression** ✅ COMPLETE
   - [x] **Phase 2.7.2: Building Construction Animation** ✅ COMPLETE
-  - [~] **Phase 2.7.3: Unit Menu System** 🔄 IN PROGRESS
-  - [~] **Phase 2.7.4: Game Configuration File** 🔄 IN PROGRESS
-  - [ ] **Phase 2.8: Unit Training Progress** 🎯 NEXT
-  - [ ] Phase 2.9: Mission system (includes victory conditions)
+  - [x] **Phase 2.7.3: Unit Menu System** ✅ COMPLETE
+  - [x] **Phase 2.7.4: Game Configuration File** ✅ COMPLETE
+  - [x] **Phase 2.8: Unit Training Progress** ✅ COMPLETE
+  - [x] **Phase 2.9.1: Blacksmith Building** ✅ COMPLETE
+  - [~] **Phase 2.9.2: Marketplace** 🎯 NEXT
+  - [ ] **Phase 2.9.3: Library (Enchantments)**
+  - [ ] **Phase 2.10: Mission System** (objectives, victory conditions)
 
 ---
 
@@ -1232,7 +1235,12 @@ The Blacksmith has TWO separate systems (from smali analysis):
 
 2. **Heroes couldn't upgrade at level 1 blacksmith:**
    - Root cause: Hero weaponLevel=1, blacksmith weaponLevel=1, condition `hero >= blacksmith` was true
-   - Fix: Changed blacksmith starting `weaponLevel`/`armorLevel` from 1 to 2
+   - Original workaround: Changed blacksmith starting `weaponLevel`/`armorLevel` from 1 to 2
+   - **REVERTED (2026-02-05):** This workaround broke the tier unlock system! Players couldn't unlock any tiers at a fresh blacksmith because next tier (3) required building level 2.
+   - **Correct fix:** Blacksmith starts at weaponLevel=1/armorLevel=1. Player must spend 200g to unlock tier 2 (available at building level 1). This matches the original game where the blacksmith starts with no upgrades unlocked (+0) and the player pays to unlock each tier.
+   - Confirmed by original game screenshot: blacksmith shows "+0" weapon/armor bonus with 200g unlock buttons active
+   - Also fixed hero upgrade price display: `slice(0, weaponLevel-1)` instead of `slice(0, weaponLevel)` so it shows "None yet" when no tiers unlocked
+   - Smali check (Dialog.smali:39716): `if armorLevel > building.level → blocked` — at level 1, one unlock available (tier 1→2); building upgrade needed for tier 3+
 
 3. **Weapon damage not updating after blacksmith purchase:**
    - Root cause: `purchaseBlacksmithUpgrades()` updated weaponLevel but didn't call `calculateDamageFromStats()`
