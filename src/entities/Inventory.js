@@ -156,6 +156,7 @@ export class Inventory {
      * @returns {boolean} Success
      */
     buyHealingPotion() {
+        if (this.healingPotions >= 5) return false; // Max 5 potions per hero
         const price = ITEMS.HEALING_POTION.price;
         if (this.owner.gold >= price) {
             this.owner.gold -= price;

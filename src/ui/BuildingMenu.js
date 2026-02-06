@@ -18,6 +18,8 @@ import {
     TRAINING_TIMES,
     COMBAT_CONSTANTS,
     BLACKSMITH_CONFIG,
+    MARKETPLACE_CONFIG,
+    ITEMS,
 } from '../config/GameConfig.js';
 
 // Buildings that can be constructed from the Castle
@@ -155,11 +157,10 @@ const BUILDING_CONFIG = {
     // Marketplace (0x29)
     [BuildingType.MARKETPLACE]: {
         name: 'Marketplace',
+        isMarketplace: true,
         canUpgrade: true,
         get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.MARKETPLACE]; },
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.MARKETPLACE]; },
-        // Generates tax income
-        incomeBonus: [10, 20, 30]  // % bonus per level
     },
     // Elf Bungalow (0x2b)
     [BuildingType.ELF_BUNGALOW]: {
@@ -348,6 +349,11 @@ export class BuildingMenu {
         // Blacksmith special options - unlock weapon/armor tiers
         if (config.isBlacksmith) {
             this.addBlacksmithOptions(config, building);
+        }
+
+        // Marketplace special options - Market Day + item info
+        if (config.isMarketplace) {
+            this.addMarketplaceOptions(config, building);
         }
 
         // Info section
@@ -554,6 +560,44 @@ export class BuildingMenu {
         } else if (this._wasTraining) {
             // Training just completed - refresh menu to show recruit button again
             this._wasTraining = false;
+            this.updateMenu();
+        }
+
+        // Update research progress bar
+        if (this.currentBuilding.researchActive) {
+            const progressFill = this.optionsContainer.querySelector('.research-fill');
+            const progressPercent = this.optionsContainer.querySelector('.training-percent');
+
+            if (progressFill && progressPercent) {
+                const pct = this.currentBuilding.researchTotal > 0
+                    ? Math.floor((this.currentBuilding.researchProgress / this.currentBuilding.researchTotal) * 100)
+                    : 0;
+                progressFill.style.width = `${pct}%`;
+                progressPercent.textContent = `${pct}%`;
+            }
+            this._wasResearch = true;
+        } else if (this._wasResearch) {
+            this._wasResearch = false;
+            this.updateMenu();
+        }
+
+        // Update Market Day progress bar
+        if (this.currentBuilding.marketDayActive) {
+            const progressFill = this.optionsContainer.querySelector('.market-day-fill');
+            // Use last .training-percent if multiple exist (market day comes after research)
+            const percentElements = this.optionsContainer.querySelectorAll('.training-percent');
+            const progressPercent = percentElements.length > 0 ? percentElements[percentElements.length - 1] : null;
+
+            if (progressFill && progressPercent) {
+                const pct = this.currentBuilding.marketDayTotal > 0
+                    ? Math.floor((1 - this.currentBuilding.marketDayProgress / this.currentBuilding.marketDayTotal) * 100)
+                    : 0;
+                progressFill.style.width = `${pct}%`;
+                progressPercent.textContent = `${pct}%`;
+            }
+            this._wasMarketDay = true;
+        } else if (this._wasMarketDay) {
+            this._wasMarketDay = false;
             this.updateMenu();
         }
     }
@@ -819,6 +863,214 @@ export class BuildingMenu {
         }
 
         console.log(`Blacksmith armor tier unlocked: ${building.armorLevel}`);
+    }
+
+    // =========================================================================
+    // MARKETPLACE
+    // =========================================================================
+
+    /**
+     * Add Marketplace-specific options (research buttons, Market Day, item info)
+     * Each item must be researched (player pays treasury gold + wait) before heroes can buy it.
+     */
+    addMarketplaceOptions(config, building) {
+        // If a research is currently in progress, show it at the top
+        if (building.researchActive) {
+            const researchConfig = MARKETPLACE_CONFIG.RESEARCH[building.researchType];
+            const pct = building.researchTotal > 0
+                ? Math.floor((building.researchProgress / building.researchTotal) * 100)
+                : 0;
+
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'training-progress';
+            progressContainer.innerHTML = `
+                <div class="training-header">
+                    <span class="training-icon">${researchConfig ? researchConfig.icon : '🔬'}</span>
+                    <span class="training-text">Researching ${researchConfig ? researchConfig.name : ''}...</span>
+                </div>
+                <div class="training-bar-container">
+                    <div class="training-bar-fill research-fill" style="width: ${pct}%"></div>
+                </div>
+                <div class="training-percent">${pct}%</div>
+            `;
+            this.optionsContainer.appendChild(progressContainer);
+        }
+
+        // Research section header
+        const header = document.createElement('div');
+        header.className = 'build-section-header';
+        header.textContent = 'Research';
+        this.optionsContainer.appendChild(header);
+
+        const busy = building.researchActive || building.marketDayActive;
+
+        // Show each research item
+        for (const [key, researchDef] of Object.entries(MARKETPLACE_CONFIG.RESEARCH)) {
+            const researched = building.isResearched(key);
+            const meetsLevel = building.level >= researchDef.requiredLevel;
+
+            if (researched) {
+                // Already researched - show as completed
+                const done = document.createElement('div');
+                done.className = 'building-option disabled';
+                done.innerHTML = `<span class="option-icon">${researchDef.icon}</span><span class="option-text">${researchDef.name}</span><span class="option-cost" style="color: #4a4;">Done</span>`;
+                this.optionsContainer.appendChild(done);
+            } else if (building.researchActive && building.researchType === key) {
+                // Currently being researched - skip (shown as progress bar above)
+            } else if (!meetsLevel) {
+                // Requires higher building level
+                const locked = document.createElement('div');
+                locked.className = 'building-option disabled';
+                locked.innerHTML = `<span class="option-icon">${researchDef.icon}</span><span class="option-text">${researchDef.name} (needs Lv${researchDef.requiredLevel})</span>`;
+                this.optionsContainer.appendChild(locked);
+            } else {
+                // Available to research
+                this.addOption({
+                    icon: researchDef.icon,
+                    text: `Research ${researchDef.name}`,
+                    cost: researchDef.cost,
+                    enabled: !busy && building.constructed && this.game.gold >= researchDef.cost,
+                    onClick: () => this.startResearch(building, key)
+                });
+            }
+        }
+
+        // Market Day section (only if researched)
+        if (building.researchedMarketDay) {
+            const mdHeader = document.createElement('div');
+            mdHeader.className = 'build-section-header';
+            mdHeader.style.marginTop = '10px';
+            mdHeader.textContent = 'Market Day';
+            this.optionsContainer.appendChild(mdHeader);
+
+            if (building.marketDayActive) {
+                // Show Market Day progress bar
+                const pct = building.marketDayTotal > 0
+                    ? Math.floor((1 - building.marketDayProgress / building.marketDayTotal) * 100)
+                    : 0;
+
+                const progressContainer = document.createElement('div');
+                progressContainer.className = 'training-progress';
+                progressContainer.innerHTML = `
+                    <div class="training-header">
+                        <span class="training-icon">📈</span>
+                        <span class="training-text">Market Day in progress...</span>
+                    </div>
+                    <div class="training-bar-container">
+                        <div class="training-bar-fill market-day-fill" style="width: ${pct}%"></div>
+                    </div>
+                    <div class="training-percent">${pct}%</div>
+                `;
+                this.optionsContainer.appendChild(progressContainer);
+            } else {
+                // Show Market Day start button (free to run once researched)
+                const goldReward = MARKETPLACE_CONFIG.getMarketDayGold(building.level);
+
+                // Check for Elf Bungalow double bonus
+                let hasElfBungalow = false;
+                if (this.game.buildings) {
+                    hasElfBungalow = this.game.buildings.some(
+                        b => b.buildingType === BuildingType.ELF_BUNGALOW && b.team === 0 && b.constructed
+                    );
+                }
+                const displayReward = hasElfBungalow ? goldReward * 2 : goldReward;
+                const bonusText = hasElfBungalow ? ' (Elf x2!)' : '';
+
+                const mdOption = document.createElement('div');
+                mdOption.className = `building-option`;
+                mdOption.innerHTML = `
+                    <span class="option-icon">📈</span>
+                    <span class="option-text">Start Market Day</span>
+                    <span class="option-cost" style="color: #4a4;">+${displayReward}g${bonusText}</span>
+                `;
+
+                if (!busy && building.constructed) {
+                    mdOption.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.startMarketDay(building);
+                        this.updateMenu();
+                    });
+                } else {
+                    mdOption.classList.add('disabled');
+                }
+
+                this.optionsContainer.appendChild(mdOption);
+            }
+        }
+
+        // Items info section (show what's available after research)
+        const hasAnyItem = building.researchedPotion || building.researchedRing || building.researchedAmulet;
+        if (hasAnyItem) {
+            const itemsHeader = document.createElement('div');
+            itemsHeader.className = 'build-section-header';
+            itemsHeader.style.marginTop = '10px';
+            itemsHeader.textContent = 'Hero Shop Items';
+            this.optionsContainer.appendChild(itemsHeader);
+
+            const itemsInfo = document.createElement('div');
+            itemsInfo.className = 'building-info';
+            let html = '<div style="font-size: 11px; color: #aaa;">Heroes visit to buy:</div>';
+
+            if (building.researchedPotion) {
+                html += `<div>Cure Potion: ${ITEMS.HEALING_POTION.price}g (heals ${ITEMS.HEALING_POTION.healAmount} HP)</div>`;
+            }
+            if (building.researchedRing) {
+                html += `<div>Ring of Protection: ${ITEMS.RING_OF_PROTECTION.price}g (+${ITEMS.RING_OF_PROTECTION.bonus} def)</div>`;
+            }
+            if (building.researchedAmulet) {
+                html += `<div>Amulet of Teleport: ${ITEMS.AMULET_OF_TELEPORTATION.price}g</div>`;
+            }
+
+            itemsInfo.innerHTML = html;
+            this.optionsContainer.appendChild(itemsInfo);
+        }
+    }
+
+    /**
+     * Start research at Marketplace (player pays treasury gold)
+     */
+    startResearch(building, researchType) {
+        const config = MARKETPLACE_CONFIG.RESEARCH[researchType];
+        if (!config) return;
+
+        if (building.researchActive || building.marketDayActive) {
+            this.game.showMessage('Marketplace is busy!');
+            return;
+        }
+
+        if (this.game.gold < config.cost) {
+            this.game.showMessage(`Need ${config.cost} gold!`);
+            if (this.game.playSound) {
+                this.game.playSound(SOUNDS.CLICK_DENY);
+            }
+            return;
+        }
+
+        if (building.startResearch(researchType)) {
+            this.game.showMessage(`Researching ${config.name}...`);
+            if (this.game.playSound) {
+                this.game.playSound(SOUNDS.GOLD);
+            }
+            this.updateMenu();
+        }
+    }
+
+    /**
+     * Start Market Day at Marketplace (free once researched)
+     */
+    startMarketDay(building) {
+        if (building.marketDayActive || building.researchActive) {
+            this.game.showMessage('Marketplace is busy!');
+            return;
+        }
+
+        if (building.startMarketDay()) {
+            this.game.showMessage('Market Day started!');
+            if (this.game.playSound) {
+                this.game.playSound(SOUNDS.GOLD);
+            }
+            this.updateMenu();
+        }
     }
 
     /**

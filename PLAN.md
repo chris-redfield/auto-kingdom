@@ -56,8 +56,8 @@ All phases of the Playable Prototype are done:
   - [x] **Phase 2.7.4: Game Configuration File** ✅ COMPLETE
   - [x] **Phase 2.8: Unit Training Progress** ✅ COMPLETE
   - [x] **Phase 2.9.1: Blacksmith Building** ✅ COMPLETE
-  - [~] **Phase 2.9.2: Marketplace** 🎯 NEXT
-  - [ ] **Phase 2.9.3: Library (Enchantments)**
+  - [ ] **Phase 2.9.2: Marketplace** ⚠️ BUGGED — will fix later
+  - [ ] **Phase 2.9.3: Library (Enchantments)** 🎯 NEXT
   - [ ] **Phase 2.10: Mission System** (objectives, victory conditions)
 
 ---
@@ -1258,20 +1258,50 @@ The Blacksmith has TWO separate systems (from smali analysis):
    - Fix: Added `getNearestBlacksmith()` helper and check `blacksmith.weaponLevel`/`armorLevel` before showing upgrade buttons
    - Also shows helpful message when at max tier: "Max tier (X) - Upgrade blacksmith"
 
-#### Phase 2.9.2: Marketplace (Future)
-- [ ] Heroes can buy: Healing Potions, Cure Potions
-- [ ] Accessories: Ring of Protection, Amulet of Teleportation, Poison Coating
-- [ ] Auto-purchase behavior for AI heroes (buy potions when gold > threshold)
+#### Phase 2.9.2: Marketplace ⚠️ BUGGED (2026-02-05) — will fix later
+
+**Research System (from smali `processMenuResearch`):**
+- [x] 4 research items, each requires treasury gold + 400 ticks (~16 seconds):
+  - Market Day: 200g, requires Lv1 — unlocks repeatable gold generation
+  - Cure Potion: 300g, requires Lv2 — unlocks hero potion purchases
+  - Ring of Protection: 750g, requires Lv1 — unlocks hero ring purchases
+  - Amulet of Teleport: 1000g, requires Lv2 — unlocks hero amulet purchases
+- [x] Only one research at a time (blocks Market Day and other research)
+- [x] Progress bar shown during research, item marked "Done" after completion
+- [x] Research state persisted in `Building.serialize()`
+
+**Market Day (Timed Gold Generation, requires research):**
+- [x] Free to run once Market Day is researched
+- [x] Progress bar fills over 1200 ticks (48 seconds)
+- [x] Gold generated: `(level * 30) * (level + 4) + 90` → Lv1: 240g, Lv2: 450g, Lv3: 720g
+- [x] Doubled if player has Elf Bungalow
+- [x] Building upgrade costs: 1500g (Lv2), 2600g (Lv3) — fixed from smali
+
+**Hero Shop Items (each requires research before heroes can buy):**
+- [x] Cure Potions: 25g, heals 30 HP, max 5 per hero (requires Potion researched)
+- [x] Ring of Protection: 750g, +10 parry/dodge/resist (requires Ring researched)
+- [x] Amulet of Teleportation: 1000g (requires Amulet researched)
+
+**Hero AI Auto-Purchase (gated by research):**
+- [x] `shouldVisitMarketplace()` — checks type, gold, needs, random chance per hero type
+- [x] `tryVisitMarketplace()` — pathfind to building, purchase when adjacent
+- [x] `canBuyAnythingAtMarketplace()` — checks research status before considering items
+- [x] `purchaseMarketplaceItems()` — priority: Ring > Amulet > Potions, all gated by research
+- [x] Combat interrupts marketplace visits (clears targetMarketplace)
+- [x] Visit chances from smali: Warrior/Ranger:100, Paladin/Elf/Wizard:120, Barbarian/Dwarf:60
+
+**Files Modified:**
+- `GameConfig.js`: Added `MARKETPLACE_CONFIG` with RESEARCH system, fixed upgrade costs
+- `Inventory.js`: Added max 5 potion cap
+- `Building.js`: Added research state machine + Market Day state machine, game reference
+- `Game.js`: Set `building.game = this` on all building creation paths
+- `BuildingMenu.js`: Research buttons UI, Market Day UI, item info display
+- `DynamicEntity.js`: Marketplace AI with research-gated purchasing
 
 #### Phase 2.9.3: Library (Future)
 - [ ] Enchant weapon (+1 to +3 damage bonus)
 - [ ] Enchant armor (+1 to +3 defense bonus)
 - [ ] Enchantment costs and limits
-
-**Implementation Notes:**
-- Buildings already placeable from Castle menu
-- Need to implement: hero AI to seek out shops, automatic purchasing logic
-- Inventory.js already has buy/upgrade methods ready
 
 ### Phase 2.10: Mission System
 - [ ] Mission objectives (defeat enemies, protect castle)

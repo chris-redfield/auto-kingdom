@@ -25,6 +25,7 @@ import {
     EQUIPMENT, ITEMS, SPEED,
     COMBAT_CONSTANTS, AI_CONFIG, VISUAL, GAME_RULES, TIMERS,
     BLACKSMITH_CONFIG,
+    MARKETPLACE_CONFIG,
     getUnitStats, rollStat, getWeaponDamage, getWeaponID
 } from '../config/GameConfig.js';
 
@@ -123,6 +124,7 @@ export class DynamicEntity extends Entity {
 
         // AI state for building visits
         this.targetBlacksmith = null;  // Persists until hero purchases or can't afford
+        this.targetMarketplace = null; // Persists until hero purchases or can't afford
 
         // =====================================================================
         // END RPG STATS
@@ -656,8 +658,22 @@ export class DynamicEntity extends Entity {
             }
         }
 
+        // Continue going to marketplace if we have a target (persistent state)
+        if (!this.attackTarget && !this.targetBlacksmith && this.targetMarketplace) {
+            if (this.tryVisitMarketplace()) {
+                return;
+            }
+        }
+
+        // No enemies and no shop targets - consider visiting Marketplace
+        if (!this.attackTarget && !this.targetBlacksmith && !this.targetMarketplace && this.shouldVisitMarketplace()) {
+            if (this.tryVisitMarketplace()) {
+                return;
+            }
+        }
+
         // Idle behavior - random wandering (only if not heading somewhere)
-        if (!this.moving && !this.attackTarget && !this.targetBlacksmith && Math.random() < AI_CONFIG.WANDER_CHANCE) {
+        if (!this.moving && !this.attackTarget && !this.targetBlacksmith && !this.targetMarketplace && Math.random() < AI_CONFIG.WANDER_CHANCE) {
             this.wanderRandomly();
         }
     }
@@ -991,6 +1007,200 @@ export class DynamicEntity extends Entity {
         // Play upgrade sound
         if (upgraded && this.game && this.game.playSoundAt) {
             this.game.playSoundAt(SOUNDS.UPGRADE_COMPLETE || SOUNDS.GOLD, this.worldX, this.worldY);
+        }
+    }
+
+    // =========================================================================
+    // MARKETPLACE AI
+    // =========================================================================
+
+    /**
+     * Check if this hero should visit the Marketplace
+     */
+    shouldVisitMarketplace() {
+        if (this.team !== 'player') return false;
+        if (this.objectType !== OBJECT_TYPE.HERO) return false;
+
+        const unitTypeName = this.getUnitTypeName();
+        const visitChance = MARKETPLACE_CONFIG.VISIT_CHANCE[unitTypeName];
+        if (visitChance === undefined || visitChance < 0) return false;
+
+        // Check if hero has gold for the cheapest item (a potion)
+        const totalGold = (this.gold || 0) + (this.taxGold || 0);
+        if (totalGold < ITEMS.HEALING_POTION.price) return false;
+
+        // Check if hero actually needs something
+        if (!this.inventory) return false;
+        const needsPotion = this.inventory.healingPotions < MARKETPLACE_CONFIG.MAX_POTIONS_PER_HERO;
+        const needsRing = !this.inventory.hasRingOfProtection && totalGold >= ITEMS.RING_OF_PROTECTION.price;
+        const needsAmulet = !this.inventory.hasAmuletOfTeleportation && totalGold >= ITEMS.AMULET_OF_TELEPORTATION.price;
+        if (!needsPotion && !needsRing && !needsAmulet) return false;
+
+        // Random chance based on unit type
+        return Math.random() * 1000 < visitChance;
+    }
+
+    /**
+     * Find the nearest player-owned Marketplace
+     */
+    findNearestMarketplace() {
+        if (!this.game || !this.game.buildings) return null;
+
+        let nearest = null;
+        let nearestDist = Infinity;
+
+        for (const building of this.game.buildings) {
+            if (building.buildingType !== BuildingType.MARKETPLACE) continue;
+            if (building.team !== 0) continue;
+            if (!building.constructed) continue;
+
+            const buildingSizeI = building.sizeI || 2;
+            const buildingSizeJ = building.sizeJ || 2;
+            const centerI = building.gridI + buildingSizeI / 2;
+            const centerJ = building.gridJ + buildingSizeJ / 2;
+            const dx = this.gridI - centerI;
+            const dy = this.gridJ - centerJ;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = building;
+            }
+        }
+
+        return nearest;
+    }
+
+    /**
+     * Try to visit the Marketplace for purchases
+     * @returns {boolean} True if hero is heading to or at marketplace
+     */
+    tryVisitMarketplace() {
+        const marketplace = this.targetMarketplace || this.findNearestMarketplace();
+        if (!marketplace) {
+            this.targetMarketplace = null;
+            return false;
+        }
+
+        // Check if we can actually buy anything
+        if (!this.canBuyAnythingAtMarketplace(marketplace)) {
+            this.targetMarketplace = null;
+            return false;
+        }
+
+        // Calculate distance to building center
+        const buildingSizeI = marketplace.sizeI || 2;
+        const buildingSizeJ = marketplace.sizeJ || 2;
+        const centerI = marketplace.gridI + buildingSizeI / 2;
+        const centerJ = marketplace.gridJ + buildingSizeJ / 2;
+        const dx = this.gridI - centerI;
+        const dy = this.gridJ - centerJ;
+        const distToCenter = Math.sqrt(dx * dx + dy * dy);
+
+        // At the marketplace - purchase items!
+        if (distToCenter <= 2.5) {
+            this.purchaseMarketplaceItems(marketplace);
+            this.targetMarketplace = null;
+            return true;
+        }
+
+        // Set persistent target and move towards marketplace
+        this.targetMarketplace = marketplace;
+
+        const offsets = [
+            { i: 0, j: 2 },  { i: 0, j: -1 }, { i: 2, j: 0 },  { i: -1, j: 0 },
+            { i: 1, j: 2 },  { i: -1, j: 2 }, { i: 2, j: 1 },  { i: -1, j: 1 },
+        ];
+
+        for (const offset of offsets) {
+            const targetI = Math.floor(centerI + offset.i);
+            const targetJ = Math.floor(centerJ + offset.j);
+
+            if (this.grid && this.grid.isWalkable(targetI, targetJ)) {
+                this.moveTo(targetI, targetJ, this.grid);
+                return true;
+            }
+        }
+
+        this.targetMarketplace = null;
+        return false;
+    }
+
+    /**
+     * Check if hero can buy anything at this marketplace
+     */
+    canBuyAnythingAtMarketplace(marketplace) {
+        if (!this.inventory) return false;
+        const totalGold = (this.gold || 0) + (this.taxGold || 0);
+
+        // Potions (requires researched at marketplace)
+        if (marketplace.researchedPotion) {
+            if (this.inventory.healingPotions < MARKETPLACE_CONFIG.MAX_POTIONS_PER_HERO &&
+                totalGold >= ITEMS.HEALING_POTION.price) {
+                return true;
+            }
+        }
+
+        // Ring of Protection (requires researched)
+        if (marketplace.researchedRing &&
+            !this.inventory.hasRingOfProtection && totalGold >= ITEMS.RING_OF_PROTECTION.price) {
+            return true;
+        }
+
+        // Amulet of Teleportation (requires researched)
+        if (marketplace.researchedAmulet &&
+            !this.inventory.hasAmuletOfTeleportation && totalGold >= ITEMS.AMULET_OF_TELEPORTATION.price) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Purchase items at the Marketplace
+     * Priority: Ring > Amulet > Potions
+     */
+    purchaseMarketplaceItems(marketplace) {
+        let purchased = false;
+
+        // Buy Ring of Protection (one-time, high priority, requires researched)
+        if (marketplace.researchedRing && !this.inventory.hasRingOfProtection) {
+            if (this.inventory.buyRingOfProtection()) {
+                console.log(`${this.unitType} bought Ring of Protection`);
+                purchased = true;
+                if (this.game && this.game.showMessage) {
+                    this.game.showMessage(`${this.unitType} bought Ring of Protection!`);
+                }
+                this.showUpgradeEffect('ring');
+            }
+        }
+
+        // Buy Amulet of Teleportation (one-time, requires researched)
+        if (marketplace.researchedAmulet && !this.inventory.hasAmuletOfTeleportation) {
+            if (this.inventory.buyAmuletOfTeleportation()) {
+                console.log(`${this.unitType} bought Amulet of Teleportation`);
+                purchased = true;
+                if (this.game && this.game.showMessage) {
+                    this.game.showMessage(`${this.unitType} bought Amulet!`);
+                }
+            }
+        }
+
+        // Buy Healing Potions (requires researched, up to max 5)
+        if (marketplace.researchedPotion) {
+            let potionsBought = 0;
+            while (this.inventory.healingPotions < MARKETPLACE_CONFIG.MAX_POTIONS_PER_HERO) {
+                if (!this.inventory.buyHealingPotion()) break;
+                potionsBought++;
+                purchased = true;
+            }
+            if (potionsBought > 0) {
+                console.log(`${this.unitType} bought ${potionsBought} potion(s) (${this.inventory.healingPotions}/${MARKETPLACE_CONFIG.MAX_POTIONS_PER_HERO})`);
+            }
+        }
+
+        if (purchased && this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.GOLD, this.worldX, this.worldY);
         }
     }
 
@@ -1633,8 +1843,9 @@ export class DynamicEntity extends Entity {
     setAttackTarget(target) {
         this.attackTarget = target;
         this.target = target;
-        // Combat takes priority - abandon blacksmith visit
+        // Combat takes priority - abandon shop visits
         this.targetBlacksmith = null;
+        this.targetMarketplace = null;
     }
 
     /**

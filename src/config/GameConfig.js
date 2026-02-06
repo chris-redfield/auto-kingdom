@@ -1228,7 +1228,7 @@ export const BUILDING_UPGRADE_COSTS = {
     [BUILDING_TYPE.KROLM_TEMPLE]: [1000, 2000, 4000],
     [BUILDING_TYPE.BLACKSMITH]: [500, 1000, 2000],
     [BUILDING_TYPE.GUARD_TOWER]: [400, 800, 1600],
-    [BUILDING_TYPE.MARKETPLACE]: [1500, 3000, 6000],
+    [BUILDING_TYPE.MARKETPLACE]: [1500, 2600],
     [BUILDING_TYPE.ELF_BUNGALOW]: [800, 1600],
     [BUILDING_TYPE.DWARF_WINDMILL]: [1000, 2000],
     [BUILDING_TYPE.GNOME_HOVEL]: [800, 1600],
@@ -1547,6 +1547,59 @@ export const BLACKSMITH_CONFIG = {
         WIZARD: -1,         // Can't use blacksmith
         WIZARD_HEALER: -1,
         WIZARD_NECROMANCER: -1,
+    },
+};
+
+// =============================================================================
+// MARKETPLACE (from Const.smali / Dialog.smali)
+// =============================================================================
+export const MARKETPLACE_CONFIG = {
+    // -------------------------------------------------------------------------
+    // RESEARCH SYSTEM (from Dialog.smali processMenuResearch)
+    // Each item must be researched (unlocked) before heroes can buy it.
+    // Only one research at a time. Each takes 400 ticks (~16 seconds).
+    // -------------------------------------------------------------------------
+    RESEARCH_TICKS: 400,            // 0x190 = MARKETPLACE_RESEARCHING_TIME
+
+    // Research items: { cost, requiredLevel, description }
+    RESEARCH: {
+        MARKET_DAY:  { cost: 200,  requiredLevel: 1, name: 'Market Day',     icon: '📈' },
+        POTION:      { cost: 300,  requiredLevel: 2, name: 'Cure Potion',    icon: '🧪' },
+        RING:        { cost: 750,  requiredLevel: 1, name: 'Ring of Protection', icon: '💍' },
+        AMULET:      { cost: 1000, requiredLevel: 2, name: 'Amulet of Teleport', icon: '🔮' },
+    },
+
+    // Library discount: costs * 95/100 when library exists (5% off)
+    LIBRARY_DISCOUNT: 0.95,
+
+    // -------------------------------------------------------------------------
+    // MARKET DAY (timed gold generation, requires research)
+    // -------------------------------------------------------------------------
+    MARKET_DAY_TICKS: 1200,         // Countdown ticks (0x4b0) = 48 seconds at 25 FPS
+
+    // Gold generated: (level * 30) * (level + 4) + 90
+    // Level 1: 240g, Level 2: 450g, Level 3: 720g
+    // Doubled if Elf Bungalow exists
+    getMarketDayGold(level) {
+        return (level * 30) * (level + 4) + 90;
+    },
+
+    // -------------------------------------------------------------------------
+    // HERO ITEMS
+    // -------------------------------------------------------------------------
+    MAX_POTIONS_PER_HERO: 5,
+
+    // Hero type chances to visit marketplace (RND_*_GO_MARKETPLACE from smali)
+    VISIT_CHANCE: {
+        WARRIOR: 100,       // 0x64
+        RANGER: 100,        // 0x64
+        PALADIN: 120,       // 0x78
+        BARBARIAN: 60,      // 0x3c
+        DWARF: 60,          // 0x3c
+        ELF: 120,           // 0x78
+        WIZARD: 120,        // 0x78
+        WIZARD_HEALER: 120, // 0x78
+        WIZARD_NECROMANCER: 120, // 0x78
     },
 };
 

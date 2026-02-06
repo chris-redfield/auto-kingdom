@@ -581,6 +581,7 @@ export class Game {
         // Create the building
         const building = new Building(gridI, gridJ, buildingInfo.type);
         building.team = 0;  // Player building
+        building.game = this;
         building.initSprite();
 
         // Lock cells on grid
@@ -1229,6 +1230,7 @@ export class Game {
 
         const castle = new Building(centerI, centerJ, BuildingType.CASTLE);
         castle.team = 0;  // Player team
+        castle.game = this;
 
         // Initialize with placeholder sprite first
         castle.initSprite();
@@ -1493,6 +1495,7 @@ export class Game {
 
                 const castle = new Building(obj.gridI, obj.gridJ, BuildingType.CASTLE);
                 castle.team = 0;
+                castle.game = this;
                 castle.maxHealth = 1000;
                 castle.health = castle.maxHealth;
                 castle.sizeI = 3;

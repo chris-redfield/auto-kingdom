@@ -13,7 +13,8 @@ import {
     getBuildingConstructionTime,
     getBuildingSize,
     TIMERS,
-    VISUAL
+    VISUAL,
+    MARKETPLACE_CONFIG
 } from '../config/GameConfig.js';
 
 export class Building extends Entity {
@@ -78,6 +79,22 @@ export class Building extends Entity {
         this.trainingUnitType = null;     // Unit type being trained
         this.trainingTime = 5000;         // Training duration in ms (default 5 seconds)
         this.trainingCallback = null;     // Function to call when training completes
+
+        // Marketplace properties
+        this.game = null;                 // Game reference (set when placed)
+        this.marketDayActive = false;     // Is Market Day countdown running?
+        this.marketDayProgress = 0;       // Remaining ticks (counts down from 1200)
+        this.marketDayTotal = 0;          // Total ticks for progress bar ratio
+
+        // Marketplace research state (each item must be researched before use)
+        this.researchedMarketDay = false;
+        this.researchedPotion = false;
+        this.researchedRing = false;
+        this.researchedAmulet = false;
+        this.researchActive = false;      // Is a research in progress?
+        this.researchType = null;         // Which item is being researched
+        this.researchProgress = 0;        // Current progress (counts up to RESEARCH_TICKS)
+        this.researchTotal = 0;           // Total ticks needed
     }
 
     /**
@@ -462,6 +479,16 @@ export class Building extends Entity {
             }
         }
 
+        // Update Marketplace research progress
+        if (this.researchActive) {
+            this.updateResearch(deltaTime);
+        }
+
+        // Update Market Day countdown (marketplace only)
+        if (this.marketDayActive) {
+            this.updateMarketDay(deltaTime);
+        }
+
         // Animate completed building (flags waving, smoke, etc.) - cycles continuously
         if (this.animationLoader && this.frameCount > 1) {
             this.animationTimer += deltaTime;
@@ -525,7 +552,18 @@ export class Building extends Entity {
             level: this.level,
             constructed: this.constructed,
             weaponLevel: this.weaponLevel,
-            armorLevel: this.armorLevel
+            armorLevel: this.armorLevel,
+            marketDayActive: this.marketDayActive,
+            marketDayProgress: this.marketDayProgress,
+            marketDayTotal: this.marketDayTotal,
+            researchedMarketDay: this.researchedMarketDay,
+            researchedPotion: this.researchedPotion,
+            researchedRing: this.researchedRing,
+            researchedAmulet: this.researchedAmulet,
+            researchActive: this.researchActive,
+            researchType: this.researchType,
+            researchProgress: this.researchProgress,
+            researchTotal: this.researchTotal
         };
     }
 
@@ -577,5 +615,172 @@ export class Building extends Entity {
         if (!hero) return false;
         // Hero's armor level must be below building's unlocked tier
         return hero.armorLevel < this.armorLevel;
+    }
+
+    // =========================================================================
+    // MARKETPLACE: Research System
+    // =========================================================================
+
+    /**
+     * Start researching an item at the Marketplace
+     * @param {string} researchType - 'MARKET_DAY', 'POTION', 'RING', 'AMULET'
+     * @returns {boolean} True if research started
+     */
+    startResearch(researchType) {
+        if (this.researchActive || this.marketDayActive) return false;
+
+        const config = MARKETPLACE_CONFIG.RESEARCH[researchType];
+        if (!config) return false;
+        if (this.level < config.requiredLevel) return false;
+        if (!this.game || this.game.gold < config.cost) return false;
+
+        // Check if already researched
+        if (this.isResearched(researchType)) return false;
+
+        this.game.gold -= config.cost;
+        this.researchActive = true;
+        this.researchType = researchType;
+        this.researchProgress = 0;
+        this.researchTotal = MARKETPLACE_CONFIG.RESEARCH_TICKS;
+
+        this.createProgressBar();
+        return true;
+    }
+
+    /**
+     * Check if an item has been researched
+     */
+    isResearched(type) {
+        switch (type) {
+            case 'MARKET_DAY': return this.researchedMarketDay;
+            case 'POTION': return this.researchedPotion;
+            case 'RING': return this.researchedRing;
+            case 'AMULET': return this.researchedAmulet;
+            default: return false;
+        }
+    }
+
+    /**
+     * Update research progress (called from update)
+     */
+    updateResearch(deltaTime) {
+        if (!this.researchActive) return;
+
+        this.researchProgress += deltaTime / TIMERS.TICK_MS;
+
+        // Update progress bar
+        if (this.progressBar) {
+            this.constructionProgress = this.researchProgress / this.researchTotal;
+            this.updateProgressBar();
+        }
+
+        if (this.researchProgress >= this.researchTotal) {
+            this.completeResearch();
+        }
+    }
+
+    /**
+     * Complete research — unlock the item
+     */
+    completeResearch() {
+        const type = this.researchType;
+        const config = MARKETPLACE_CONFIG.RESEARCH[type];
+
+        // Mark as researched
+        switch (type) {
+            case 'MARKET_DAY': this.researchedMarketDay = true; break;
+            case 'POTION': this.researchedPotion = true; break;
+            case 'RING': this.researchedRing = true; break;
+            case 'AMULET': this.researchedAmulet = true; break;
+        }
+
+        this.researchActive = false;
+        this.researchType = null;
+        this.researchProgress = 0;
+
+        if (this.game) {
+            this.game.showMessage(`${config.name} researched!`);
+        }
+
+        // Remove progress bar
+        if (this.progressBar) {
+            if (this.progressBar.parent) {
+                this.progressBar.parent.removeChild(this.progressBar);
+            }
+            this.progressBar.destroy();
+            this.progressBar = null;
+        }
+        this.constructionProgress = 0;
+    }
+
+    // =========================================================================
+    // MARKETPLACE: Market Day (requires research)
+    // =========================================================================
+
+    /**
+     * Start a Market Day (timed gold generation)
+     * @returns {boolean} True if started successfully
+     */
+    startMarketDay() {
+        if (this.marketDayActive || this.researchActive) return false;
+        if (!this.researchedMarketDay) return false;
+
+        this.marketDayActive = true;
+        this.marketDayProgress = MARKETPLACE_CONFIG.MARKET_DAY_TICKS;
+        this.marketDayTotal = MARKETPLACE_CONFIG.MARKET_DAY_TICKS;
+
+        this.createProgressBar();
+        return true;
+    }
+
+    /**
+     * Update Market Day countdown
+     */
+    updateMarketDay(deltaTime) {
+        this.marketDayProgress -= deltaTime / TIMERS.TICK_MS;
+
+        if (this.progressBar) {
+            this.constructionProgress = 1 - (this.marketDayProgress / this.marketDayTotal);
+            this.updateProgressBar();
+        }
+
+        if (this.marketDayProgress <= 0) {
+            this.completeMarketDay();
+        }
+    }
+
+    /**
+     * Complete Market Day — award gold to treasury
+     */
+    completeMarketDay() {
+        this.marketDayActive = false;
+        this.marketDayProgress = 0;
+
+        let goldGenerated = MARKETPLACE_CONFIG.getMarketDayGold(this.level);
+
+        // Double if player has an Elf Bungalow
+        if (this.game && this.game.buildings) {
+            const hasElfBungalow = this.game.buildings.some(
+                b => b.buildingType === BuildingType.ELF_BUNGALOW && b.team === 0 && b.constructed
+            );
+            if (hasElfBungalow) {
+                goldGenerated *= 2;
+            }
+        }
+
+        if (this.game) {
+            this.game.gold += goldGenerated;
+            this.game.showMessage(`Market Day complete! +${goldGenerated}g`);
+        }
+
+        // Remove progress bar
+        if (this.progressBar) {
+            if (this.progressBar.parent) {
+                this.progressBar.parent.removeChild(this.progressBar);
+            }
+            this.progressBar.destroy();
+            this.progressBar = null;
+        }
+        this.constructionProgress = 0;
     }
 }
