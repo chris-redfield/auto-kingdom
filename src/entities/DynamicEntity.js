@@ -1020,6 +1020,7 @@ export class DynamicEntity extends Entity {
     shouldVisitMarketplace() {
         if (this.team !== 'player') return false;
         if (this.objectType !== OBJECT_TYPE.HERO) return false;
+        if (!this.inventory) return false;
 
         const unitTypeName = this.getUnitTypeName();
         const visitChance = MARKETPLACE_CONFIG.VISIT_CHANCE[unitTypeName];
@@ -1029,15 +1030,15 @@ export class DynamicEntity extends Entity {
         const totalGold = (this.gold || 0) + (this.taxGold || 0);
         if (totalGold < ITEMS.HEALING_POTION.price) return false;
 
-        // Check if hero actually needs something
-        if (!this.inventory) return false;
-        const needsPotion = this.inventory.healingPotions < MARKETPLACE_CONFIG.MAX_POTIONS_PER_HERO;
-        const needsRing = !this.inventory.hasRingOfProtection && totalGold >= ITEMS.RING_OF_PROTECTION.price;
-        const needsAmulet = !this.inventory.hasAmuletOfTeleportation && totalGold >= ITEMS.AMULET_OF_TELEPORTATION.price;
-        if (!needsPotion && !needsRing && !needsAmulet) return false;
+        // Find nearest marketplace and check if it has any researched items we need
+        const marketplace = this.findNearestMarketplace();
+        if (!marketplace) return false;
 
-        // Random chance based on unit type
-        return Math.random() * 1000 < visitChance;
+        // Check if marketplace has anything researched that this hero can buy
+        if (!this.canBuyAnythingAtMarketplace(marketplace)) return false;
+
+        // Random chance based on unit type (rnd(100) < visitChance, from smali)
+        return Math.random() * 100 < visitChance;
     }
 
     /**

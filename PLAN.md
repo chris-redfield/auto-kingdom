@@ -3,6 +3,10 @@
 ## Project Overview
 Port the Android strategy game "Majesty" (decompiled from APK) to JavaScript for web/browser play.
 
+**Source Paths:**
+- Original game (decompiled APK): `../mygame/` (smali classes, assets, map files)
+- JavaScript port: `../majesty-js/` (this project)
+
 **Game Characteristics:**
 - 2D top-down isometric strategy/tower defense
 - Auto-play AI system for units
@@ -56,7 +60,7 @@ All phases of the Playable Prototype are done:
   - [x] **Phase 2.7.4: Game Configuration File** ✅ COMPLETE
   - [x] **Phase 2.8: Unit Training Progress** ✅ COMPLETE
   - [x] **Phase 2.9.1: Blacksmith Building** ✅ COMPLETE
-  - [ ] **Phase 2.9.2: Marketplace** ⚠️ BUGGED — will fix later
+  - [x] **Phase 2.9.2: Marketplace** ✅ FIXED
   - [ ] **Phase 2.9.3: Library (Enchantments)** 🎯 NEXT
   - [ ] **Phase 2.10: Mission System** (objectives, victory conditions)
 
@@ -1258,14 +1262,14 @@ The Blacksmith has TWO separate systems (from smali analysis):
    - Fix: Added `getNearestBlacksmith()` helper and check `blacksmith.weaponLevel`/`armorLevel` before showing upgrade buttons
    - Also shows helpful message when at max tier: "Max tier (X) - Upgrade blacksmith"
 
-#### Phase 2.9.2: Marketplace ⚠️ BUGGED (2026-02-05) — will fix later
+#### Phase 2.9.2: Marketplace ✅ FIXED (2026-02-08)
 
 **Research System (from smali `processMenuResearch`):**
 - [x] 4 research items, each requires treasury gold + 400 ticks (~16 seconds):
   - Market Day: 200g, requires Lv1 — unlocks repeatable gold generation
-  - Cure Potion: 300g, requires Lv2 — unlocks hero potion purchases
-  - Ring of Protection: 750g, requires Lv1 — unlocks hero ring purchases
-  - Amulet of Teleport: 1000g, requires Lv2 — unlocks hero amulet purchases
+  - Cure Potion: 300g, requires Lv1 — unlocks hero potion purchases
+  - Ring of Protection: 750g, requires Lv2 — unlocks hero ring purchases
+  - Amulet of Teleport: 1000g, requires Lv3 — unlocks hero amulet purchases
 - [x] Only one research at a time (blocks Market Day and other research)
 - [x] Progress bar shown during research, item marked "Done" after completion
 - [x] Research state persisted in `Building.serialize()`
@@ -1298,7 +1302,42 @@ The Blacksmith has TWO separate systems (from smali analysis):
 - `BuildingMenu.js`: Research buttons UI, Market Day UI, item info display
 - `DynamicEntity.js`: Marketplace AI with research-gated purchasing
 
-#### Phase 2.9.3: Library (Future)
+**Bug Fixes (2026-02-08):**
+
+5 bugs fixed:
+
+1. **Inventory buy methods used `gold` only, ignoring `taxGold` (MAIN BUG)**
+   - Root cause: `buyHealingPotion()`, `buyCurePotion()`, `buyRingOfProtection()`, `buyAmuletOfTeleportation()` all checked `this.owner.gold` only
+   - Heroes earn `taxGold` from kills (not personal `gold`), so they could never afford anything
+   - Original smali uses `gold + taxGold` for affordability, then `reCalcGold()` to deduct
+   - Fix: All buy methods now check `gold + taxGold` and use `owner.spendGold()` (which handles both pools)
+
+2. **Research level requirements were wrong in GameConfig.js**
+   - POTION had requiredLevel: 2 (should be 1 — no level check in smali Dialog.smali)
+   - RING had requiredLevel: 1 (should be 2 — smali checks `building level >= 2`)
+   - AMULET had requiredLevel: 2 (should be 3 — smali checks `building level >= 3`)
+   - Fix: Corrected to match smali: POTION=1, RING=2, AMULET=3
+
+3. **`shouldVisitMarketplace()` didn't check if marketplace had researched items**
+   - Hero would decide to visit, walk there, then `canBuyAnythingAtMarketplace()` returns false
+   - Fix: Now finds nearest marketplace and calls `canBuyAnythingAtMarketplace()` before random roll
+
+4. **UnitMenu buy buttons ignored research status**
+   - `isNearMarketplace()` returned boolean, didn't check what was researched
+   - Player could manually buy potions, ring, amulet even before research
+   - Fix: Added `getNearestMarketplace()`, each buy section now checks research flags
+
+5. **`shouldVisitMarketplace()` random check was 10x too strict**
+   - Used `Math.random() * 1000 < visitChance` instead of `Math.random() * 100 < visitChance`
+   - Original smali: `rnd(100) < visitChance` where visitChance is 60-120
+   - Fix: Changed to `Math.random() * 100 < visitChance`
+
+6. **Amulet of Teleportation sent hero to wrong coordinates**
+   - Root cause: Reversed ternary in `Inventory.useAmuletOfTeleportation()` — when `this.owner.grid` existed (always), it used raw fallback math `{ x: newI * 64, y: newJ * 32 }` instead of proper isometric `gridToWorld()` conversion
+   - Hero became invisible because screen coordinates were completely wrong (non-isometric)
+   - Fix: Use `this.owner.setGridPosition(newI, newJ)` which properly converts via `IsoMath.gridToWorld()`. Also clear path/movement state so hero doesn't walk back to old position.
+
+#### Phase 2.9.3: Library (Enchantments) 🎯 NEXT
 - [ ] Enchant weapon (+1 to +3 damage bonus)
 - [ ] Enchant armor (+1 to +3 defense bonus)
 - [ ] Enchantment costs and limits

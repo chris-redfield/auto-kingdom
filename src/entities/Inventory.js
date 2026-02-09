@@ -158,8 +158,9 @@ export class Inventory {
     buyHealingPotion() {
         if (this.healingPotions >= 5) return false; // Max 5 potions per hero
         const price = ITEMS.HEALING_POTION.price;
-        if (this.owner.gold >= price) {
-            this.owner.gold -= price;
+        const totalGold = (this.owner.gold || 0) + (this.owner.taxGold || 0);
+        if (totalGold >= price) {
+            this.owner.spendGold(price);
             this.healingPotions++;
             return true;
         }
@@ -188,8 +189,9 @@ export class Inventory {
      */
     buyCurePotion() {
         const price = ITEMS.HEALING_POTION.price;  // Same price
-        if (this.owner.gold >= price) {
-            this.owner.gold -= price;
+        const totalGold = (this.owner.gold || 0) + (this.owner.taxGold || 0);
+        if (totalGold >= price) {
+            this.owner.spendGold(price);
             this.curePotions++;
             return true;
         }
@@ -219,8 +221,9 @@ export class Inventory {
         if (this.hasRingOfProtection) return false;
 
         const price = ITEMS.RING_OF_PROTECTION.price;
-        if (this.owner.gold >= price) {
-            this.owner.gold -= price;
+        const totalGold = (this.owner.gold || 0) + (this.owner.taxGold || 0);
+        if (totalGold >= price) {
+            this.owner.spendGold(price);
             this.hasRingOfProtection = true;
             return true;
         }
@@ -234,8 +237,9 @@ export class Inventory {
         if (this.hasAmuletOfTeleportation) return false;
 
         const price = ITEMS.AMULET_OF_TELEPORTATION.price;
-        if (this.owner.gold >= price) {
-            this.owner.gold -= price;
+        const totalGold = (this.owner.gold || 0) + (this.owner.taxGold || 0);
+        if (totalGold >= price) {
+            this.owner.spendGold(price);
             this.hasAmuletOfTeleportation = true;
             this.amuletCooldown = 0;  // Ready to use
             return true;
@@ -259,15 +263,14 @@ export class Inventory {
         // Vacate old cell
         this.owner.vacateCell(this.owner.gridI, this.owner.gridJ);
 
-        // Move to new position
-        this.owner.gridI = newI;
-        this.owner.gridJ = newJ;
-        const worldPos = this.owner.grid ?
-            { x: newI * 64, y: newJ * 32 } :  // Fallback
-            this.owner.grid.gridToWorld(newI, newJ);
-        this.owner.worldX = worldPos.x;
-        this.owner.worldY = worldPos.y;
-        this.owner.updateSpritePosition();
+        // Move to new position using proper isometric conversion
+        this.owner.setGridPosition(newI, newJ);
+
+        // Clear any active path/movement so hero doesn't walk back
+        this.owner.path = [];
+        this.owner.moving = false;
+        this.owner.targetI = newI;
+        this.owner.targetJ = newJ;
 
         // Occupy new cell
         this.owner.occupyCell(newI, newJ);

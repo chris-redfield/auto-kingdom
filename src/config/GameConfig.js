@@ -1564,9 +1564,9 @@ export const MARKETPLACE_CONFIG = {
     // Research items: { cost, requiredLevel, description }
     RESEARCH: {
         MARKET_DAY:  { cost: 200,  requiredLevel: 1, name: 'Market Day',     icon: '📈' },
-        POTION:      { cost: 300,  requiredLevel: 2, name: 'Cure Potion',    icon: '🧪' },
-        RING:        { cost: 750,  requiredLevel: 1, name: 'Ring of Protection', icon: '💍' },
-        AMULET:      { cost: 1000, requiredLevel: 2, name: 'Amulet of Teleport', icon: '🔮' },
+        POTION:      { cost: 300,  requiredLevel: 1, name: 'Cure Potion',    icon: '🧪' },
+        RING:        { cost: 750,  requiredLevel: 2, name: 'Ring of Protection', icon: '💍' },
+        AMULET:      { cost: 1000, requiredLevel: 3, name: 'Amulet of Teleport', icon: '🔮' },
     },
 
     // Library discount: costs * 95/100 when library exists (5% off)

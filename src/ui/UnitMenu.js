@@ -278,10 +278,12 @@ export class UnitMenu {
         this.addInfoRow('Healing', healingPotions.toString(), 'potion-icon');
         this.addInfoRow('Cure', curePotions.toString(), 'potion-icon');
 
-        // Buy options (if near marketplace)
-        if (this.isNearMarketplace(unit)) {
+        // Buy options (if near marketplace AND potions are researched)
+        const nearbyMarket = this.getNearestMarketplace(unit);
+        if (nearbyMarket && nearbyMarket.researchedPotion) {
             const potionCost = ITEMS.HEALING_POTION.price;
-            const canAfford = (unit.gold || 0) >= potionCost;
+            const totalGold = (unit.gold || 0) + (unit.taxGold || 0);
+            const canAfford = totalGold >= potionCost;
 
             this.addOption({
                 icon: '❤️',
@@ -349,40 +351,40 @@ export class UnitMenu {
             this.addInfoRow('Coating', 'Poison Weapon', 'poison-icon');
         }
 
-        // Buy options (if near marketplace)
-        if (this.isNearMarketplace(unit)) {
-            if (!hasRing) {
+        // Buy options (if near marketplace, gated by research status)
+        const nearbyMarketAcc = this.getNearestMarketplace(unit);
+        if (nearbyMarketAcc) {
+            const totalGold = (unit.gold || 0) + (unit.taxGold || 0);
+
+            if (!hasRing && nearbyMarketAcc.researchedRing) {
                 const cost = ITEMS.RING_OF_PROTECTION.price;
-                const canAfford = (unit.gold || 0) >= cost;
                 this.addOption({
                     icon: '💍',
                     text: 'Buy Ring of Protection',
                     cost: cost,
-                    enabled: canAfford,
+                    enabled: totalGold >= cost,
                     onClick: () => this.buyRingOfProtection(unit, cost)
                 });
             }
 
-            if (!hasAmulet) {
+            if (!hasAmulet && nearbyMarketAcc.researchedAmulet) {
                 const cost = ITEMS.AMULET_OF_TELEPORTATION.price;
-                const canAfford = (unit.gold || 0) >= cost;
                 this.addOption({
                     icon: '📿',
                     text: 'Buy Amulet of Teleportation',
                     cost: cost,
-                    enabled: canAfford,
+                    enabled: totalGold >= cost,
                     onClick: () => this.buyAmuletOfTeleportation(unit, cost)
                 });
             }
 
             if (!hasPoison) {
                 const cost = ITEMS.POISONED_WEAPON.price;
-                const canAfford = (unit.gold || 0) >= cost;
                 this.addOption({
                     icon: '☠️',
                     text: 'Buy Poison Coating',
                     cost: cost,
-                    enabled: canAfford,
+                    enabled: totalGold >= cost,
                     onClick: () => this.buyPoisonedWeapon(unit, cost)
                 });
             }
@@ -522,6 +524,25 @@ export class UnitMenu {
 
     isNearMarketplace(unit) {
         return this.isNearBuildingType(unit, 0x29);  // TYPE_MARKETPLACE
+    }
+
+    /**
+     * Get the nearest marketplace building within range (for checking research status)
+     */
+    getNearestMarketplace(unit) {
+        if (!this.game.buildings) return null;
+
+        const range = 5;
+        for (const building of this.game.buildings) {
+            if (building.buildingType === 0x29 && building.team === 0) {
+                const di = Math.abs(unit.gridI - building.gridI);
+                const dj = Math.abs(unit.gridJ - building.gridJ);
+                if (di <= range && dj <= range) {
+                    return building;
+                }
+            }
+        }
+        return null;
     }
 
     isNearLibrary(unit) {
