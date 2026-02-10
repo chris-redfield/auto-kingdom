@@ -96,18 +96,12 @@ const BUILDING_CONFIG = {
         canUpgrade: true,
         get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.WIZARD_GUILD]; },
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.WIZARD_GUILD]; },
-        // Alternative heroes with temples
+        // Healer available when Agrela Temple exists
         altRecruit: {
             name: 'Healer',
             get cost() { return RECRUIT_COSTS.HEALER; },
             unit: 'HEALER',
             requires: 'AGRELLA_TEMPLE'
-        },
-        altRecruit2: {
-            name: 'Necromancer',
-            get cost() { return RECRUIT_COSTS.NECROMANCER; },
-            unit: 'NECROMANCER',
-            requires: 'CRYPTA_TEMPLE'
         }
     },
     // Agrella Temple (0x24) - recruits Healers
@@ -121,9 +115,13 @@ const BUILDING_CONFIG = {
         get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.AGRELLA_TEMPLE]; },
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.AGRELLA_TEMPLE]; }
     },
-    // Crypta Temple (0x25) - for necromancers
+    // Crypta Temple (0x25) - recruits Necromancers
     [BuildingType.CRYPTA_TEMPLE]: {
         name: 'Temple of Krypta',
+        canRecruit: true,
+        get recruitCost() { return RECRUIT_COSTS.NECROMANCER; },
+        recruitUnit: 'NECROMANCER',
+        recruitName: 'Necromancer',
         canUpgrade: true,
         get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.CRYPTA_TEMPLE]; },
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.CRYPTA_TEMPLE]; }
@@ -334,7 +332,7 @@ export class BuildingMenu {
                     onClick: () => this.recruitHero(config.recruitUnit, config.recruitCost)
                 });
 
-                // Alternative recruit (e.g., Paladin from Warrior Guild)
+                // Alternative recruit (e.g., Paladin from Warrior Guild with Agrela Temple)
                 if (config.altRecruit && this.hasBuilding(config.altRecruit.requires)) {
                     const canAltRecruit = building.constructed && this.game.gold >= config.altRecruit.cost;
                     this.addOption({
@@ -345,6 +343,7 @@ export class BuildingMenu {
                         onClick: () => this.recruitHero(config.altRecruit.unit, config.altRecruit.cost)
                     });
                 }
+
             }
         }
 
