@@ -1398,6 +1398,127 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 - [x] Verify buttons are gated by guild level and gold
 - [x] Fixed enchant level selection: now finds highest affordable level (level*200g check) instead of always jumping to guild level
 
+#### Phase 2.9.4: Castle Level Requirements Fix
+
+**Problem:** Building availability based on castle level doesn't match original game.
+
+**Castle Upgrade Costs (from smali):**
+- Level 1→2: 3000 gold
+- Level 2→3: 3750 gold
+
+**Correct Castle Level Requirements (from isPosibleBuild in GameDialog.smali):**
+
+| Castle Level 1 (no requirement) | Castle Level 2 (required) |
+|--------------------------------|---------------------------|
+| Warrior Guild | Wizard Guild |
+| Ranger Guild | Temple of Agrela |
+| Blacksmith | Temple of Krypta |
+| Guard Tower | Temple of Krolm |
+| Marketplace | Elf Bungalow |
+| | Dwarf Windmill |
+| | Dwarf Tower |
+| | Gnome Hovel |
+| | Library |
+
+**Building Exclusion Rules (from smali):**
+- Agrela / Crypta / Krolm temples: mutually exclusive (only one temple type)
+- Dwarf Windmill / Elf Bungalow / Gnome Hovel: mutually exclusive
+- Dwarf Tower: excluded if Elf Bungalow or Gnome Hovel exists (requires Dwarf Windmill)
+
+**Tasks:**
+- [ ] Fix `requiresCastleLevel` values in CONSTRUCTIBLE_BUILDINGS to match smali
+- [ ] Fix building exclusion rules to match smali (Dwarf Tower needs Dwarf Windmill)
+- [ ] Add castle upgrade costs (3000g, 3750g) to GameConfig.js
+- [ ] Add castle upgrade button to BuildingMenu when castle is selected
+
+#### Phase 2.9.5: Temple Buildings & Units
+
+**Temple of Agrela:**
+- [ ] Add `canRecruit: true` to AGRELLA_TEMPLE building config
+- [ ] Temple recruits **Healers** (WIZARD_HEALER, type 0x8) directly at the temple
+- [ ] Healer unit: healing spell, support AI (heal nearby allies)
+- [ ] Unlocks **Paladin** (TYPE_PALADIN, type 0x2) at Warrior Guild — altRecruit already configured
+- [ ] Unlocks **Healer** at Wizard Guild — altRecruit already configured
+
+**Temple of Krypta (Necromancers):**
+- [ ] Verify CRYPTA_TEMPLE is in constructible buildings list
+- [ ] Add `canRecruit: true` to CRYPTA_TEMPLE building config
+- [ ] Temple recruits **Necromancers** (WIZARD_NECROMANCER, type 0x9) directly at the temple
+- [ ] Necromancer unit: dark magic, raise undead AI
+- [ ] Unlocks **Dark Warrior** (TYPE_DWARRIOR, type 0x3) at Warrior Guild — NEW altRecruit needed
+- [ ] Add DWARRIOR unit type to GameConfig.js (stats, cost, training time from smali)
+- [ ] Add DWARRIOR animations to AnimationConstants.js
+- [ ] Unlocks **Necromancer** at Wizard Guild — altRecruit2 already configured
+
+**Shared Tasks:**
+- [ ] Verify Healer and Necromancer stats in GameConfig.js match smali
+- [ ] Research DWARRIOR stats from smali (HP, damage, speed, XP, gold, etc.)
+- [ ] Verify animation packages load for all new unit types (Healer, Necromancer, DWarrior)
+- [ ] Test recruitment, spawning, combat behavior for all temple units
+
+#### Phase 2.9.6: Library Spell Research System
+
+**Building Menu UI:**
+- [ ] Add research section to Library building menu (similar to Marketplace research)
+- [ ] Show available spells based on library level
+- [ ] Research progress bar (500 ticks per spell, ~20 seconds)
+- [ ] Only one research at a time
+- [ ] Track researched spells via bitmask on building `param` field
+
+**Research Items:**
+
+| # | Spell | Cost | Req. Level | Param Bit |
+|---|-------|------|-----------|-----------|
+| 0 | Fire Blast | 450g | Lv1 | 0x20 |
+| 1 | Magic Resist | 225g | Lv1 | 0x800 |
+| 2 | Fire Ball | 450g | Lv2 | 0x4000 |
+| 3 | Fire Shield | 450g | Lv2 | 0x8000 |
+| 4 | Meteor Storm | 1350g | Lv2 | 0x2000 |
+
+**Spell Implementation (one by one):**
+
+**Spell 1: Fire Blast (single target, 10-20 dmg)**
+- [ ] Research unlock in Library menu
+- [ ] Create spell projectile/missile with fire animation
+- [ ] Hero auto-cast during combat (40 tick cooldown)
+- [ ] Damage calculation: 10-20 fire damage, ignores armor
+- [ ] Visual effect (fire animation from Package 3)
+
+**Spell 2: Magic Resist (self buff, +35 resist)**
+- [ ] Research unlock in Library menu
+- [ ] Apply +35 magic resistance to caster
+- [ ] Duration: 750 ticks (~30 seconds)
+- [ ] Visual indicator on buffed hero
+- [ ] Auto-cast when entering combat
+
+**Spell 3: Fire Ball (AOE, target: 30 dmg, nearby: 2-15 dmg)**
+- [ ] Research unlock in Library menu
+- [ ] Create AOE fire projectile
+- [ ] Primary target: 30 damage
+- [ ] Secondary targets within 2 tiles: 2-15 damage
+- [ ] Hero auto-cast during combat (60 tick cooldown)
+- [ ] AOE visual effect
+
+**Spell 4: Fire Shield (self buff, +5 armor, +25 resist)**
+- [ ] Research unlock in Library menu
+- [ ] Apply +5 armor and +25 magic resistance to caster
+- [ ] Duration: 750 ticks (~30 seconds)
+- [ ] Visual indicator on buffed hero
+- [ ] Auto-cast when entering combat
+
+**Spell 5: Meteor Storm (AOE, 5-30 dmg)**
+- [ ] Research unlock in Library menu
+- [ ] Create meteor projectiles (multiple hits in area)
+- [ ] Damage: 5-30 per hit within 2 tiles
+- [ ] Hero auto-cast during combat (150 tick cooldown)
+- [ ] Dramatic visual effect (meteor rain animation)
+
+**Spell System Infrastructure:**
+- [ ] Add spell state tracking to DynamicEntity (cooldown counters, buff timers)
+- [ ] Add spell casting animation state
+- [ ] Spell effect rendering (projectiles, AOE indicators, buff auras)
+- [ ] Cost reduction when Library is upgraded (~10% discount)
+
 ### Phase 2.10: Mission System
 - [ ] Mission objectives (defeat enemies, protect castle)
 - [ ] Win/lose conditions
@@ -1408,8 +1529,7 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 ## MILESTONE 3: Expansion (Future)
 
 - Additional missions
-- Magic/spell system
-- All unit types
+- All remaining unit types
 - Save/load game
 - Sound effects
 - Full polish
