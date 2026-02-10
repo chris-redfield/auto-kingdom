@@ -61,7 +61,7 @@ All phases of the Playable Prototype are done:
   - [x] **Phase 2.8: Unit Training Progress** ✅ COMPLETE
   - [x] **Phase 2.9.1: Blacksmith Building** ✅ COMPLETE
   - [x] **Phase 2.9.2: Marketplace** ✅ FIXED
-  - [ ] **Phase 2.9.3: Library (Enchantments)** 🎯 NEXT
+  - [x] **Phase 2.9.3: Wizard Guild Enchantments** ✅ COMPLETE
   - [ ] **Phase 2.10: Mission System** (objectives, victory conditions)
 
 ---
@@ -1337,10 +1337,66 @@ The Blacksmith has TWO separate systems (from smali analysis):
    - Hero became invisible because screen coordinates were completely wrong (non-isometric)
    - Fix: Use `this.owner.setGridPosition(newI, newJ)` which properly converts via `IsoMath.gridToWorld()`. Also clear path/movement state so hero doesn't walk back to old position.
 
-#### Phase 2.9.3: Library (Enchantments) 🎯 NEXT
-- [ ] Enchant weapon (+1 to +3 damage bonus)
-- [ ] Enchant armor (+1 to +3 defense bonus)
-- [ ] Enchantment costs and limits
+#### Phase 2.9.3: Wizard Guild Enchantments ✅ COMPLETE (2026-02-08)
+
+**Key Finding:** Enchantments happen at the **Wizard Guild**, NOT the Library.
+The Library researches spells (Fire Blast, Teleport, etc.) — a separate feature for later.
+
+**Enchantment System (from DynamicObject.smali + Script.smali):**
+- [x] Weapon enchant: +enchantedWeaponLevel to damage (+1/+2/+3)
+- [x] Armor enchant: -enchantedArmorLevel from incoming damage (after armor reduction)
+- [x] Cost: 200 gold flat per visit (hero pays from gold+taxGold via spendGold)
+- [x] Max level: min(wizardGuild.level, 3) — guild level caps enchantment
+- [x] Level jump: hero gets enchant = guild level in one visit (not incremental)
+- [x] Wizards/Healers/Necromancers NEVER enchant (rnd_go_enchant = -1)
+
+**Hero AI Auto-Enchant:**
+- [x] `shouldVisitWizardGuild()` — checks type, gold >= 200, enchant < guild level
+- [x] `findNearestWizardGuild()` — finds nearest constructed WIZARD_GUILD
+- [x] `tryVisitWizardGuild()` — pathfind to guild, enchant when within range
+- [x] `purchaseEnchantments()` — 50/50 weapon vs armor, falls back to other
+- [x] Visit chances from smali: Warrior/Ranger:100, Paladin/Elf:120, Barbarian/Dwarf:50
+
+**Manual Enchant (UnitMenu):**
+- [x] Enchant buttons appear when hero is near Wizard Guild
+- [x] Gated by guild level (can't enchant beyond guild level)
+- [x] Shows "Upgrade guild" hint when at max for current guild level
+
+**Bug Fixes Applied:**
+- Fixed enchant bonus constants: WEAPON_ENCHANT_BONUS was 3 (should be 1), ARMOR_ENCHANT_BONUS was 5 (should be 1)
+- Fixed armor enchant: was added to armor % (wrong), now subtracted from damage directly (smali behavior)
+- Fixed enchant UI: was checking Library proximity, now checks Wizard Guild
+- Fixed Inventory.enchantWeapon/enchantArmor: now uses gold+taxGold and spendGold()
+
+**Files Modified:**
+- `GameConfig.js`: Added ENCHANT_CONFIG, fixed WEAPON_ENCHANT_BONUS/ARMOR_ENCHANT_BONUS to 1
+- `Inventory.js`: Fixed enchantWeapon/enchantArmor (guildLevel param, spendGold, level jump)
+- `DynamicEntity.js`: Added wizard guild visit AI, fixed armor enchant in rollDamage()
+- `UnitMenu.js`: Added getNearestWizardGuild, fixed enchant buttons to use wizard guild
+- Also fixed blacksmith `shouldVisitBlacksmith()` random check: `* 1000` → `* 100` (same bug as marketplace)
+
+**How Enchantments Work (player-facing):**
+- Heroes visit the **Wizard Guild** to enchant their equipment
+- Cost: flat **200 gold** per visit (from hero's gold+taxGold)
+- Enchant level **jumps to the guild's building level** in one visit (not incremental)
+  - Guild Lv1 → +1, Guild Lv2 → +2, Guild Lv3 → +3
+- **Weapon enchant +N**: adds +N to every damage roll
+- **Armor enchant +N**: subtracts N from incoming damage (after armor reduction)
+- Heroes auto-visit when idle (50/50 weapon vs armor, falls back to other)
+- Wizards/Healers/Necromancers never enchant
+- Manual enchant via UnitMenu when hero stands near Wizard Guild
+
+**✅ TESTED AND WORKING (2026-02-09):**
+- [x] Build Wizard Guild, give hero gold, verify auto-visit and enchant
+- [x] Check console logs for enchant messages
+- [x] Verify enchant level shows in UnitMenu (+N next to weapon/armor)
+- [x] Verify weapon damage increases after enchant
+- [x] Verify incoming damage decreases after armor enchant
+- [x] Upgrade guild to Lv2, verify heroes enchant to +2
+- [x] Verify Wizards/Healers/Necromancers do NOT visit for enchanting
+- [x] Test manual enchant buttons near Wizard Guild
+- [x] Verify buttons are gated by guild level and gold
+- [x] Fixed enchant level selection: now finds highest affordable level (level*200g check) instead of always jumping to guild level
 
 ### Phase 2.10: Mission System
 - [ ] Mission objectives (defeat enemies, protect castle)

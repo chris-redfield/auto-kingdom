@@ -8,7 +8,7 @@
  * - XP and level progress
  */
 
-import { EQUIPMENT, ITEMS, ATTACK_TYPE, getWeaponID, BLACKSMITH_CONFIG } from '../config/GameConfig.js';
+import { EQUIPMENT, ITEMS, ATTACK_TYPE, getWeaponID, BLACKSMITH_CONFIG, ENCHANT_CONFIG } from '../config/GameConfig.js';
 import { SOUNDS } from '../audio/SoundConstants.js';
 import { getWeaponName, getArmorName } from '../entities/Inventory.js';
 
@@ -233,30 +233,37 @@ export class UnitMenu {
             }
         }
 
-        // Enchant options (if near library)
-        if (this.isNearLibrary(unit)) {
-            if (enchantW < 3) {
-                const cost = 200;
-                const canAfford = (unit.gold || 0) >= cost;
+        // Enchant options (if near Wizard Guild — enchantments happen there, not Library)
+        const wizardGuild = this.getNearestWizardGuild(unit);
+        if (wizardGuild) {
+            const guildLevel = wizardGuild.level || 1;
+            const maxEnchant = Math.min(guildLevel, ENCHANT_CONFIG.MAX_LEVEL);
+            const cost = ENCHANT_CONFIG.ENCHANT_PRICE;
+            const totalGold = (unit.gold || 0) + (unit.taxGold || 0);
+            const canAfford = totalGold >= cost;
+
+            if (enchantW < maxEnchant) {
                 this.addOption({
                     icon: '✨',
-                    text: `Enchant Weapon (+${enchantW + 1})`,
+                    text: `Enchant Weapon (+${maxEnchant})`,
                     cost: cost,
                     enabled: canAfford,
-                    onClick: () => this.enchantWeapon(unit, cost)
+                    onClick: () => this.enchantWeapon(unit, wizardGuild)
                 });
+            } else if (enchantW >= maxEnchant && enchantW < ENCHANT_CONFIG.MAX_LEVEL) {
+                this.addInfoRow('Enchant', `Weapon max (+${maxEnchant}) - Upgrade guild`);
             }
 
-            if (enchantA < 3) {
-                const cost = 200;
-                const canAfford = (unit.gold || 0) >= cost;
+            if (enchantA < maxEnchant) {
                 this.addOption({
                     icon: '🔮',
-                    text: `Enchant Armor (+${enchantA + 1})`,
+                    text: `Enchant Armor (+${maxEnchant})`,
                     cost: cost,
                     enabled: canAfford,
-                    onClick: () => this.enchantArmor(unit, cost)
+                    onClick: () => this.enchantArmor(unit, wizardGuild)
                 });
+            } else if (enchantA >= maxEnchant && enchantA < ENCHANT_CONFIG.MAX_LEVEL) {
+                this.addInfoRow('Enchant', `Armor max (+${maxEnchant}) - Upgrade guild`);
             }
         }
     }
@@ -549,6 +556,25 @@ export class UnitMenu {
         return this.isNearBuildingType(unit, 0x31);  // TYPE_LIBRARY
     }
 
+    /**
+     * Get the nearest Wizard Guild building within range (for enchanting)
+     */
+    getNearestWizardGuild(unit) {
+        if (!this.game.buildings) return null;
+
+        const range = 5;
+        for (const building of this.game.buildings) {
+            if (building.buildingType === 0x23 && building.team === 0 && building.constructed) {
+                const di = Math.abs(unit.gridI - building.gridI);
+                const dj = Math.abs(unit.gridJ - building.gridJ);
+                if (di <= range && dj <= range) {
+                    return building;
+                }
+            }
+        }
+        return null;
+    }
+
     isNearBuildingType(unit, buildingType) {
         if (!this.game.buildings) return false;
 
@@ -631,17 +657,21 @@ export class UnitMenu {
         }
     }
 
-    enchantWeapon(unit, cost) {
-        if (unit.inventory && unit.inventory.enchantWeapon()) {
-            this.game.showMessage('Weapon enchanted!');
+    enchantWeapon(unit, wizardGuild) {
+        const guildLevel = wizardGuild ? (wizardGuild.level || 1) : 1;
+        if (unit.inventory && unit.inventory.enchantWeapon(guildLevel)) {
+            this.game.showMessage(`Weapon enchanted +${unit.inventory.enchantedWeaponLevel}!`);
             this.playSound(SOUNDS.UPGRADE_COMPLETE);
+            this.showForUnit(unit);  // Refresh UI
         }
     }
 
-    enchantArmor(unit, cost) {
-        if (unit.inventory && unit.inventory.enchantArmor()) {
-            this.game.showMessage('Armor enchanted!');
+    enchantArmor(unit, wizardGuild) {
+        const guildLevel = wizardGuild ? (wizardGuild.level || 1) : 1;
+        if (unit.inventory && unit.inventory.enchantArmor(guildLevel)) {
+            this.game.showMessage(`Armor enchanted +${unit.inventory.enchantedArmorLevel}!`);
             this.playSound(SOUNDS.UPGRADE_COMPLETE);
+            this.showForUnit(unit);  // Refresh UI
         }
     }
 

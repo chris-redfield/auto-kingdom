@@ -1013,9 +1013,9 @@ export const EQUIPMENT = {
     WEAPON_UPGRADE_PRICES: [0, 100, 200, 300, 400, 500],
     ARMOR_UPGRADE_PRICES: [0, 150, 300, 450, 600, 750],
 
-    // Enchantment bonuses
-    WEAPON_ENCHANT_DAMAGE_BONUS: 3,  // +3 damage per enchant level
-    ARMOR_ENCHANT_DEFENSE_BONUS: 5,   // +5 defense per enchant level
+    // Enchantment bonuses (from smali: damage += enchantedWeaponLevel, damage -= enchantedArmorLevel)
+    WEAPON_ENCHANT_DAMAGE_BONUS: 1,  // +1 damage per enchant level (additive to rolled damage)
+    ARMOR_ENCHANT_DEFENSE_BONUS: 1,  // -1 incoming damage per enchant level (subtracted after armor)
 };
 
 // =============================================================================
@@ -1334,8 +1334,8 @@ export const COMBAT_CONSTANTS = {
     // Damage bonuses per upgrade level
     WEAPON_DAMAGE_PER_LEVEL: 2,      // +2 damage per weapon level
     ARMOR_DEFENSE_PER_LEVEL: 3,      // +3 armor per armor level
-    WEAPON_ENCHANT_BONUS: 3,         // +3 damage per enchant level
-    ARMOR_ENCHANT_BONUS: 5,          // +5 defense per enchant level
+    WEAPON_ENCHANT_BONUS: 1,         // +1 damage per enchant level (smali: damage += enchantedWeaponLevel)
+    ARMOR_ENCHANT_BONUS: 1,          // -1 incoming damage per enchant level (smali: damage -= enchantedArmorLevel)
 
     // Blacksmith upgrade bonuses (global for all heroes)
     BLACKSMITH_WEAPON_BONUS: 3,      // +3 damage per blacksmith weapon upgrade
@@ -1600,6 +1600,30 @@ export const MARKETPLACE_CONFIG = {
         WIZARD: 120,        // 0x78
         WIZARD_HEALER: 120, // 0x78
         WIZARD_NECROMANCER: 120, // 0x78
+    },
+};
+
+// =============================================================================
+// ENCHANTMENT CONFIG (at Wizard Guild, from DynamicObject.smali + Script.smali)
+// =============================================================================
+export const ENCHANT_CONFIG = {
+    // Flat cost per enchant visit (WEAPON_ENCHANT_PRICE / ARMOR_ENCHANT_PRICE = 0xC8)
+    ENCHANT_PRICE: 200,
+
+    // Max enchantment level (capped by wizard guild building level)
+    MAX_LEVEL: 3,
+
+    // Hero type chances to visit wizard guild for enchanting (RND_*_GO_ENCHANT from Const.smali)
+    VISIT_CHANCE: {
+        WARRIOR: 100,           // 0x64
+        RANGER: 100,            // 0x64
+        PALADIN: 120,           // 0x78
+        BARBARIAN: 50,          // 0x32
+        DWARF: 50,              // 0x32
+        ELF: 120,               // 0x78
+        WIZARD: -1,             // NEVER (wizards don't enchant)
+        WIZARD_HEALER: -1,      // NEVER
+        WIZARD_NECROMANCER: -1,  // NEVER
     },
 };
 

@@ -26,6 +26,7 @@ import {
     COMBAT_CONSTANTS, AI_CONFIG, VISUAL, GAME_RULES, TIMERS,
     BLACKSMITH_CONFIG,
     MARKETPLACE_CONFIG,
+    ENCHANT_CONFIG,
     getUnitStats, rollStat, getWeaponDamage, getWeaponID
 } from '../config/GameConfig.js';
 
@@ -125,6 +126,7 @@ export class DynamicEntity extends Entity {
         // AI state for building visits
         this.targetBlacksmith = null;  // Persists until hero purchases or can't afford
         this.targetMarketplace = null; // Persists until hero purchases or can't afford
+        this.targetWizardGuild = null; // Persists until hero enchants or can't afford
 
         // =====================================================================
         // END RPG STATS
@@ -268,21 +270,17 @@ export class DynamicEntity extends Entity {
     }
 
     /**
-     * Get total armor including equipment and enchantments
+     * Get total armor including equipment (NOT enchantments — those are applied to damage directly)
      */
     getTotalArmor() {
         let total = this.armor;
 
         // Get values from inventory if available, otherwise use direct properties
         const armorLevel = this.inventory ? this.inventory.armorLevel : this.armorLevel;
-        const enchantedArmorLevel = this.inventory ? this.inventory.enchantedArmorLevel : this.enchantedArmorLevel;
         const hasRing = this.inventory ? this.inventory.hasRingOfProtection : this.hasRingOfProtection;
 
         // Armor from equipment level
         total += (armorLevel - 1) * COMBAT_CONSTANTS.ARMOR_DEFENSE_PER_LEVEL;
-
-        // Enchantment bonus
-        total += enchantedArmorLevel * COMBAT_CONSTANTS.ARMOR_ENCHANT_BONUS;
 
         // Ring of protection bonus
         if (hasRing) {
@@ -666,14 +664,28 @@ export class DynamicEntity extends Entity {
         }
 
         // No enemies and no shop targets - consider visiting Marketplace
-        if (!this.attackTarget && !this.targetBlacksmith && !this.targetMarketplace && this.shouldVisitMarketplace()) {
+        if (!this.attackTarget && !this.targetBlacksmith && !this.targetMarketplace && !this.targetWizardGuild && this.shouldVisitMarketplace()) {
             if (this.tryVisitMarketplace()) {
                 return;
             }
         }
 
+        // Continue going to wizard guild if we have a target (persistent state)
+        if (!this.attackTarget && !this.targetBlacksmith && !this.targetMarketplace && this.targetWizardGuild) {
+            if (this.tryVisitWizardGuild()) {
+                return;
+            }
+        }
+
+        // No enemies and no shop targets - consider visiting Wizard Guild for enchanting
+        if (!this.attackTarget && !this.targetBlacksmith && !this.targetMarketplace && !this.targetWizardGuild && this.shouldVisitWizardGuild()) {
+            if (this.tryVisitWizardGuild()) {
+                return;
+            }
+        }
+
         // Idle behavior - random wandering (only if not heading somewhere)
-        if (!this.moving && !this.attackTarget && !this.targetBlacksmith && !this.targetMarketplace && Math.random() < AI_CONFIG.WANDER_CHANCE) {
+        if (!this.moving && !this.attackTarget && !this.targetBlacksmith && !this.targetMarketplace && !this.targetWizardGuild && Math.random() < AI_CONFIG.WANDER_CHANCE) {
             this.wanderRandomly();
         }
     }
@@ -792,8 +804,8 @@ export class DynamicEntity extends Entity {
             return false;  // Can't afford any upgrade
         }
 
-        // Random chance based on unit type (higher = more likely)
-        return Math.random() * 1000 < visitChance;
+        // Random chance based on unit type (rnd(100) < visitChance, from smali)
+        return Math.random() * 100 < visitChance;
     }
 
     /**
@@ -1222,7 +1234,186 @@ export class DynamicEntity extends Entity {
     }
 
     // =========================================================================
-    // END BLACKSMITH VISITING
+    // WIZARD GUILD ENCHANTING (from Script.smali goingToWizardGuild)
+    // =========================================================================
+
+    /**
+     * Check if this hero should visit the Wizard Guild for enchanting
+     */
+    shouldVisitWizardGuild() {
+        if (this.team !== 'player') return false;
+        if (this.objectType !== OBJECT_TYPE.HERO) return false;
+        if (!this.inventory) return false;
+
+        const unitTypeName = this.getUnitTypeName();
+        const visitChance = ENCHANT_CONFIG.VISIT_CHANCE[unitTypeName];
+        if (visitChance === undefined || visitChance < 0) return false;  // Wizards never enchant
+
+        // Check if hero has enough gold (flat 200g per enchant)
+        const totalGold = (this.gold || 0) + (this.taxGold || 0);
+        if (totalGold < ENCHANT_CONFIG.ENCHANT_PRICE) return false;
+
+        // Find nearest wizard guild and check if hero can enchant there
+        const guild = this.findNearestWizardGuild();
+        if (!guild) return false;
+
+        // Check if hero still needs enchanting (either weapon or armor below guild level)
+        const maxLevel = Math.min(guild.level || 1, ENCHANT_CONFIG.MAX_LEVEL);
+        const needsWeapon = this.inventory.enchantedWeaponLevel < maxLevel;
+        const needsArmor = this.inventory.enchantedArmorLevel < maxLevel;
+        if (!needsWeapon && !needsArmor) return false;
+
+        // Random chance based on unit type (rnd(100) < visitChance, from smali)
+        return Math.random() * 100 < visitChance;
+    }
+
+    /**
+     * Find the nearest player-owned Wizard Guild
+     */
+    findNearestWizardGuild() {
+        if (!this.game || !this.game.buildings) return null;
+
+        let nearest = null;
+        let nearestDist = Infinity;
+
+        for (const building of this.game.buildings) {
+            if (building.buildingType !== BuildingType.WIZARD_GUILD) continue;
+            if (building.team !== 0) continue;
+            if (!building.constructed) continue;
+
+            const buildingSizeI = building.sizeI || 2;
+            const buildingSizeJ = building.sizeJ || 2;
+            const centerI = building.gridI + buildingSizeI / 2;
+            const centerJ = building.gridJ + buildingSizeJ / 2;
+            const dx = this.gridI - centerI;
+            const dy = this.gridJ - centerJ;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = building;
+            }
+        }
+
+        return nearest;
+    }
+
+    /**
+     * Try to visit the Wizard Guild for enchanting
+     * @returns {boolean} True if hero is heading to or at wizard guild
+     */
+    tryVisitWizardGuild() {
+        const guild = this.targetWizardGuild || this.findNearestWizardGuild();
+        if (!guild) {
+            this.targetWizardGuild = null;
+            return false;
+        }
+
+        // Check if we can still enchant anything
+        const maxLevel = Math.min(guild.level || 1, ENCHANT_CONFIG.MAX_LEVEL);
+        const totalGold = (this.gold || 0) + (this.taxGold || 0);
+        if (totalGold < ENCHANT_CONFIG.ENCHANT_PRICE ||
+            (this.inventory.enchantedWeaponLevel >= maxLevel && this.inventory.enchantedArmorLevel >= maxLevel)) {
+            this.targetWizardGuild = null;
+            return false;
+        }
+
+        // Calculate distance to building center
+        const buildingSizeI = guild.sizeI || 2;
+        const buildingSizeJ = guild.sizeJ || 2;
+        const centerI = guild.gridI + buildingSizeI / 2;
+        const centerJ = guild.gridJ + buildingSizeJ / 2;
+        const dx = this.gridI - centerI;
+        const dy = this.gridJ - centerJ;
+        const distToCenter = Math.sqrt(dx * dx + dy * dy);
+
+        // At the wizard guild - enchant!
+        if (distToCenter <= 2.5) {
+            this.purchaseEnchantments(guild);
+            this.targetWizardGuild = null;
+            return true;
+        }
+
+        // Set persistent target and move towards wizard guild
+        this.targetWizardGuild = guild;
+
+        const offsets = [
+            { i: 0, j: 2 },  { i: 0, j: -1 }, { i: 2, j: 0 },  { i: -1, j: 0 },
+            { i: 1, j: 2 },  { i: -1, j: 2 }, { i: 2, j: 1 },  { i: -1, j: 1 },
+        ];
+
+        for (const offset of offsets) {
+            const targetI = Math.floor(centerI + offset.i);
+            const targetJ = Math.floor(centerJ + offset.j);
+
+            if (this.grid && this.grid.isWalkable(targetI, targetJ)) {
+                this.moveTo(targetI, targetJ, this.grid);
+                return true;
+            }
+        }
+
+        this.targetWizardGuild = null;
+        return false;
+    }
+
+    /**
+     * Purchase enchantments at the Wizard Guild
+     * From smali: 50/50 weapon vs armor, falls back to the other
+     */
+    purchaseEnchantments(guild) {
+        if (!this.inventory) return;
+
+        const guildLevel = guild.level || 1;
+        const maxLevel = Math.min(guildLevel, ENCHANT_CONFIG.MAX_LEVEL);
+        let enchanted = false;
+
+        const canEnchantWeapon = this.inventory.enchantedWeaponLevel < maxLevel;
+        const canEnchantArmor = this.inventory.enchantedArmorLevel < maxLevel;
+
+        // 50/50 random: try weapon first or armor first (smali: rnd(100) <= 50)
+        if (Math.random() < 0.5) {
+            // Try weapon first, then armor
+            if (canEnchantWeapon && this.inventory.enchantWeapon(guildLevel)) {
+                console.log(`${this.unitType} enchanted weapon to +${this.inventory.enchantedWeaponLevel}`);
+                enchanted = true;
+                this.showUpgradeEffect('enchant');
+                if (this.game && this.game.showMessage) {
+                    this.game.showMessage(`${this.unitType} enchanted weapon +${this.inventory.enchantedWeaponLevel}!`);
+                }
+            } else if (canEnchantArmor && this.inventory.enchantArmor(guildLevel)) {
+                console.log(`${this.unitType} enchanted armor to +${this.inventory.enchantedArmorLevel}`);
+                enchanted = true;
+                this.showUpgradeEffect('enchant');
+                if (this.game && this.game.showMessage) {
+                    this.game.showMessage(`${this.unitType} enchanted armor +${this.inventory.enchantedArmorLevel}!`);
+                }
+            }
+        } else {
+            // Try armor first, then weapon
+            if (canEnchantArmor && this.inventory.enchantArmor(guildLevel)) {
+                console.log(`${this.unitType} enchanted armor to +${this.inventory.enchantedArmorLevel}`);
+                enchanted = true;
+                this.showUpgradeEffect('enchant');
+                if (this.game && this.game.showMessage) {
+                    this.game.showMessage(`${this.unitType} enchanted armor +${this.inventory.enchantedArmorLevel}!`);
+                }
+            } else if (canEnchantWeapon && this.inventory.enchantWeapon(guildLevel)) {
+                console.log(`${this.unitType} enchanted weapon to +${this.inventory.enchantedWeaponLevel}`);
+                enchanted = true;
+                this.showUpgradeEffect('enchant');
+                if (this.game && this.game.showMessage) {
+                    this.game.showMessage(`${this.unitType} enchanted weapon +${this.inventory.enchantedWeaponLevel}!`);
+                }
+            }
+        }
+
+        if (enchanted && this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.GOLD, this.worldX, this.worldY);
+        }
+    }
+
+    // =========================================================================
+    // END WIZARD GUILD ENCHANTING
     // =========================================================================
 
     /**
@@ -1715,11 +1906,21 @@ export class DynamicEntity extends Entity {
 
         // Calculate base damage with target's armor
         const targetArmor = target.getTotalArmor ? target.getTotalArmor() : (target.armor || 0);
-        return COMBAT.calculateDamage(
+        let damage = COMBAT.calculateDamage(
             minDmg + attackerBonus,
             maxDmg + attackerBonus,
             targetArmor
         );
+
+        // Apply armor enchantment reduction (smali: damage -= enchantedArmorLevel, floored at 0)
+        const targetArmorEnchant = target.inventory ?
+            target.inventory.enchantedArmorLevel :
+            (target.enchantedArmorLevel || 0);
+        if (targetArmorEnchant > 0) {
+            damage = Math.max(0, damage - targetArmorEnchant);
+        }
+
+        return damage;
     }
 
     /**
@@ -1847,6 +2048,7 @@ export class DynamicEntity extends Entity {
         // Combat takes priority - abandon shop visits
         this.targetBlacksmith = null;
         this.targetMarketplace = null;
+        this.targetWizardGuild = null;
     }
 
     /**

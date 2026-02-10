@@ -7,7 +7,7 @@
  * - Accessories (rings, amulets)
  */
 
-import { EQUIPMENT, ITEMS, getWeaponID, BLACKSMITH_CONFIG } from '../config/GameConfig.js';
+import { EQUIPMENT, ITEMS, getWeaponID, BLACKSMITH_CONFIG, ENCHANT_CONFIG } from '../config/GameConfig.js';
 
 /**
  * Inventory class for managing hero equipment and items
@@ -76,22 +76,34 @@ export class Inventory {
     }
 
     /**
-     * Enchant weapon (requires Library building)
+     * Enchant weapon at Wizard Guild
+     * From smali getEnchantWeapon(): loops from guildLevel down to 1,
+     * picks highest level hero can afford (level * 200g check), pays flat 200g.
+     * @param {number} guildLevel - The Wizard Guild's building level (caps enchant)
      * @returns {boolean} Success
      */
-    enchantWeapon() {
-        if (this.enchantedWeaponLevel >= 3) {
-            return false;  // Max enchantment
-        }
+    enchantWeapon(guildLevel) {
+        const maxLevel = Math.min(guildLevel || 1, ENCHANT_CONFIG.MAX_LEVEL);
+        if (this.enchantedWeaponLevel >= maxLevel) return false;
 
-        const price = 200;  // WEAPON_ENCHANT_PRICE from Const.smali
-        if (this.owner.gold >= price) {
-            this.owner.gold -= price;
-            this.enchantedWeaponLevel++;
-            this.owner.calculateDamageFromStats();
-            return true;
+        const totalGold = (this.owner.gold || 0) + (this.owner.taxGold || 0);
+
+        // Find highest affordable level (smali: loop from guildLevel down to 1, cost = level * 200)
+        let targetLevel = -1;
+        for (let lvl = maxLevel; lvl >= 1; lvl--) {
+            if (lvl <= this.enchantedWeaponLevel) break; // No improvement possible
+            if (totalGold >= lvl * ENCHANT_CONFIG.ENCHANT_PRICE) {
+                targetLevel = lvl;
+                break;
+            }
         }
-        return false;
+        if (targetLevel < 0) return false;
+
+        this.owner.spendGold(ENCHANT_CONFIG.ENCHANT_PRICE);  // Always pays flat 200g
+        this.enchantedWeaponLevel = targetLevel;
+        this.owner.enchantedWeaponLevel = targetLevel;  // Sync to owner
+        this.owner.calculateDamageFromStats();
+        return true;
     }
 
     // =========================================================================
@@ -130,21 +142,34 @@ export class Inventory {
     }
 
     /**
-     * Enchant armor
+     * Enchant armor at Wizard Guild
+     * From smali getEnchantArmor(): loops from guildLevel down to 1,
+     * picks highest level hero can afford (level * 200g check), pays flat 200g.
+     * Note: Wizards (type 4) cannot enchant armor (smali: getEnchantArmor returns -1)
+     * @param {number} guildLevel - The Wizard Guild's building level (caps enchant)
      * @returns {boolean} Success
      */
-    enchantArmor() {
-        if (this.enchantedArmorLevel >= 3) {
-            return false;
-        }
+    enchantArmor(guildLevel) {
+        const maxLevel = Math.min(guildLevel || 1, ENCHANT_CONFIG.MAX_LEVEL);
+        if (this.enchantedArmorLevel >= maxLevel) return false;
 
-        const price = 200;
-        if (this.owner.gold >= price) {
-            this.owner.gold -= price;
-            this.enchantedArmorLevel++;
-            return true;
+        const totalGold = (this.owner.gold || 0) + (this.owner.taxGold || 0);
+
+        // Find highest affordable level (smali: loop from guildLevel down to 1, cost = level * 200)
+        let targetLevel = -1;
+        for (let lvl = maxLevel; lvl >= 1; lvl--) {
+            if (lvl <= this.enchantedArmorLevel) break; // No improvement possible
+            if (totalGold >= lvl * ENCHANT_CONFIG.ENCHANT_PRICE) {
+                targetLevel = lvl;
+                break;
+            }
         }
-        return false;
+        if (targetLevel < 0) return false;
+
+        this.owner.spendGold(ENCHANT_CONFIG.ENCHANT_PRICE);  // Always pays flat 200g
+        this.enchantedArmorLevel = targetLevel;
+        this.owner.enchantedArmorLevel = targetLevel;  // Sync to owner
+        return true;
     }
 
     // =========================================================================
