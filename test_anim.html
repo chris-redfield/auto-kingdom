@@ -84,6 +84,10 @@
         <span class="section-label">Unit Type:</span>
         <button class="unit-btn" data-pkg="7" data-unit="RANGER">Ranger (Pkg 7)</button>
         <button class="unit-btn" data-pkg="8" data-unit="WARRIOR">Knight (Pkg 8)</button>
+        <button class="unit-btn" data-pkg="3" data-unit="DWARRIOR">DWarrior (Pkg 3)</button>
+        <button class="unit-btn" data-pkg="9" data-unit="WIZARD">Wizard (Pkg 9)</button>
+        <button class="unit-btn" data-pkg="2" data-unit="HEALER">Healer (Pkg 2)</button>
+        <button class="unit-btn" data-pkg="3" data-unit="NECROMANCER">Necromancer (Pkg 3)</button>
         <button class="unit-btn" data-pkg="13" data-unit="GIANT_RAT">Giant Rat (Pkg 13)</button>
         <button class="unit-btn" data-pkg="14" data-unit="TROLL">Troll (Pkg 14)</button>
         <br><br>
@@ -123,10 +127,12 @@
         <label>Pkg: <select id="packageSelect">
             <option value="0">0 - UI</option>
             <option value="1">1 - Buildings</option>
-            <option value="3">3 - Fire Warriors</option>
+            <option value="2">2 - Ice/Healer (MAG_BLUE)</option>
+            <option value="3">3 - Fire/DWarrior/Necro</option>
             <option value="4">4 - Orcs</option>
             <option value="7" selected>7 - Rangers</option>
             <option value="8">8 - Knights</option>
+            <option value="9">9 - Wizards (MAG_RED)</option>
             <option value="13">13 - Giant Rats</option>
             <option value="14">14 - Trolls</option>
         </select></label>
@@ -163,6 +169,38 @@
                 <td>9-16</td>
                 <td>17-24</td>
                 <td>25-32</td>
+            </tr>
+            <tr>
+                <td>Wizard (MAG_RED)</td>
+                <td>9</td>
+                <td>33-40</td>
+                <td>41-48</td>
+                <td>49-56</td>
+                <td>57-64</td>
+            </tr>
+            <tr>
+                <td>Healer (MAG_BLUE)</td>
+                <td>2</td>
+                <td>29-36</td>
+                <td>37-44</td>
+                <td>45-52</td>
+                <td>53-60</td>
+            </tr>
+            <tr>
+                <td>Necromancer (MAG_BLACK)</td>
+                <td>3</td>
+                <td>67-74</td>
+                <td>75-82</td>
+                <td>83-90</td>
+                <td>91-98</td>
+            </tr>
+            <tr>
+                <td>DWarrior (Fire)</td>
+                <td>3</td>
+                <td>13-20</td>
+                <td>21-28</td>
+                <td>29-36</td>
+                <td>37-44</td>
             </tr>
             <tr>
                 <td>Giant Rat</td>

@@ -240,6 +240,26 @@ export const UNIT_ANIMS = {
         death: 41,   // 0x2429 = (9 << 10) | 41
         walk: 49,    // 0x2431 = (9 << 10) | 49
         idle: 57     // 0x2439 = (9 << 10) | 57
+    },
+
+    // Package 2: Healer (MAG_BLUE - blue mage, from Temple of Agrela)
+    // Import.smali constants (17/25/33/41) point to spell EFFECTS, not body anims.
+    // Actual body animations verified by frame-count analysis (20-frame attack pattern).
+    HEALER: {
+        package: 2,
+        attack: 29,  // 20 frames, 219-295 layers (body cast, like Wizard at 33)
+        death: 37,   // 6-7 frames, 59-74 layers (death, like Wizard at 41)
+        walk: 45,    // 8 frames, 92-109 layers (walk, like Wizard at 49)
+        idle: 53     // 8 frames, ~93-109 layers (idle, like Wizard at 57)
+    },
+
+    // Package 3: Necromancer (MAG_BLACK - dark mage, from Temple of Krypta)
+    NECROMANCER: {
+        package: 3,
+        attack: 67,  // MAG_BLACK_ATTACK_E = 0xc43
+        death: 75,   // MAG_BLACK_DEATH_E = 0xc4b
+        walk: 83,    // MAG_BLACK_GO_E = 0xc53
+        idle: 91     // MAG_BLACK_IDLE_E = 0xc5b
     }
 };
 

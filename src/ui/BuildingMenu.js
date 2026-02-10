@@ -110,9 +110,13 @@ const BUILDING_CONFIG = {
             requires: 'CRYPTA_TEMPLE'
         }
     },
-    // Agrella Temple (0x24) - for healers
+    // Agrella Temple (0x24) - recruits Healers
     [BuildingType.AGRELLA_TEMPLE]: {
         name: 'Temple of Agrela',
+        canRecruit: true,
+        get recruitCost() { return RECRUIT_COSTS.HEALER; },
+        recruitUnit: 'HEALER',
+        recruitName: 'Healer',
         canUpgrade: true,
         get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.AGRELLA_TEMPLE]; },
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.AGRELLA_TEMPLE]; }
