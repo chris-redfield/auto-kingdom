@@ -1425,11 +1425,12 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 - Dwarf Windmill / Elf Bungalow / Gnome Hovel: mutually exclusive
 - Dwarf Tower: excluded if Elf Bungalow or Gnome Hovel exists (requires Dwarf Windmill)
 
-**Tasks:**
-- [ ] Fix `requiresCastleLevel` values in CONSTRUCTIBLE_BUILDINGS to match smali
-- [ ] Fix building exclusion rules to match smali (Dwarf Tower needs Dwarf Windmill)
-- [ ] Add castle upgrade costs (3000g, 3750g) to GameConfig.js
-- [ ] Add castle upgrade button to BuildingMenu when castle is selected
+**Tasks:** ✅ COMPLETE (2026-02-09)
+- [x] Fix `requiresCastleLevel` values in CONSTRUCTIBLE_BUILDINGS to match smali
+- [x] Fix building exclusion rules to match smali (Dwarf Tower needs Dwarf Windmill via `requires` field)
+- [x] Add castle upgrade costs (3000g, 3750g) to GameConfig.js
+- [x] Add Dwarf Tower to CONSTRUCTIBLE_BUILDINGS, BUILDING_COSTS, BUILDING_UPGRADE_COSTS, BUILDING_MAX_LEVEL
+- [x] Castle upgrade button already existed in BuildingMenu (no change needed)
 
 #### Phase 2.9.5: Temple Buildings & Units
 

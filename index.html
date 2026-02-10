@@ -306,9 +306,13 @@
             border-radius: 8px;
             padding: 0;
             width: 220px;
+            max-height: calc(100vh - 80px);
             display: none;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
             z-index: 100;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #5a5a7a #1a1a2e;
         }
 
         #building-menu.visible {
@@ -372,7 +376,7 @@
         }
 
         #building-options {
-            padding: 8px;
+            padding: 8px 8px 16px 8px;
         }
 
         .build-section-header {

@@ -1215,11 +1215,12 @@ export const BUILDING_COSTS = {
     [BUILDING_TYPE.GNOME_HOVEL]: 100,
     [BUILDING_TYPE.LIBRARY]: 600,
     [BUILDING_TYPE.INN]: 500,
+    [BUILDING_TYPE.DWARF_TOWER]: 700,
 };
 
 // Building upgrade costs per level [lv1->2, lv2->3, lv3->4]
 export const BUILDING_UPGRADE_COSTS = {
-    [BUILDING_TYPE.CASTLE]: [600, 1200, 2400],
+    [BUILDING_TYPE.CASTLE]: [3000, 3750],  // From smali: 0xbb8, 0xea6
     [BUILDING_TYPE.WARRIOR_GUILD]: [800, 1600, 3200],
     [BUILDING_TYPE.RANGER_GUILD]: [700, 1400, 2800],
     [BUILDING_TYPE.WIZARD_GUILD]: [1500, 3000, 6000],
@@ -1234,6 +1235,7 @@ export const BUILDING_UPGRADE_COSTS = {
     [BUILDING_TYPE.GNOME_HOVEL]: [800, 1600],
     [BUILDING_TYPE.INN]: [500, 1000],
     [BUILDING_TYPE.LIBRARY]: [1500, 3000],
+    [BUILDING_TYPE.DWARF_TOWER]: [350, 450],
 };
 
 // Building max levels
@@ -1253,6 +1255,7 @@ export const BUILDING_MAX_LEVEL = {
     [BUILDING_TYPE.GNOME_HOVEL]: 2,
     [BUILDING_TYPE.INN]: 2,
     [BUILDING_TYPE.LIBRARY]: 2,
+    [BUILDING_TYPE.DWARF_TOWER]: 3,
 };
 
 // Building construction times in ms (based on HP * 8 from original)

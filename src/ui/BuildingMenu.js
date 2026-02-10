@@ -26,20 +26,23 @@ import {
 // Based on original game's getTypeFromMenuBuildings() in GameDialog.smali
 // Costs are pulled from GameConfig.BUILDING_COSTS
 const CONSTRUCTIBLE_BUILDINGS = [
+    // Castle Level 1 buildings (from smali isPosibleBuild)
     { type: BuildingType.WARRIOR_GUILD, name: 'Warrior Guild', get cost() { return BUILDING_COSTS[BuildingType.WARRIOR_GUILD]; }, icon: '⚔️', requiresCastleLevel: 1 },
     { type: BuildingType.RANGER_GUILD, name: 'Ranger Guild', get cost() { return BUILDING_COSTS[BuildingType.RANGER_GUILD]; }, icon: '🏹', requiresCastleLevel: 1 },
-    { type: BuildingType.WIZARD_GUILD, name: 'Wizard Guild', get cost() { return BUILDING_COSTS[BuildingType.WIZARD_GUILD]; }, icon: '🔮', requiresCastleLevel: 1 },
-    { type: BuildingType.BLACKSMITH, name: 'Blacksmith', get cost() { return BUILDING_COSTS[BuildingType.BLACKSMITH]; }, icon: '🔨', requiresCastleLevel: 2 },
-    { type: BuildingType.MARKETPLACE, name: 'Marketplace', get cost() { return BUILDING_COSTS[BuildingType.MARKETPLACE]; }, icon: '🏪', requiresCastleLevel: 1 },
+    { type: BuildingType.BLACKSMITH, name: 'Blacksmith', get cost() { return BUILDING_COSTS[BuildingType.BLACKSMITH]; }, icon: '🔨', requiresCastleLevel: 1 },
     { type: BuildingType.GUARD_TOWER, name: 'Guard Tower', get cost() { return BUILDING_COSTS[BuildingType.GUARD_TOWER]; }, icon: '🗼', requiresCastleLevel: 1 },
-    { type: BuildingType.AGRELLA_TEMPLE, name: 'Temple of Agrela', get cost() { return BUILDING_COSTS[BuildingType.AGRELLA_TEMPLE]; }, icon: '☀️', requiresCastleLevel: 2, excludes: ['CRYPTA_TEMPLE', 'KROLM_TEMPLE'] },
+    { type: BuildingType.MARKETPLACE, name: 'Marketplace', get cost() { return BUILDING_COSTS[BuildingType.MARKETPLACE]; }, icon: '🏪', requiresCastleLevel: 1 },
+    { type: BuildingType.INN, name: 'Inn', get cost() { return BUILDING_COSTS[BuildingType.INN]; }, icon: '🍺', requiresCastleLevel: 1 },
+    // Castle Level 2 buildings (from smali isPosibleBuild)
+    { type: BuildingType.WIZARD_GUILD, name: 'Wizard Guild', get cost() { return BUILDING_COSTS[BuildingType.WIZARD_GUILD]; }, icon: '🔮', requiresCastleLevel: 2 },
+    { type: BuildingType.AGRELLA_TEMPLE, name: 'Temple of Agrela', get cost() { return BUILDING_COSTS[BuildingType.AGRELLA_TEMPLE]; }, icon: '☀️', requiresCastleLevel: 2, excludes: ['CRYPTA_TEMPLE'] },
     { type: BuildingType.CRYPTA_TEMPLE, name: 'Temple of Krypta', get cost() { return BUILDING_COSTS[BuildingType.CRYPTA_TEMPLE]; }, icon: '💀', requiresCastleLevel: 2, excludes: ['AGRELLA_TEMPLE', 'KROLM_TEMPLE'] },
-    { type: BuildingType.KROLM_TEMPLE, name: 'Temple of Krolm', get cost() { return BUILDING_COSTS[BuildingType.KROLM_TEMPLE]; }, icon: '⚡', requiresCastleLevel: 2, excludes: ['AGRELLA_TEMPLE', 'CRYPTA_TEMPLE'] },
+    { type: BuildingType.KROLM_TEMPLE, name: 'Temple of Krolm', get cost() { return BUILDING_COSTS[BuildingType.KROLM_TEMPLE]; }, icon: '⚡', requiresCastleLevel: 2, excludes: ['CRYPTA_TEMPLE'] },
     { type: BuildingType.ELF_BUNGALOW, name: 'Elven Bungalow', get cost() { return BUILDING_COSTS[BuildingType.ELF_BUNGALOW]; }, icon: '🌿', requiresCastleLevel: 2, excludes: ['GNOME_HOVEL', 'DWARF_WINDMILL'] },
     { type: BuildingType.DWARF_WINDMILL, name: 'Dwarven Settlement', get cost() { return BUILDING_COSTS[BuildingType.DWARF_WINDMILL]; }, icon: '⛏️', requiresCastleLevel: 2, excludes: ['GNOME_HOVEL', 'ELF_BUNGALOW'] },
-    { type: BuildingType.GNOME_HOVEL, name: 'Gnome Hovel', get cost() { return BUILDING_COSTS[BuildingType.GNOME_HOVEL]; }, icon: '🍄', requiresCastleLevel: 1, excludes: ['ELF_BUNGALOW', 'DWARF_WINDMILL'] },
+    { type: BuildingType.DWARF_TOWER, name: 'Dwarf Tower', get cost() { return BUILDING_COSTS[BuildingType.DWARF_TOWER]; }, icon: '🏰', requiresCastleLevel: 2, requires: 'DWARF_WINDMILL' },
+    { type: BuildingType.GNOME_HOVEL, name: 'Gnome Hovel', get cost() { return BUILDING_COSTS[BuildingType.GNOME_HOVEL]; }, icon: '🍄', requiresCastleLevel: 2, excludes: ['ELF_BUNGALOW', 'DWARF_WINDMILL'] },
     { type: BuildingType.LIBRARY, name: 'Library', get cost() { return BUILDING_COSTS[BuildingType.LIBRARY]; }, icon: '📚', requiresCastleLevel: 2 },
-    { type: BuildingType.INN, name: 'Inn', get cost() { return BUILDING_COSTS[BuildingType.INN]; }, icon: '🍺', requiresCastleLevel: 1 },
 ];
 
 // Building configuration - costs and options
@@ -183,6 +186,13 @@ const BUILDING_CONFIG = {
         canUpgrade: true,
         get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.DWARF_WINDMILL]; },
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.DWARF_WINDMILL]; }
+    },
+    // Dwarf Tower (0x2d) - requires Dwarf Windmill
+    [BuildingType.DWARF_TOWER]: {
+        name: 'Dwarf Tower',
+        canUpgrade: true,
+        get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.DWARF_TOWER]; },
+        get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.DWARF_TOWER]; }
     },
     // Gnome Hovel (0x2e)
     [BuildingType.GNOME_HOVEL]: {
@@ -447,11 +457,22 @@ export class BuildingMenu {
         header.textContent = 'Build';
         this.optionsContainer.appendChild(header);
 
-        // Filter available buildings based on castle level and exclusions
+        // Filter available buildings based on castle level, exclusions, and requirements
         const availableBuildings = CONSTRUCTIBLE_BUILDINGS.filter(bldg => {
             // Check castle level requirement
             if (castle.level < bldg.requiresCastleLevel) {
                 return false;
+            }
+
+            // Check prerequisite building (e.g., Dwarf Tower requires Dwarf Windmill)
+            if (bldg.requires) {
+                const requireType = BuildingType[bldg.requires];
+                const hasRequired = this.game.buildings.some(b =>
+                    b.buildingType === requireType && b.team === 0 && b.constructed
+                );
+                if (!hasRequired) {
+                    return false;
+                }
             }
 
             // Check exclusions (e.g., can't have both Elf Bungalow and Gnome Hovel)
