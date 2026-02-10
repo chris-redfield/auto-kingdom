@@ -1434,12 +1434,16 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 
 #### Phase 2.9.5: Temple Buildings & Units
 
-**Temple of Agrela:**
-- [ ] Add `canRecruit: true` to AGRELLA_TEMPLE building config
-- [ ] Temple recruits **Healers** (WIZARD_HEALER, type 0x8) directly at the temple
-- [ ] Healer unit: healing spell, support AI (heal nearby allies)
-- [ ] Unlocks **Paladin** (TYPE_PALADIN, type 0x2) at Warrior Guild — altRecruit already configured
-- [ ] Unlocks **Healer** at Wizard Guild — altRecruit already configured
+**Temple of Agrela:** ✅ COMPLETE
+- [x] Add `canRecruit: true` to AGRELLA_TEMPLE building config
+- [x] Temple recruits **Healers** (WIZARD_HEALER, type 0x8) directly at the temple
+- [x] Healer unit: healing spell, support AI (heal nearby allies)
+- [x] Healer AI: self-heal priority, then heal most-injured ally within 8 tiles, cooldown 100 ticks, heals target_level*8 HP, gains 1000 XP per heal
+- [x] Healer animations fixed (body anims at +12 offset from Import.smali constants: attack=29, death=37, walk=45, idle=53 in package 2)
+- [x] Health bar hides when HP returns to full (was showing stale red bar after healing)
+- [x] Unlocks **Paladin** (TYPE_PALADIN, type 0x2) at Warrior Guild — altRecruit already configured
+- [x] Unlocks **Healer** at Wizard Guild — altRecruit already configured
+- Note: Temple upgrade (3 levels) increases building HP only — no feature unlocks gated by level
 
 **Temple of Krypta (Necromancers):**
 - [ ] Verify CRYPTA_TEMPLE is in constructible buildings list

@@ -1631,6 +1631,16 @@ export const ENCHANT_CONFIG = {
 };
 
 // =============================================================================
+// HEALER CONFIG (from Const.smali / DynamicObject.smali / Script.smali)
+// =============================================================================
+export const HEALER_CONFIG = {
+    HEAL_COOLDOWN: 100,          // 100 ticks between heals (healCounter threshold)
+    HEAL_AMOUNT_PER_LEVEL: 8,    // target_level * 8 HP healed per cast
+    HEAL_RANGE: 8,               // tiles to search for hurt allies
+    HEALING_EXP: 1000,           // XP gained per heal (WIZARD_HEALER_HEALING_EXP = 0x3e8)
+};
+
+// =============================================================================
 // HELPER FUNCTION: Get building config value
 // =============================================================================
 export function getBuildingHP(buildingType, level = 1) {

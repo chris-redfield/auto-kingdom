@@ -27,6 +27,7 @@ import {
     BLACKSMITH_CONFIG,
     MARKETPLACE_CONFIG,
     ENCHANT_CONFIG,
+    HEALER_CONFIG,
     getUnitStats, rollStat, getWeaponDamage, getWeaponID
 } from '../config/GameConfig.js';
 
@@ -58,6 +59,10 @@ export class DynamicEntity extends Entity {
         // Combat
         this.attackTimer = 0;
         this.attackTarget = null;
+
+        // Healer AI
+        this.healCounter = 0;     // Cooldown timer for healing spell
+        this.healTarget_ = null;  // Current ally being healed/followed
 
         // Auto-play
         this.autoPlay = true;     // Whether AI controls this unit
@@ -595,9 +600,11 @@ export class DynamicEntity extends Entity {
             this.clearAttackTarget();
         }
 
-        // Show health bar if damaged
+        // Show health bar if damaged, hide when full
         if (this.health < this.maxHealth) {
             this.showHealthBar();
+        } else if (this.healthBar && this.healthBar.visible) {
+            this.hideHealthBar();
         }
 
         // Auto-play AI processing
@@ -611,6 +618,12 @@ export class DynamicEntity extends Entity {
      * Throttled to reduce CPU load with many units
      */
     processAI(deltaTime) {
+        // Healer has its own AI - prioritizes healing over combat
+        if (this.unitTypeId === UNIT_TYPE.WIZARD_HEALER) {
+            this.processHealerAI(deltaTime);
+            return;
+        }
+
         // Don't process if already engaged in combat or moving
         if (this.attackTarget && this.attackTarget.isAlive()) {
             return;  // Already has a target, let combat logic handle it
@@ -688,6 +701,154 @@ export class DynamicEntity extends Entity {
         if (!this.moving && !this.attackTarget && !this.targetBlacksmith && !this.targetMarketplace && !this.targetWizardGuild && Math.random() < AI_CONFIG.WANDER_CHANCE) {
             this.wanderRandomly();
         }
+    }
+
+    // =========================================================================
+    // HEALER AI (from DynamicObject.smali process_quest_healer / Script.smali)
+    // =========================================================================
+
+    /**
+     * Healer-specific AI - prioritizes healing over combat
+     * Priority: self-heal > heal allies > visit marketplace > wander
+     */
+    processHealerAI(deltaTime) {
+        // Always increment heal cooldown
+        this.healCounter++;
+
+        // If moving towards a heal target, check if we arrived
+        if (this.moving) {
+            return;
+        }
+
+        // If engaged in combat (being attacked), don't override
+        if (this.attackTarget && this.attackTarget.isAlive()) {
+            return;
+        }
+
+        // Throttle expensive AI operations
+        if (this.aiThrottle !== undefined) {
+            this.aiThrottle++;
+            const throttleRate = 5 + (this.id % 5);
+            if (this.aiThrottle < throttleRate) {
+                return;
+            }
+        }
+        this.aiThrottle = 0;
+
+        // Priority 1: Self-heal if damaged and cooldown ready
+        if (this.health < this.maxHealth && this.healCounter >= HEALER_CONFIG.HEAL_COOLDOWN) {
+            this.castHeal(this);
+            return;
+        }
+
+        // Priority 2: Find and heal a damaged ally
+        if (this.healCounter >= HEALER_CONFIG.HEAL_COOLDOWN) {
+            const ally = this.findDamagedAlly();
+            if (ally) {
+                const dist = this.distanceTo(ally);
+                if (dist <= 2) {
+                    // Close enough — heal them
+                    this.castHeal(ally);
+                    return;
+                } else {
+                    // Move towards damaged ally
+                    const targetCell = this.findAdjacentWalkableCell(
+                        Math.floor(ally.gridI), Math.floor(ally.gridJ)
+                    );
+                    if (targetCell) {
+                        this.moveTo(targetCell.i, targetCell.j, this.grid);
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Priority 3: Visit marketplace (healers love shopping - 120% chance in smali)
+        if (!this.targetMarketplace && this.shouldVisitMarketplace()) {
+            if (this.tryVisitMarketplace()) {
+                return;
+            }
+        }
+        if (this.targetMarketplace) {
+            if (this.tryVisitMarketplace()) {
+                return;
+            }
+        }
+
+        // Priority 4: Wander randomly
+        if (!this.moving && Math.random() < AI_CONFIG.WANDER_CHANCE) {
+            this.wanderRandomly();
+        }
+    }
+
+    /**
+     * Find nearest damaged ally within heal range
+     * Returns the ally with lowest HP percentage
+     */
+    findDamagedAlly() {
+        if (!this.game) return null;
+
+        let bestAlly = null;
+        let lowestHpPct = 1.0;
+
+        for (const entity of this.game.entities) {
+            if (entity === this) continue;
+            if (!entity.isAlive()) continue;
+            if (entity.team !== this.team) continue;
+            if (entity.health >= entity.maxHealth) continue;
+
+            const dist = this.distanceTo(entity);
+            if (dist > HEALER_CONFIG.HEAL_RANGE) continue;
+
+            // Pick the most injured ally (lowest HP %)
+            const hpPct = entity.health / entity.maxHealth;
+            if (hpPct < lowestHpPct) {
+                lowestHpPct = hpPct;
+                bestAlly = entity;
+            }
+        }
+
+        return bestAlly;
+    }
+
+    /**
+     * Cast healing spell on a target
+     * Heals target_level * 8 HP, resets cooldown, grants XP
+     */
+    castHeal(target) {
+        const healAmount = Math.min(
+            target.level * HEALER_CONFIG.HEAL_AMOUNT_PER_LEVEL,
+            target.maxHealth - target.health
+        );
+
+        if (healAmount <= 0) return;
+
+        target.health += healAmount;
+        this.healCounter = 0;
+
+        // Play cast animation (attack anim = casting)
+        if (this.useAnimations) {
+            // Face towards target
+            if (target !== this) {
+                this.direction = IsoMath.getDirection(
+                    this.gridI, this.gridJ,
+                    target.gridI, target.gridJ
+                );
+            }
+            this.setAnimState('attack');
+        }
+
+        // Update target's health bar
+        if (target.showHealthBar) {
+            target.showHealthBar();
+        }
+
+        // Gain XP for healing
+        if (this.gainExperience) {
+            this.gainExperience(HEALER_CONFIG.HEALING_EXP);
+        }
+
+        console.log(`[HEAL] Healer heals ${target === this ? 'self' : target.unitType || 'ally'} for ${healAmount} HP (${target.health}/${target.maxHealth})`);
     }
 
     /**
