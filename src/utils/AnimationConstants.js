@@ -260,6 +260,15 @@ export const UNIT_ANIMS = {
         death: 75,   // MAG_BLACK_DEATH_E = 0xc4b
         walk: 83,    // MAG_BLACK_GO_E = 0xc53
         idle: 91     // MAG_BLACK_IDLE_E = 0xc5b
+    },
+
+    // Package 16: Skeleton (raised by Necromancer)
+    SKELETON: {
+        package: 16,
+        attack: 0,   // 0x4000 = (16 << 10) | 0
+        death: 8,    // 0x4008 = (16 << 10) | 8
+        walk: 16,    // 0x4010 = (16 << 10) | 16
+        idle: 24     // 0x4018 = (16 << 10) | 24
     }
 };
 

@@ -1445,15 +1445,26 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 - [x] Unlocks **Healer** at Wizard Guild — altRecruit already configured
 - Note: Temple upgrade (3 levels) increases building HP only — no feature unlocks gated by level
 
-**Temple of Krypta (Necromancers):**
-- [ ] Verify CRYPTA_TEMPLE is in constructible buildings list
-- [ ] Add `canRecruit: true` to CRYPTA_TEMPLE building config
-- [ ] Temple recruits **Necromancers** (WIZARD_NECROMANCER, type 0x9) directly at the temple
-- [ ] Necromancer unit: dark magic, raise undead AI
+**Temple of Krypta (Necromancers):** ⚠️ TO TEST — NOT DONE UNTIL TESTED
+- [x] Add `canRecruit: true` to CRYPTA_TEMPLE building config (recruits directly at temple, NOT at Wizard Guild)
+- [x] Necromancer AI: raises dead bodies as player-controlled skeletons
+  - processNecromancerAI(): reanimate corpses > fight enemies > marketplace > wander
+  - findNearestDeadBody(): searches game.deadBodies within range 12
+  - reanimateCorpse(): cast anim, spawn skeleton, remove corpse, grant 500 XP
+  - Cooldown: 50 ticks between raises
+- [x] Dead body system: entities register in game.deadBodies[] on death
+- [x] Skeleton unit (UNIT_TYPE.SKELETON, 0x54): package 16 anims, melee fighter, player team
+  - spawnSkeleton() in Game.js, anims16.dat copied, package 16 loaded
+  - Stats: 30 HP, 6 damage, high dodge (88), max level 1, generic combat AI
+- [ ] **MUST TEST:** Build Temple of Krypta, recruit Necromancer, verify:
+  - Necromancer walks to dead enemy corpses and raises them as skeletons
+  - Skeletons are player-controlled and fight enemies
+  - Necromancer attacks enemies when no corpses available
+  - Corpse sprite is removed after reanimation
+  - Console shows [REANIMATE] debug logs
 - [ ] Unlocks **Dark Warrior** (TYPE_DWARRIOR, type 0x3) at Warrior Guild — NEW altRecruit needed
 - [ ] Add DWARRIOR unit type to GameConfig.js (stats, cost, training time from smali)
 - [ ] Add DWARRIOR animations to AnimationConstants.js
-- [ ] Unlocks **Necromancer** at Wizard Guild — altRecruit2 already configured
 
 **Shared Tasks:**
 - [ ] Verify Healer and Necromancer stats in GameConfig.js match smali

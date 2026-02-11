@@ -114,6 +114,9 @@ export class Game {
         this.weaponUpgradeLevel = 0;
         this.armorUpgradeLevel = 0;
 
+        // Dead bodies (for Necromancer reanimation)
+        this.deadBodies = [];
+
         // Building placement mode
         this.placementMode = false;
         this.pendingBuilding = null;  // Building info being placed
@@ -993,6 +996,10 @@ export class Game {
             // Package 14: Trolls (enemy units)
             await this.animLoader.loadPackage(basePath, 14);
             console.log('Loaded troll animations (package 14)');
+
+            // Package 16: Skeletons (raised by Necromancer)
+            await this.animLoader.loadPackage(basePath, 16);
+            console.log('Loaded skeleton animations (package 16)');
 
             // Package 2: Wizards (MAG_BLUE) and ice effects
             await this.animLoader.loadPackage(basePath, 2);
@@ -2139,6 +2146,54 @@ export class Game {
 
         console.log(`Spawned ${configName} at (${gridI}, ${gridJ}) - HP: ${enemy.maxHealth}, deadExp: ${enemy.deadExp}, expPerDmg: ${enemy.expPerDmg}`);
         return enemy;
+    }
+
+    /**
+     * Register a dead body for Necromancer reanimation
+     * Called when any entity dies
+     */
+    registerDeadBody(entity) {
+        this.deadBodies.push({
+            gridI: Math.floor(entity.gridI),
+            gridJ: Math.floor(entity.gridJ),
+            entity: entity
+        });
+        console.log(`Dead body registered at (${Math.floor(entity.gridI)}, ${Math.floor(entity.gridJ)}). Total corpses: ${this.deadBodies.length}`);
+    }
+
+    /**
+     * Spawn a player-controlled skeleton (from Necromancer reanimation)
+     */
+    spawnSkeleton(gridI, gridJ) {
+        const animConfig = UNIT_ANIMS.SKELETON;
+        if (!animConfig) {
+            console.warn('SpawnSkeleton: SKELETON animation config not found');
+            return null;
+        }
+
+        const skeleton = new DynamicEntity(gridI, gridJ);
+        skeleton.initFromUnitType(UNIT_TYPE.SKELETON);
+        skeleton.initSprite();
+        skeleton.setBodyColor(0x88ff88);  // Light green for player skeletons
+        skeleton.setGrid(this.grid);
+        skeleton.game = this;
+        skeleton.team = 'player';
+        skeleton.autoPlay = true;
+        skeleton.sightRange = AI_CONFIG.PLAYER_HERO_SIGHT_RANGE;
+        skeleton.unitType = 'skeleton';
+
+        // Apply animations if loaded
+        if (this.animationsLoaded && this.animLoader.animationData[animConfig.package]) {
+            skeleton.setAnimations(this.animLoader, animConfig);
+        }
+
+        if (this.grid) {
+            this.grid.container.addChild(skeleton.sprite);
+        }
+        this.entities.push(skeleton);
+
+        console.log(`Spawned skeleton at (${gridI}, ${gridJ})`);
+        return skeleton;
     }
 
     /**

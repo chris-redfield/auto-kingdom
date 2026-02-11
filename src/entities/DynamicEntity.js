@@ -28,6 +28,7 @@ import {
     MARKETPLACE_CONFIG,
     ENCHANT_CONFIG,
     HEALER_CONFIG,
+    NECROMANCER_CONFIG,
     getUnitStats, rollStat, getWeaponDamage, getWeaponID
 } from '../config/GameConfig.js';
 
@@ -63,6 +64,10 @@ export class DynamicEntity extends Entity {
         // Healer AI
         this.healCounter = 0;     // Cooldown timer for healing spell
         this.healTarget_ = null;  // Current ally being healed/followed
+
+        // Necromancer AI
+        this.reanimateCounter = 0; // Cooldown timer for skeleton reanimation
+        this.leading = null;       // Active skeleton (only one at a time per necromancer)
 
         // Auto-play
         this.autoPlay = true;     // Whether AI controls this unit
@@ -624,6 +629,12 @@ export class DynamicEntity extends Entity {
             return;
         }
 
+        // Necromancer has its own AI - raises skeletons from dead bodies
+        if (this.unitTypeId === UNIT_TYPE.WIZARD_NECROMANCER) {
+            this.processNecromancerAI(deltaTime);
+            return;
+        }
+
         // Don't process if already engaged in combat or moving
         if (this.attackTarget && this.attackTarget.isAlive()) {
             return;  // Already has a target, let combat logic handle it
@@ -849,6 +860,155 @@ export class DynamicEntity extends Entity {
         }
 
         console.log(`[HEAL] Healer heals ${target === this ? 'self' : target.unitType || 'ally'} for ${healAmount} HP (${target.health}/${target.maxHealth})`);
+    }
+
+    // =========================================================================
+    // NECROMANCER AI (from DynamicObject.smali - raises skeletons from corpses)
+    // =========================================================================
+
+    /**
+     * Necromancer-specific AI - raises dead bodies as player skeletons, also fights
+     * Priority: reanimate corpses > fight enemies > visit marketplace > wander
+     */
+    processNecromancerAI(deltaTime) {
+        // Always increment reanimate cooldown
+        this.reanimateCounter++;
+
+        // If moving, don't interrupt
+        if (this.moving) {
+            return;
+        }
+
+        // If engaged in combat, let combat logic handle it
+        if (this.attackTarget && this.attackTarget.isAlive()) {
+            return;
+        }
+
+        // Throttle expensive AI operations
+        if (this.aiThrottle !== undefined) {
+            this.aiThrottle++;
+            const throttleRate = 5 + (this.id % 5);
+            if (this.aiThrottle < throttleRate) {
+                return;
+            }
+        }
+        this.aiThrottle = 0;
+
+        // Clear leading reference if skeleton is dead
+        if (this.leading && !this.leading.isAlive()) {
+            this.leading = null;
+        }
+
+        // Priority 1: Reanimate dead bodies if cooldown is ready AND no active skeleton
+        if (this.reanimateCounter >= NECROMANCER_CONFIG.REANIMATE_COOLDOWN && !this.leading) {
+            const deadBody = this.findNearestDeadBody();
+            if (deadBody) {
+                const dist = Math.abs(this.gridI - deadBody.gridI) + Math.abs(this.gridJ - deadBody.gridJ);
+                if (dist <= 2) {
+                    // Close enough — reanimate
+                    this.reanimateCorpse(deadBody);
+                    return;
+                } else {
+                    // Move towards the corpse
+                    const targetCell = this.findAdjacentWalkableCell(deadBody.gridI, deadBody.gridJ);
+                    if (targetCell) {
+                        this.moveTo(targetCell.i, targetCell.j, this.grid);
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Priority 2: Fight enemies (FIGHTS=100%, always engages)
+        const enemy = this.findNearestEnemy();
+        if (enemy) {
+            this.setAttackTarget(enemy);
+            return;
+        }
+
+        // Priority 3: Visit marketplace (Necromancers can shop)
+        if (!this.targetMarketplace && this.shouldVisitMarketplace()) {
+            if (this.tryVisitMarketplace()) {
+                return;
+            }
+        }
+        if (this.targetMarketplace) {
+            if (this.tryVisitMarketplace()) {
+                return;
+            }
+        }
+
+        // Priority 4: Wander randomly
+        if (!this.moving && Math.random() < AI_CONFIG.WANDER_CHANCE) {
+            this.wanderRandomly();
+        }
+    }
+
+    /**
+     * Find nearest dead body within reanimate range
+     * Returns the closest dead body entry from game.deadBodies
+     */
+    findNearestDeadBody() {
+        if (!this.game || !this.game.deadBodies || this.game.deadBodies.length === 0) {
+            return null;
+        }
+
+        let nearest = null;
+        let nearestDist = NECROMANCER_CONFIG.REANIMATE_RANGE;
+
+        for (const body of this.game.deadBodies) {
+            const dist = Math.abs(this.gridI - body.gridI) + Math.abs(this.gridJ - body.gridJ);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = body;
+            }
+        }
+
+        return nearest;
+    }
+
+    /**
+     * Reanimate a corpse into a player-controlled skeleton
+     * Plays cast animation, spawns skeleton, removes corpse, grants XP
+     */
+    reanimateCorpse(deadBody) {
+        if (!this.game || !deadBody) return;
+
+        // Play cast animation (attack anim = casting)
+        if (this.useAnimations) {
+            this.direction = IsoMath.getDirection(
+                this.gridI, this.gridJ,
+                deadBody.gridI, deadBody.gridJ
+            );
+            this.setAnimState('attack');
+        }
+
+        // Spawn skeleton at the corpse location
+        const skeleton = this.game.spawnSkeleton(deadBody.gridI, deadBody.gridJ);
+
+        // Track as active skeleton (only one at a time)
+        this.leading = skeleton;
+
+        // Remove corpse from dead bodies list
+        const idx = this.game.deadBodies.indexOf(deadBody);
+        if (idx !== -1) {
+            this.game.deadBodies.splice(idx, 1);
+        }
+
+        // Remove the corpse sprite if still visible
+        if (deadBody.entity && deadBody.entity.sprite && deadBody.entity.sprite.parent) {
+            deadBody.entity.sprite.parent.removeChild(deadBody.entity.sprite);
+        }
+
+        // Reset cooldown
+        this.reanimateCounter = 0;
+
+        // Gain XP for reanimation
+        if (this.gainExperience) {
+            this.gainExperience(NECROMANCER_CONFIG.REANIMATE_EXP);
+        }
+
+        console.log(`[REANIMATE] Necromancer raised skeleton at (${deadBody.gridI}, ${deadBody.gridJ}). Active skeleton set. Remaining corpses: ${this.game.deadBodies.length}`);
     }
 
     /**
@@ -2478,6 +2638,11 @@ export class DynamicEntity extends Entity {
         if (this.game && this.game.playSoundAt) {
             const deathSound = getDeathSoundForUnit(this.unitType);
             this.game.playSoundAt(deathSound, this.worldX, this.worldY);
+        }
+
+        // Register as dead body for Necromancer reanimation (skeletons are undead, can't be reanimated)
+        if (this.game && this.game.registerDeadBody && this.unitTypeId !== UNIT_TYPE.SKELETON) {
+            this.game.registerDeadBody(this);
         }
 
         // Play death animation if available

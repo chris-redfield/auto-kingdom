@@ -1641,6 +1641,15 @@ export const HEALER_CONFIG = {
 };
 
 // =============================================================================
+// NECROMANCER CONFIG (from Const.smali / DynamicObject.smali process_necromancer)
+// =============================================================================
+export const NECROMANCER_CONFIG = {
+    REANIMATE_COOLDOWN: 100,     // 100 ticks (0x64) between raises
+    REANIMATE_RANGE: 12,         // tiles to search for dead bodies
+    REANIMATE_EXP: 500,          // XP gained per skeleton raised
+};
+
+// =============================================================================
 // HELPER FUNCTION: Get building config value
 // =============================================================================
 export function getBuildingHP(buildingType, level = 1) {
