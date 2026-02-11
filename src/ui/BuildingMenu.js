@@ -67,13 +67,21 @@ const BUILDING_CONFIG = {
         canUpgrade: true,
         get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.WARRIOR_GUILD]; },
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.WARRIOR_GUILD]; },
-        // Alternative hero (Paladin) available with Agrella Temple
-        altRecruit: {
-            name: 'Paladin',
-            get cost() { return RECRUIT_COSTS.PALADIN; },
-            unit: 'PALADIN',
-            requires: 'AGRELLA_TEMPLE'
-        }
+        // Alternative heroes available with specific temples
+        altRecruits: [
+            {
+                name: 'Paladin',
+                get cost() { return RECRUIT_COSTS.PALADIN; },
+                unit: 'PALADIN',
+                requires: 'AGRELLA_TEMPLE'
+            },
+            {
+                name: 'Dark Warrior',
+                get cost() { return RECRUIT_COSTS.DWARRIOR; },
+                unit: 'DWARRIOR',
+                requires: 'CRYPTA_TEMPLE'
+            }
+        ]
     },
     // Ranger Guild (0x22)
     [BuildingType.RANGER_GUILD]: {
@@ -97,12 +105,14 @@ const BUILDING_CONFIG = {
         get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.WIZARD_GUILD]; },
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.WIZARD_GUILD]; },
         // Healer available when Agrela Temple exists
-        altRecruit: {
-            name: 'Healer',
-            get cost() { return RECRUIT_COSTS.HEALER; },
-            unit: 'HEALER',
-            requires: 'AGRELLA_TEMPLE'
-        }
+        altRecruits: [
+            {
+                name: 'Healer',
+                get cost() { return RECRUIT_COSTS.HEALER; },
+                unit: 'HEALER',
+                requires: 'AGRELLA_TEMPLE'
+            }
+        ]
     },
     // Agrella Temple (0x24) - recruits Healers
     [BuildingType.AGRELLA_TEMPLE]: {
@@ -332,16 +342,20 @@ export class BuildingMenu {
                     onClick: () => this.recruitHero(config.recruitUnit, config.recruitCost)
                 });
 
-                // Alternative recruit (e.g., Paladin from Warrior Guild with Agrela Temple)
-                if (config.altRecruit && this.hasBuilding(config.altRecruit.requires)) {
-                    const canAltRecruit = building.constructed && this.game.gold >= config.altRecruit.cost;
-                    this.addOption({
-                        icon: '🛡️',
-                        text: building.constructed ? `Recruit ${config.altRecruit.name}` : `Recruit ${config.altRecruit.name} (building...)`,
-                        cost: config.altRecruit.cost,
-                        enabled: canAltRecruit,
-                        onClick: () => this.recruitHero(config.altRecruit.unit, config.altRecruit.cost)
-                    });
+                // Alternative recruits (e.g., Paladin/DWarrior from Warrior Guild with temples)
+                if (config.altRecruits) {
+                    for (const alt of config.altRecruits) {
+                        if (this.hasBuilding(alt.requires)) {
+                            const canAltRecruit = building.constructed && this.game.gold >= alt.cost;
+                            this.addOption({
+                                icon: "🛡️",
+                                text: building.constructed ? `Recruit ${alt.name}` : `Recruit ${alt.name} (building...)`,
+                                cost: alt.cost,
+                                enabled: canAltRecruit,
+                                onClick: () => this.recruitHero(alt.unit, alt.cost)
+                            });
+                        }
+                    }
                 }
 
             }

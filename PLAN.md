@@ -1171,8 +1171,11 @@ From smali: `attack_pause = 0x16` (22 ticks)
 | Warrior | 8s |
 | Ranger | 7s |
 | Wizard | 10s |
-| Paladin | 12s |
+| Paladin | 6s |
+| DWarrior | 6s |
 | Healer | 9s |
+| Necromancer | 11s |
+| Barbarian | 10s |
 | Gnome | 6s |
 | Default | 8s |
 
@@ -1472,15 +1475,49 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
   - Sound: control_undead.ogg, visual: expanding purple ring on target
 - [x] **Raise skeleton sound**: raise_skeleton.ogg plays on reanimation
 - [x] **Combat flow fixed**: spells cast during combat (Control Undead > Drain Life > normal ranged attacks)
-- [ ] Unlocks **Dark Warrior** (TYPE_DWARRIOR, type 0x3) at Warrior Guild — NEW altRecruit needed
-- [ ] Add DWARRIOR unit type to GameConfig.js (stats, cost, training time from smali)
-- [ ] Add DWARRIOR animations to AnimationConstants.js
+
+**Dark Warrior (TYPE_DWARRIOR, type 0x3):** ✅ COMPLETE (2026-02-10)
+- [x] Added UNIT_TYPE.DWARRIOR = 3 to GameConfig.js
+- [x] Full stats from DynamicObject.smali pswitch_43: HP 35, Speed 0x800, H2H 95, Parry 30, Dodge 30, Resist 5
+- [x] Strength [33,37], Intelligence [1,3], Artifice [3,5], Vitality [33,37], Willpower 12
+- [x] Weapon 8 (starting), upgrades to 12-15 (heavy weapons, same as Barbarian)
+- [x] Armor 9, deadExp [800,1200], deadGold 200, cost 1000g, training 6s
+- [x] Visit chances: Blacksmith 50, Marketplace 60, Enchant 50 (less eager than Warrior)
+- [x] **Regeneration: 2 HP every 50 ticks** (unique ability — implemented in DynamicEntity.update())
+- [x] DWARRIOR animations already in AnimationConstants.js (package 3: attack=13, death=21, walk=29, idle=37)
+- [x] altRecruits system on Warrior Guild (array of alt recruits: Paladin + DWarrior)
+- [x] Added to spawnHero configToUnitType, getUnitTypeName, getWeaponID, getPrimaryStatIncrease
+- [x] Added to test_anim.html for animation preview
+- [x] **Tested and confirmed working** by user
+
+**Paladin (TYPE_PALADIN, type 0x2):** ⚠️ IMPLEMENTED, NEEDS TESTING (2026-02-10)
+- [x] Added UNIT_TYPE.PALADIN = 2 to GameConfig.js
+- [x] Stats corrected from DynamicObject.smali pswitch_44 (many were wrong initially):
+  - HP 21 (was 35), H2H 85 (was 45), Parry 75 (was 25), Dodge 55 (was 45)
+  - Resist 5 (was 60), Armor 1 (was 9), Willpower 23 (was 0)
+  - Strength [20,24], Intelligence [12,16], Artifice [8,12], Vitality [18,22]
+  - deadExp [2000,4000], training time 6s (was 12s)
+- [x] Speed 0xC00 (fast — 3.0x), weapon 0 (sword), cost 1000g
+- [x] Visit chances: Blacksmith 120, Marketplace 120, Enchant 120 (very eager shopper)
+- [x] PALADIN animations added to AnimationConstants.js (package 2: attack=61, death=69, walk=77, idle=85)
+  - Uses RUNTIME values from Import.smali sput blocks, NOT static defaults (which were wrong/overlapping)
+- [x] Recruited at Warrior Guild when Temple of Agrella exists (altRecruits array)
+- [x] Added to spawnHero configToUnitType, getUnitTypeName, getWeaponID (swords), getPrimaryStatIncrease (intelligence)
+- [x] Added Paladin button + animation table row to test_anim.html
+- [x] **Removed incorrect Paladin bonuses** (PALADIN_DEFENSE_BONUS, PALADIN_ATTACK_BONUS — NOT in original game)
+  - Paladin has NO special combat abilities; its strength comes from high parry (75) and dodge (55) stats
+- [ ] **NEEDS IN-GAME TESTING**: recruitment, animations, combat behavior, stat progression, AI visits
+
+**Regeneration System:** ✅ IMPLEMENTED (2026-02-10)
+- [x] Added regeneration field to UNIT_BASE_STATS (DWarrior: 2, Barbarian: 3)
+- [x] initFromUnitType() reads stats.regeneration and initializes regenerationTick counter
+- [x] DynamicEntity.update() processes regen: every 50 ticks, heal `regeneration` HP (if damaged)
+- [x] Barbarian special: regeneration quadruples at level 6 (existing code in levelUp())
 
 **Shared Tasks:**
 - [ ] Verify Healer and Necromancer stats in GameConfig.js match smali
-- [ ] Research DWARRIOR stats from smali (HP, damage, speed, XP, gold, etc.)
-- [ ] Verify animation packages load for all new unit types (Healer, Necromancer, DWarrior)
-- [ ] Test recruitment, spawning, combat behavior for all temple units
+- [ ] **Test Paladin in-game**: recruitment from Warrior Guild (requires Agrella Temple), animations, combat, AI visits
+- [ ] Test regeneration system: DWarrior healing over time, Barbarian at level 6
 
 #### Phase 2.9.6: Library Spell Research System
 

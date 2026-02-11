@@ -228,6 +228,10 @@ export class DynamicEntity extends Entity {
             this.armor = stats.armor;
         }
 
+        // Regeneration (DWarrior has 2 HP per 50 ticks, Barbarian has 3)
+        this.regeneration = stats.regeneration || 0;
+        this.regenerationTick = 0;  // Counter for regen timing
+
         // Damage for monsters (heroes use weapon-based damage instead)
         if (stats.minDamage !== undefined) {
             this.minDamage = stats.minDamage;
@@ -605,6 +609,15 @@ export class DynamicEntity extends Entity {
         } else if (this.attackTarget && !this.attackTarget.isAlive()) {
             // Clear dead target
             this.clearAttackTarget();
+        }
+
+        // Regeneration (DWarrior: 2 HP every 50 ticks, Barbarian: 3 HP every 50 ticks)
+        if (this.regeneration > 0 && this.health < this.maxHealth) {
+            this.regenerationTick++;
+            if (this.regenerationTick >= 50) {  // REGENERATION_TICK = 0x32 = 50
+                this.health = Math.min(this.maxHealth, this.health + this.regeneration);
+                this.regenerationTick = 0;
+            }
         }
 
         // Show health bar if damaged, hide when full
@@ -1366,6 +1379,7 @@ export class DynamicEntity extends Entity {
             [UNIT_TYPE.WARRIOR]: 'WARRIOR',
             [UNIT_TYPE.RANGER]: 'RANGER',
             [UNIT_TYPE.PALADIN]: 'PALADIN',
+            [UNIT_TYPE.DWARRIOR]: 'DWARRIOR',
             [UNIT_TYPE.WIZARD]: 'WIZARD',
             [UNIT_TYPE.WIZARD_HEALER]: 'WIZARD_HEALER',
             [UNIT_TYPE.WIZARD_NECROMANCER]: 'WIZARD_NECROMANCER',
@@ -2397,17 +2411,11 @@ export class DynamicEntity extends Entity {
      * @returns {{hit: boolean, critical: boolean}}
      */
     rollAttackHit(target) {
-        // Get defender's parry/dodge bonus (e.g., paladin bonus)
-        let defenderBonus = 0;
-        if (target.unitTypeId === UNIT_TYPE.PALADIN) {
-            defenderBonus = COMBAT.PALADIN_DEFENSE_BONUS;
-        }
-
         let hit = false;
         if (this.attackType === ATTACK_TYPE.MELEE) {
-            hit = COMBAT.meleeHitCheck(this.H2H, target.parry, defenderBonus);
+            hit = COMBAT.meleeHitCheck(this.H2H, target.parry, 0);
         } else if (this.attackType === ATTACK_TYPE.RANGED) {
-            hit = COMBAT.rangedHitCheck(this.ranged, target.dodge, defenderBonus);
+            hit = COMBAT.rangedHitCheck(this.ranged, target.dodge, 0);
         } else {
             // Magic attacks check against resist
             const roll = Math.floor(Math.random() * COMBAT.HIT_ROLL_MAX);
@@ -2426,15 +2434,6 @@ export class DynamicEntity extends Entity {
      * @returns {number} Damage amount
      */
     rollDamage(target) {
-        // Get attacker bonus (e.g., paladin vs undead)
-        let attackerBonus = 0;
-        if (this.unitTypeId === UNIT_TYPE.PALADIN &&
-            (target.unitTypeId === UNIT_TYPE.SKELETON ||
-             target.unitTypeId === UNIT_TYPE.ZOMBIE ||
-             target.unitTypeId === UNIT_TYPE.VAMPIRE)) {
-            attackerBonus = COMBAT.PALADIN_ATTACK_BONUS;
-        }
-
         let minDmg, maxDmg;
 
         // Heroes use weapon-based damage
@@ -2457,8 +2456,8 @@ export class DynamicEntity extends Entity {
         // Calculate base damage with target's armor
         const targetArmor = target.getTotalArmor ? target.getTotalArmor() : (target.armor || 0);
         let damage = COMBAT.calculateDamage(
-            minDmg + attackerBonus,
-            maxDmg + attackerBonus,
+            minDmg,
+            maxDmg,
             targetArmor
         );
 

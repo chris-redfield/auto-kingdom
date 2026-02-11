@@ -22,6 +22,7 @@ export const UNIT_TYPE = {
     WARRIOR: 0,
     RANGER: 1,
     PALADIN: 2,
+    DWARRIOR: 3,        // TYPE_DWARRIOR = 0x3 (Dark Warrior / Warrior of Discord)
     BARBARIAN: 4,       // TYPE_BARBARIAN = 0x4
     ELF: 5,             // TYPE_ELF = 0x5
     DWARF: 6,           // TYPE_DWARF = 0x6
@@ -131,6 +132,7 @@ export function getWeaponID(unitType, weaponLevel) {
             // Bows: 4, 5, 6, 7 (damage 6, 7, 8, 9)
             return 4 + (level - 1);
 
+        case UNIT_TYPE.DWARRIOR:
         case UNIT_TYPE.BARBARIAN:
             // Heavy weapons: 12, 13, 14, 15 (damage 22, 23, 24, 25)
             return 12 + (level - 1);
@@ -213,28 +215,57 @@ export const UNIT_BASE_STATS = {
         deadGold: [50, 100],
     },
 
-    // TYPE_PALADIN (2) - Temple hero
+    // TYPE_PALADIN (2) - Temple hero (Warrior Guild + Agrella Temple)
+    // From DynamicObject.smali pswitch_44 (lines 11610-11881)
     [UNIT_TYPE.PALADIN]: {
-        speed: 0xc00,
+        speed: 0xc00,           // 3072 (fast - 3.0x)
         levelUp: 0x7d0,         // 2000 XP per level
         maxLevel: 10,
-        strength: [15, 20],
-        intelligence: [1, 3],
-        artifice: [0, 3],
-        vitality: [0, 5],
-        willpower: 0,
-        H2H: 45,                // 0x2d
+        strength: [20, 24],     // rnd(0x14, 0x18)
+        intelligence: [12, 16], // rnd(0xc, 0x10) - high INT
+        artifice: [8, 12],      // rnd(0x8, 0xc)
+        vitality: [18, 22],     // rnd(0x12, 0x16)
+        willpower: 23,          // 0x17
+        H2H: 85,                // 0x55
         ranged: 0,
-        parry: 25,              // 0x19
-        dodge: 45,              // 0x2d
-        resist: 60,             // 0x3c - high magic resist
+        parry: 75,              // 0x4b - very high parry
+        dodge: 55,              // 0x37
+        resist: 5,              // 0x5
         attackRange: 1,
         attackType: ATTACK_TYPE.MELEE,
         visionRange: 8,
-        life: 35,               // 0x23
+        life: 21,               // 0x15
         weapon: 0,              // Sword (damage 10)
+        armor: 1,               // 0x1 - light armor
+        deadExp: [2000, 4000],  // rnd(0x7d0, 0xfa0)
+        deadGold: 200,
+    },
+
+    // TYPE_DWARRIOR (3) - Dark Warrior / Warrior of Discord
+    // Recruited at Warrior Guild when Temple of Krypta exists
+    // From DynamicObject.smali pswitch_43 (lines 11348-11608)
+    [UNIT_TYPE.DWARRIOR]: {
+        speed: 0x800,           // 2048
+        levelUp: 0x7d0,         // 2000 XP per level
+        maxLevel: 10,
+        strength: [33, 37],     // rnd(0x21, 0x25) - high
+        intelligence: [1, 3],   // rnd(0x3, 0x0) → rnd(1, 3)
+        artifice: [3, 5],       // rnd(0x3, 0x5)
+        vitality: [33, 37],     // rnd(0x21, 0x25) - high
+        willpower: 12,          // 0xc
+        H2H: 95,                // 0x5f - very high melee skill
+        ranged: 0,              // 0x0
+        parry: 30,              // 0x1e
+        dodge: 30,              // 0x1e
+        resist: 5,              // 0x5 - low magic resist
+        attackRange: 1,
+        attackType: ATTACK_TYPE.MELEE,
+        visionRange: 6,         // 0x6
+        life: 35,               // 0x23
+        weapon: 8,              // Starting weapon (damage 16), upgrades to 12-15 (damage 22-25)
         armor: 9,               // Heavy armor like warrior
-        deadExp: [1200, 4800],
+        regeneration: 2,        // DWARRIOR_REGENERATION = 0x2 (heals 2 HP every 50 ticks)
+        deadExp: [800, 1200],   // rnd(0x320, 0x4b0)
         deadGold: 200,
     },
 
@@ -384,6 +415,7 @@ export const UNIT_BASE_STATS = {
         life: 50,
         weapon: 0,              // Heavy weapon (damage 10)
         armor: 4,               // Light armor, relies on HP (2-4 flat reduction)
+        regeneration: 3,        // BARBARIAN_REGENERATION = 0x3 (heals 3 HP every 50 ticks)
         deadExp: [400, 800],
         deadGold: [75, 150],
     },
@@ -872,6 +904,7 @@ export const LEVEL_UP = {
         switch (unitType) {
             case UNIT_TYPE.WARRIOR:
             case UNIT_TYPE.RANGER:
+            case UNIT_TYPE.DWARRIOR:
             case UNIT_TYPE.DWARF:
                 return 'strength';
             case UNIT_TYPE.PALADIN:
@@ -942,8 +975,6 @@ export const COMBAT = {
      * Paladin defender bonus against certain unit types
      * Paladins are especially effective defenders
      */
-    PALADIN_DEFENSE_BONUS: 25,  // 0x19
-    PALADIN_ATTACK_BONUS: 5,
 };
 
 // =============================================================================
@@ -1307,6 +1338,7 @@ export const RECRUIT_COSTS = {
     RANGER: 400,
     WIZARD: 300,
     PALADIN: 1000,
+    DWARRIOR: 1000,     // COST_WARRIOR_OF_DISCORD = 0x3e8
     HEALER: 800,
     NECROMANCER: 900,
     ELF: 450,
@@ -1320,7 +1352,8 @@ export const TRAINING_TIMES = {
     WARRIOR: 8000,      // 8 seconds
     RANGER: 7000,       // 7 seconds
     WIZARD: 10000,      // 10 seconds
-    PALADIN: 12000,     // 12 seconds
+    PALADIN: 6000,      // 6 seconds (PALADIN_BUY_TIME = 0x96 = 150 ticks * 40ms)
+    DWARRIOR: 6000,     // 6 seconds (DWARRIOR_BUY_TIME = 0x96 = 150 ticks * 40ms)
     HEALER: 9000,       // 9 seconds
     NECROMANCER: 11000, // 11 seconds
     ELF: 8000,          // 8 seconds
@@ -1544,6 +1577,7 @@ export const BLACKSMITH_CONFIG = {
         WARRIOR: 100,       // 0x64
         RANGER: 100,        // 0x64
         PALADIN: 120,       // 0x78
+        DWARRIOR: 50,       // 0x32 (RND_DWARRIOR_GO_BLACKSMITH)
         BARBARIAN: 40,      // 0x28
         DWARF: 50,          // 0x32
         ELF: 120,           // 0x78
@@ -1597,6 +1631,7 @@ export const MARKETPLACE_CONFIG = {
         WARRIOR: 100,       // 0x64
         RANGER: 100,        // 0x64
         PALADIN: 120,       // 0x78
+        DWARRIOR: 60,       // 0x3c (RND_DWARRIOR_GO_MARKETPLACE)
         BARBARIAN: 60,      // 0x3c
         DWARF: 60,          // 0x3c
         ELF: 120,           // 0x78
@@ -1621,6 +1656,7 @@ export const ENCHANT_CONFIG = {
         WARRIOR: 100,           // 0x64
         RANGER: 100,            // 0x64
         PALADIN: 120,           // 0x78
+        DWARRIOR: 50,           // 0x32 (RND_DWARRIOR_GO_ENCHANT)
         BARBARIAN: 50,          // 0x32
         DWARF: 50,              // 0x32
         ELF: 120,               // 0x78

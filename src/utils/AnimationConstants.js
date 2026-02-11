@@ -262,6 +262,16 @@ export const UNIT_ANIMS = {
         idle: 91     // MAG_BLACK_IDLE_E = 0xc5b
     },
 
+    // Package 2: Paladin (holy warrior, from Warrior Guild + Agrella Temple)
+    // Runtime values from Import.smali sput blocks (NOT static defaults which are wrong)
+    PALADIN: {
+        package: 2,
+        attack: 61,  // 0x83d = (2 << 10) | 61
+        death: 69,   // 0x845 = (2 << 10) | 69
+        walk: 77,    // 0x84d = (2 << 10) | 77
+        idle: 85     // 0x855 = (2 << 10) | 85
+    },
+
     // Package 16: Skeleton (raised by Necromancer)
     SKELETON: {
         package: 16,
