@@ -1644,9 +1644,21 @@ export const HEALER_CONFIG = {
 // NECROMANCER CONFIG (from Const.smali / DynamicObject.smali process_necromancer)
 // =============================================================================
 export const NECROMANCER_CONFIG = {
+    // Animate Bones (raise skeleton from corpse)
     REANIMATE_COOLDOWN: 100,     // 100 ticks (0x64) between raises
     REANIMATE_RANGE: 12,         // tiles to search for dead bodies
     REANIMATE_EXP: 500,          // XP gained per skeleton raised
+
+    // Drain Life (damages enemy, heals skeleton)
+    DRAIN_LIFE_COOLDOWN: 100,    // 100 ticks (0x64) between casts
+    DRAIN_LIFE_MIN: 5,           // MAGIC_DRAIN_LIFE_EFFECT_MIN (Const.smali)
+    DRAIN_LIFE_MAX: 15,          // MAGIC_DRAIN_LIFE_EFFECT_MAX (Const.smali)
+    DRAIN_LIFE_HEAL: 5,          // MAGIC_DRAIN_LIFE_EFFECT_SELF (Const.smali) - heals skeleton
+
+    // Control Undead (converts enemy skeleton/zombie to player team)
+    CONTROL_UNDEAD_COOLDOWN: 1020, // 0x3fc ticks (~40 seconds)
+    CONTROL_UNDEAD_MIN_LEVEL: 4,   // Requires necromancer level >= 4
+    CONTROL_UNDEAD_COUNTER_MIN_LEVEL: 3, // Counter starts incrementing at level >= 3
 };
 
 // =============================================================================

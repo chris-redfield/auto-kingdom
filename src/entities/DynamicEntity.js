@@ -66,8 +66,10 @@ export class DynamicEntity extends Entity {
         this.healTarget_ = null;  // Current ally being healed/followed
 
         // Necromancer AI
-        this.reanimateCounter = 0; // Cooldown timer for skeleton reanimation
-        this.leading = null;       // Active skeleton (only one at a time per necromancer)
+        this.reanimateCounter = 0;   // Cooldown for Animate Bones (skeleton raising)
+        this.drainLifeCounter = 0;   // Cooldown for Drain Life spell
+        this.cntrUndeadCounter = 0;  // Cooldown for Control Undead spell
+        this.leading = null;         // Active skeleton (only one at a time per necromancer)
 
         // Auto-play
         this.autoPlay = true;     // Whether AI controls this unit
@@ -871,20 +873,40 @@ export class DynamicEntity extends Entity {
      * Priority: reanimate corpses > fight enemies > visit marketplace > wander
      */
     processNecromancerAI(deltaTime) {
-        // Always increment reanimate cooldown
+        // Always increment spell counters (even during combat — matches original smali)
         this.reanimateCounter++;
+        this.drainLifeCounter++;
+        if (this.level >= NECROMANCER_CONFIG.CONTROL_UNDEAD_COUNTER_MIN_LEVEL) {
+            this.cntrUndeadCounter++;
+        }
+
+        // Clear leading reference if skeleton is dead
+        if (this.leading && !this.leading.isAlive()) {
+            this.leading = null;
+        }
 
         // If moving, don't interrupt
         if (this.moving) {
             return;
         }
 
-        // If engaged in combat, let combat logic handle it
+        // === COMBAT SPELLS (cast while fighting) ===
         if (this.attackTarget && this.attackTarget.isAlive()) {
+            // Spell Priority 1: Control Undead (convert enemy skeleton/zombie)
+            if (this.castControlUndead(this.attackTarget)) {
+                return;
+            }
+
+            // Spell Priority 2: Drain Life (damage enemy, heal skeleton)
+            if (this.castDrainLife(this.attackTarget)) {
+                return;
+            }
+
+            // Normal ranged attacks handled by generic combat loop in update()
             return;
         }
 
-        // Throttle expensive AI operations
+        // Throttle expensive AI operations (only for non-combat)
         if (this.aiThrottle !== undefined) {
             this.aiThrottle++;
             const throttleRate = 5 + (this.id % 5);
@@ -894,22 +916,17 @@ export class DynamicEntity extends Entity {
         }
         this.aiThrottle = 0;
 
-        // Clear leading reference if skeleton is dead
-        if (this.leading && !this.leading.isAlive()) {
-            this.leading = null;
-        }
+        // === IDLE SPELLS (cast when not fighting) ===
 
-        // Priority 1: Reanimate dead bodies if cooldown is ready AND no active skeleton
+        // Priority 1: Reanimate dead bodies if cooldown ready AND no active skeleton
         if (this.reanimateCounter >= NECROMANCER_CONFIG.REANIMATE_COOLDOWN && !this.leading) {
             const deadBody = this.findNearestDeadBody();
             if (deadBody) {
                 const dist = Math.abs(this.gridI - deadBody.gridI) + Math.abs(this.gridJ - deadBody.gridJ);
                 if (dist <= 2) {
-                    // Close enough — reanimate
                     this.reanimateCorpse(deadBody);
                     return;
                 } else {
-                    // Move towards the corpse
                     const targetCell = this.findAdjacentWalkableCell(deadBody.gridI, deadBody.gridJ);
                     if (targetCell) {
                         this.moveTo(targetCell.i, targetCell.j, this.grid);
@@ -942,6 +959,213 @@ export class DynamicEntity extends Entity {
         if (!this.moving && Math.random() < AI_CONFIG.WANDER_CHANCE) {
             this.wanderRandomly();
         }
+    }
+
+    /**
+     * Cast Drain Life on enemy target
+     * Damages enemy 5-15 HP, heals the active skeleton by 5 HP
+     * Requirements: drainLifeCounter >= 100, necro at full HP, has leading skeleton, skeleton damaged
+     */
+    castDrainLife(target) {
+        if (this.drainLifeCounter < NECROMANCER_CONFIG.DRAIN_LIFE_COOLDOWN) return false;
+        if (!this.leading || !this.leading.isAlive()) return false;
+        if (this.health < this.maxHealth) return false; // Only cast when at full HP
+        if (this.leading.health >= this.leading.maxHealth) return false; // Skeleton must be damaged
+        if (!this.isInAttackRange(target)) return false;
+
+        // Reset cooldown
+        this.drainLifeCounter = 0;
+
+        // Face target
+        this.direction = IsoMath.getDirection(
+            this.gridI, this.gridJ, target.gridI, target.gridJ
+        );
+        this.setAnimState('attack');
+
+        // Deal damage to enemy (5-15, ignores armor — magic damage)
+        const damage = NECROMANCER_CONFIG.DRAIN_LIFE_MIN +
+            Math.floor(Math.random() * (NECROMANCER_CONFIG.DRAIN_LIFE_MAX - NECROMANCER_CONFIG.DRAIN_LIFE_MIN + 1));
+
+        const killed = target.takeDamage(damage, this);
+
+        // Heal the skeleton
+        const healAmount = Math.min(
+            NECROMANCER_CONFIG.DRAIN_LIFE_HEAL,
+            this.leading.maxHealth - this.leading.health
+        );
+        if (healAmount > 0) {
+            this.leading.health += healAmount;
+            if (this.leading.showHealthBar) {
+                this.leading.showHealthBar();
+            }
+            // Green heal visual on skeleton
+            this.showSpellHealEffect(this.leading);
+        }
+
+        // Purple drain visual on target
+        this.showDrainLifeEffect(target);
+
+        // XP from damage
+        const xpGained = target.getKickExp ? target.getKickExp(damage) : damage;
+        this.gainExperience(xpGained);
+
+        // Gold on kill
+        if (killed && this.objectType === OBJECT_TYPE.HERO) {
+            const goldEarned = GOLD.getKillGold({ deadGold: target.deadGold || 20 });
+            this.addGold(goldEarned);
+        }
+
+        // Sound
+        if (this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.VAMPIRE_NECRO_SHOT, this.worldX, this.worldY);
+        }
+
+        console.log(`[DRAIN LIFE] Necromancer drains ${damage} HP from ${target.unitType || 'enemy'}, heals skeleton +${healAmount} HP`);
+        return true;
+    }
+
+    /**
+     * Cast Control Undead on enemy target
+     * Converts enemy skeleton/zombie to player team
+     * Requirements: level >= 4, cntrUndeadCounter >= 1020, enemy is undead type
+     */
+    castControlUndead(target) {
+        if (this.level < NECROMANCER_CONFIG.CONTROL_UNDEAD_MIN_LEVEL) return false;
+        if (this.cntrUndeadCounter < NECROMANCER_CONFIG.CONTROL_UNDEAD_COOLDOWN) return false;
+        if (!this.isInAttackRange(target)) return false;
+
+        // Only works on undead enemy types (skeleton, zombie)
+        const undeadTypes = [UNIT_TYPE.SKELETON, UNIT_TYPE.ZOMBIE];
+        if (!undeadTypes.includes(target.unitTypeId)) return false;
+
+        // Reset cooldown
+        this.cntrUndeadCounter = 0;
+
+        // Face target
+        this.direction = IsoMath.getDirection(
+            this.gridI, this.gridJ, target.gridI, target.gridJ
+        );
+        this.setAnimState('attack');
+
+        // Convert enemy to player team
+        target.team = 'player';
+
+        // Clear combat state on the converted unit
+        target.attackTarget = null;
+        target.target = null;
+        target.state = EntityState.IDLE;
+
+        // Visual: purple conversion effect
+        this.showControlUndeadEffect(target);
+
+        // Sound
+        if (this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.CONTROL_UNDEAD, this.worldX, this.worldY);
+        }
+
+        // Clear our attack target (it's friendly now)
+        this.clearAttackTarget();
+
+        console.log(`[CONTROL UNDEAD] Necromancer converts ${target.unitType || 'undead'} to player team!`);
+        return true;
+    }
+
+    /**
+     * Visual effect: Drain Life (green/dark energy on target)
+     */
+    showDrainLifeEffect(target) {
+        if (!target.sprite || !target.sprite.parent) return;
+
+        const effect = new PIXI.Graphics();
+        // Dark green swirl effect
+        effect.circle(0, 0, 16);
+        effect.fill({ color: 0x44ff44, alpha: 0.5 });
+        effect.circle(0, 0, 10);
+        effect.fill({ color: 0x00cc00, alpha: 0.7 });
+        effect.x = target.worldX;
+        effect.y = target.worldY - 10;
+        effect.zIndex = 99999;
+
+        target.sprite.parent.addChild(effect);
+
+        let alpha = 1.0;
+        const fadeCallback = () => {
+            alpha -= 0.05;
+            effect.alpha = alpha;
+            effect.y -= 0.5; // Float upward
+            if (alpha <= 0) {
+                PIXI.Ticker.shared.remove(fadeCallback);
+                if (effect.parent) effect.parent.removeChild(effect);
+                effect.destroy();
+            }
+        };
+        PIXI.Ticker.shared.add(fadeCallback);
+    }
+
+    /**
+     * Visual effect: Heal on skeleton (green sparkle)
+     */
+    showSpellHealEffect(target) {
+        if (!target.sprite || !target.sprite.parent) return;
+
+        const effect = new PIXI.Graphics();
+        // Green plus sign
+        effect.rect(-2, -8, 4, 16);
+        effect.fill({ color: 0x44ff88, alpha: 0.9 });
+        effect.rect(-8, -2, 16, 4);
+        effect.fill({ color: 0x44ff88, alpha: 0.9 });
+        effect.x = target.worldX;
+        effect.y = target.worldY - 20;
+        effect.zIndex = 99999;
+
+        target.sprite.parent.addChild(effect);
+
+        let alpha = 1.0;
+        const fadeCallback = () => {
+            alpha -= 0.04;
+            effect.alpha = alpha;
+            effect.y -= 0.8;
+            if (alpha <= 0) {
+                PIXI.Ticker.shared.remove(fadeCallback);
+                if (effect.parent) effect.parent.removeChild(effect);
+                effect.destroy();
+            }
+        };
+        PIXI.Ticker.shared.add(fadeCallback);
+    }
+
+    /**
+     * Visual effect: Control Undead (purple conversion aura)
+     */
+    showControlUndeadEffect(target) {
+        if (!target.sprite || !target.sprite.parent) return;
+
+        const effect = new PIXI.Graphics();
+        // Purple expanding ring
+        effect.circle(0, 0, 8);
+        effect.stroke({ width: 3, color: 0xaa44ff, alpha: 0.9 });
+        effect.circle(0, 0, 16);
+        effect.stroke({ width: 2, color: 0x8822dd, alpha: 0.6 });
+        effect.x = target.worldX;
+        effect.y = target.worldY - 10;
+        effect.zIndex = 99999;
+
+        target.sprite.parent.addChild(effect);
+
+        let scale = 1.0;
+        let alpha = 1.0;
+        const fadeCallback = () => {
+            scale += 0.06;
+            alpha -= 0.03;
+            effect.scale.set(scale);
+            effect.alpha = alpha;
+            if (alpha <= 0) {
+                PIXI.Ticker.shared.remove(fadeCallback);
+                if (effect.parent) effect.parent.removeChild(effect);
+                effect.destroy();
+            }
+        };
+        PIXI.Ticker.shared.add(fadeCallback);
     }
 
     /**
@@ -1006,6 +1230,11 @@ export class DynamicEntity extends Entity {
         // Gain XP for reanimation
         if (this.gainExperience) {
             this.gainExperience(NECROMANCER_CONFIG.REANIMATE_EXP);
+        }
+
+        // Play raise skeleton sound
+        if (this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.RAISE_SKELETON, this.worldX, this.worldY);
         }
 
         console.log(`[REANIMATE] Necromancer raised skeleton at (${deadBody.gridI}, ${deadBody.gridJ}). Active skeleton set. Remaining corpses: ${this.game.deadBodies.length}`);

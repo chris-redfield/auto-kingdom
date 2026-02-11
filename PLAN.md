@@ -1445,23 +1445,33 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 - [x] Unlocks **Healer** at Wizard Guild — altRecruit already configured
 - Note: Temple upgrade (3 levels) increases building HP only — no feature unlocks gated by level
 
-**Temple of Krypta (Necromancers):** ⚠️ TO TEST — NOT DONE UNTIL TESTED
+**Temple of Krypta (Necromancers):** ✅ COMPLETE (2026-02-10)
 - [x] Add `canRecruit: true` to CRYPTA_TEMPLE building config (recruits directly at temple, NOT at Wizard Guild)
 - [x] Necromancer AI: raises dead bodies as player-controlled skeletons
   - processNecromancerAI(): reanimate corpses > fight enemies > marketplace > wander
   - findNearestDeadBody(): searches game.deadBodies within range 12
   - reanimateCorpse(): cast anim, spawn skeleton, remove corpse, grant 500 XP
-  - Cooldown: 50 ticks between raises
+  - Cooldown: 100 ticks (0x64) between raises (fixed from 50)
 - [x] Dead body system: entities register in game.deadBodies[] on death
+  - Skeletons do NOT register as dead bodies (undead can't be reanimated)
 - [x] Skeleton unit (UNIT_TYPE.SKELETON, 0x54): package 16 anims, melee fighter, player team
-  - spawnSkeleton() in Game.js, anims16.dat copied, package 16 loaded
+  - spawnSkeleton() in Game.js, anims16.dat + PNGs copied from original, package 16 loaded
   - Stats: 30 HP, 6 damage, high dodge (88), max level 1, generic combat AI
-- [ ] **MUST TEST:** Build Temple of Krypta, recruit Necromancer, verify:
-  - Necromancer walks to dead enemy corpses and raises them as skeletons
-  - Skeletons are player-controlled and fight enemies
-  - Necromancer attacks enemies when no corpses available
-  - Corpse sprite is removed after reanimation
-  - Console shows [REANIMATE] debug logs
+  - Added to test_anim.html for animation preview
+- [x] **Max 1 active skeleton per necromancer** (`leading` field tracks active skeleton, from smali Script.smali:40349)
+- [x] **Tested and verified:** skeleton spawning, corpse removal, combat behavior, animations working
+- [x] **Drain Life spell** (MAGIC_ID 0xf, during combat):
+  - Cooldown: 100 ticks (drainLifeCounter)
+  - Requirements: necro at full HP, has active skeleton (`leading`), skeleton is damaged
+  - Effect: 5-15 magic damage to enemy (ignores armor), heals skeleton 5 HP
+  - Sound: vampire_necro_shot.ogg, visual: green drain effect on target + heal effect on skeleton
+- [x] **Control Undead spell** (MAGIC_ID 0x11, during combat):
+  - Cooldown: 1020 ticks (~40 seconds), counter only increments at level >= 3
+  - Requirements: level >= 4, enemy is skeleton or zombie type
+  - Effect: converts enemy undead to player team
+  - Sound: control_undead.ogg, visual: expanding purple ring on target
+- [x] **Raise skeleton sound**: raise_skeleton.ogg plays on reanimation
+- [x] **Combat flow fixed**: spells cast during combat (Control Undead > Drain Life > normal ranged attacks)
 - [ ] Unlocks **Dark Warrior** (TYPE_DWARRIOR, type 0x3) at Warrior Guild — NEW altRecruit needed
 - [ ] Add DWARRIOR unit type to GameConfig.js (stats, cost, training time from smali)
 - [ ] Add DWARRIOR animations to AnimationConstants.js
