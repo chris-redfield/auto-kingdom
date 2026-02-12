@@ -1268,7 +1268,7 @@ export const BUILDING_UPGRADE_COSTS = {
     [BUILDING_TYPE.DWARF_WINDMILL]: [1000, 2000],
     [BUILDING_TYPE.GNOME_HOVEL]: [800, 1600],
     [BUILDING_TYPE.INN]: [500, 1000],
-    [BUILDING_TYPE.LIBRARY]: [1500, 3000],
+    [BUILDING_TYPE.LIBRARY]: [2500, 3500],  // From smali: 0x9c4, 0xdac
     [BUILDING_TYPE.DWARF_TOWER]: [350, 450],
 };
 
@@ -1288,7 +1288,7 @@ export const BUILDING_MAX_LEVEL = {
     [BUILDING_TYPE.DWARF_WINDMILL]: 2,
     [BUILDING_TYPE.GNOME_HOVEL]: 2,
     [BUILDING_TYPE.INN]: 2,
-    [BUILDING_TYPE.LIBRARY]: 2,
+    [BUILDING_TYPE.LIBRARY]: 3,  // From smali: 3 levels
     [BUILDING_TYPE.DWARF_TOWER]: 3,
 };
 
@@ -1666,6 +1666,65 @@ export const ENCHANT_CONFIG = {
         WIZARD: -1,             // NEVER (wizards don't enchant)
         WIZARD_HEALER: -1,      // NEVER
         WIZARD_NECROMANCER: -1,  // NEVER
+    },
+};
+
+// =============================================================================
+// LIBRARY SPELL RESEARCH (from Const.smali / Dialog.smali / DynamicObject.smali)
+// =============================================================================
+export const LIBRARY_CONFIG = {
+    // -------------------------------------------------------------------------
+    // RESEARCH SYSTEM (from Dialog.smali processMenuResearch)
+    // Each spell must be researched before wizards can cast it.
+    // Only one research at a time. Each takes 500 ticks (~20 seconds).
+    // -------------------------------------------------------------------------
+    RESEARCH_TICKS: 500,            // 0x1f4 = LIBRARY_RESEARCHING_TIME
+
+    // Research items: { cost, requiredLevel, name, icon, paramBit }
+    RESEARCH: {
+        FIRE_BLAST:    { cost: 450,  requiredLevel: 1, name: 'Fire Blast',    icon: '\uD83D\uDD25', paramBit: 0x20 },
+        MAGIC_RESIST:  { cost: 225,  requiredLevel: 1, name: 'Magic Resist',  icon: '\uD83D\uDEE1\uFE0F', paramBit: 0x800 },
+        FIRE_BALL:     { cost: 450,  requiredLevel: 2, name: 'Fire Ball',     icon: '\u2604\uFE0F', paramBit: 0x4000 },
+        FIRE_SHIELD:   { cost: 450,  requiredLevel: 2, name: 'Fire Shield',   icon: '\uD83D\uDEE1\uFE0F', paramBit: 0x8000 },
+        METEOR_STORM:  { cost: 1350, requiredLevel: 2, name: 'Meteor Storm',  icon: '\uD83D\uDCA5', paramBit: 0x2000 },
+    },
+
+    // -------------------------------------------------------------------------
+    // SPELL COMBAT STATS (from Const.smali / DynamicObject.smali)
+    // Only Wizards (TYPE_WIZARD, 0x7) can cast these spells.
+    // -------------------------------------------------------------------------
+    SPELLS: {
+        FIRE_BLAST: {
+            minDmg: 10,         // 0xa
+            maxDmg: 20,         // 0x14
+            cooldown: 40,       // 0x28 ticks
+        },
+        MAGIC_RESIST: {
+            resistBonus: 35,    // 0x23
+            duration: 750,      // ticks (~30 seconds)
+            cooldown: 200,      // ticks between re-casts
+        },
+        FIRE_BALL: {
+            targetDmg: 30,      // 0x1e (direct hit)
+            aoeDmgMin: 2,       // 0x2 (splash min)
+            aoeDmgMax: 15,      // 0xf (splash max)
+            aoeRange: 2,        // tiles
+            cooldown: 120,      // 0x78 ticks (Fire Ball counter threshold)
+        },
+        FIRE_SHIELD: {
+            armorBonus: 5,      // 0x5
+            resistBonus: 25,    // 0x19
+            duration: 750,      // ticks (~30 seconds)
+            cooldown: 200,      // ticks between re-casts
+        },
+        METEOR_STORM: {
+            minDmg: 5,          // 0x5
+            maxDmg: 30,         // 0x1e
+            aoeRange: 2,        // tiles
+            duration: 125,      // 0x7d ticks (how long meteors rain)
+            cooldown: 150,      // 0x96 ticks
+            hitCount: 5,        // number of meteor impacts over duration
+        },
     },
 };
 

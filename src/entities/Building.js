@@ -14,7 +14,8 @@ import {
     getBuildingSize,
     TIMERS,
     VISUAL,
-    MARKETPLACE_CONFIG
+    MARKETPLACE_CONFIG,
+    LIBRARY_CONFIG
 } from '../config/GameConfig.js';
 
 export class Building extends Entity {
@@ -95,6 +96,13 @@ export class Building extends Entity {
         this.researchType = null;         // Which item is being researched
         this.researchProgress = 0;        // Current progress (counts up to RESEARCH_TICKS)
         this.researchTotal = 0;           // Total ticks needed
+
+        // Library spell research state (each spell must be researched before wizards can cast)
+        this.researchedFireBlast = false;
+        this.researchedMagicResist = false;
+        this.researchedFireBall = false;
+        this.researchedFireShield = false;
+        this.researchedMeteorStorm = false;
     }
 
     /**
@@ -563,7 +571,12 @@ export class Building extends Entity {
             researchActive: this.researchActive,
             researchType: this.researchType,
             researchProgress: this.researchProgress,
-            researchTotal: this.researchTotal
+            researchTotal: this.researchTotal,
+            researchedFireBlast: this.researchedFireBlast,
+            researchedMagicResist: this.researchedMagicResist,
+            researchedFireBall: this.researchedFireBall,
+            researchedFireShield: this.researchedFireShield,
+            researchedMeteorStorm: this.researchedMeteorStorm
         };
     }
 
@@ -661,7 +674,7 @@ export class Building extends Entity {
     }
 
     /**
-     * Update research progress (called from update)
+     * Update research progress (called from update, works for both Marketplace and Library)
      */
     updateResearch(deltaTime) {
         if (!this.researchActive) return;
@@ -675,7 +688,12 @@ export class Building extends Entity {
         }
 
         if (this.researchProgress >= this.researchTotal) {
-            this.completeResearch();
+            // Dispatch to correct completion handler based on building type
+            if (this.buildingType === BuildingType.LIBRARY) {
+                this.completeSpellResearch();
+            } else {
+                this.completeResearch();
+            }
         }
     }
 
@@ -771,6 +789,84 @@ export class Building extends Entity {
         if (this.game) {
             this.game.gold += goldGenerated;
             this.game.showMessage(`Market Day complete! +${goldGenerated}g`);
+        }
+
+        // Remove progress bar
+        if (this.progressBar) {
+            if (this.progressBar.parent) {
+                this.progressBar.parent.removeChild(this.progressBar);
+            }
+            this.progressBar.destroy();
+            this.progressBar = null;
+        }
+        this.constructionProgress = 0;
+    }
+
+    // =========================================================================
+    // LIBRARY: Spell Research (each spell must be researched before wizards can cast)
+    // =========================================================================
+
+    /**
+     * Start researching a spell at the Library
+     * @param {string} spellType - Key from LIBRARY_CONFIG.RESEARCH (e.g. 'FIRE_BLAST')
+     * @returns {boolean} True if research started
+     */
+    startSpellResearch(spellType) {
+        if (this.researchActive) return false;
+
+        const config = LIBRARY_CONFIG.RESEARCH[spellType];
+        if (!config) return false;
+        if (this.level < config.requiredLevel) return false;
+        if (!this.game || this.game.gold < config.cost) return false;
+        if (this.isSpellResearched(spellType)) return false;
+
+        this.game.gold -= config.cost;
+        this.researchActive = true;
+        this.researchType = spellType;
+        this.researchProgress = 0;
+        this.researchTotal = LIBRARY_CONFIG.RESEARCH_TICKS;
+
+        this.createProgressBar();
+        return true;
+    }
+
+    /**
+     * Check if a spell has been researched
+     * @param {string} type - Key from LIBRARY_CONFIG.RESEARCH
+     * @returns {boolean}
+     */
+    isSpellResearched(type) {
+        switch (type) {
+            case 'FIRE_BLAST': return this.researchedFireBlast;
+            case 'MAGIC_RESIST': return this.researchedMagicResist;
+            case 'FIRE_BALL': return this.researchedFireBall;
+            case 'FIRE_SHIELD': return this.researchedFireShield;
+            case 'METEOR_STORM': return this.researchedMeteorStorm;
+            default: return false;
+        }
+    }
+
+    /**
+     * Complete spell research — unlock the spell
+     */
+    completeSpellResearch() {
+        const type = this.researchType;
+        const config = LIBRARY_CONFIG.RESEARCH[type];
+
+        switch (type) {
+            case 'FIRE_BLAST': this.researchedFireBlast = true; break;
+            case 'MAGIC_RESIST': this.researchedMagicResist = true; break;
+            case 'FIRE_BALL': this.researchedFireBall = true; break;
+            case 'FIRE_SHIELD': this.researchedFireShield = true; break;
+            case 'METEOR_STORM': this.researchedMeteorStorm = true; break;
+        }
+
+        this.researchActive = false;
+        this.researchType = null;
+        this.researchProgress = 0;
+
+        if (this.game) {
+            this.game.showMessage(`${config ? config.name : type} researched!`);
         }
 
         // Remove progress bar

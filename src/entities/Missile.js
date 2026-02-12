@@ -54,6 +54,9 @@ export class Missile extends Entity {
         // State
         this.state = EntityState.MOVING;
         this.active = true;
+
+        // Optional callback on hit (for AOE effects, etc.)
+        this.onHitCallback = null;
     }
 
     /**
@@ -157,6 +160,11 @@ export class Missile extends Entity {
             }
         }
 
+        // Fire AOE callback if present (Fire Ball AOE, etc.)
+        if (this.onHitCallback) {
+            this.onHitCallback(this);
+        }
+
         // Create hit effect (flash)
         this.createHitEffect();
 
@@ -209,20 +217,25 @@ export class Missile extends Entity {
  * Missile types for different projectile appearances
  */
 export const MissileType = {
-    ARROW: { color: 0x8b4513, speed: 10, size: 3 },      // Brown arrow
-    FIREBALL: { color: 0xff4400, speed: 6, size: 6 },    // Orange fireball
-    ICEBOLT: { color: 0x00ccff, speed: 8, size: 5 },     // Blue ice
-    ROCK: { color: 0x666666, speed: 4, size: 8 },        // Gray rock
-    MAGIC: { color: 0xff00ff, speed: 7, size: 4 }        // Purple magic
+    ARROW: { color: 0x8b4513, speed: 10, size: 3 },        // Brown arrow
+    FIREBALL: { color: 0xff4400, speed: 6, size: 6 },      // Orange fireball
+    ICEBOLT: { color: 0x00ccff, speed: 8, size: 5 },       // Blue ice
+    ROCK: { color: 0x666666, speed: 4, size: 8 },          // Gray rock
+    MAGIC: { color: 0xff00ff, speed: 7, size: 4 },         // Purple magic
+    FIRE_BLAST: { color: 0xff6600, speed: 8, size: 5 },    // Orange fire (wizard spell)
+    FIRE_BALL: { color: 0xff2200, speed: 6, size: 8 },     // Large red fireball (wizard spell)
+    METEOR: { color: 0xff8800, speed: 4, size: 10 },       // Large meteor chunk (wizard spell)
 };
 
 /**
  * Factory function to create missiles with preset types
  */
 export function createMissile(type, startX, startY, target, damage, owner) {
+    // Support string type names (e.g., 'FIRE_BLAST')
+    const missileType = typeof type === 'string' ? (MissileType[type] || MissileType.MAGIC) : type;
     const missile = new Missile(startX, startY, target, damage, owner);
-    missile.color = type.color;
-    missile.speed = type.speed;
-    missile.size = type.size;
+    missile.color = missileType.color;
+    missile.speed = missileType.speed;
+    missile.size = missileType.size;
     return missile;
 }

@@ -29,6 +29,7 @@ import {
     VISUAL,
     TIMERS,
     GRID_CONFIG,
+    LIBRARY_CONFIG,
 } from '../config/GameConfig.js';
 
 export class Game {
@@ -705,6 +706,11 @@ export class Game {
 
         // Set unit type for sounds
         hero.unitType = configName.toLowerCase();
+
+        // Connect Wizard to nearest Library building (for spell availability)
+        if (unitTypeId === UNIT_TYPE.WIZARD) {
+            hero.homeLibrary = this.findNearestBuilding(gridI, gridJ, BuildingType.LIBRARY);
+        }
 
         // Apply animations if loaded
         if (this.animationsLoaded && this.animLoader.animationData[animConfig.package]) {
@@ -2214,6 +2220,19 @@ export class Game {
             actualDamage,
             attacker
         );
+
+        // Attach AOE callback for Fire Ball missiles
+        if (missileType === 'FIRE_BALL') {
+            missile.onHitCallback = (m) => {
+                const spell = LIBRARY_CONFIG.SPELLS.FIRE_BALL;
+                this.dealAOEDamage(
+                    m.targetWorldX, m.targetWorldY,
+                    spell.aoeRange, spell.aoeDmgMin, spell.aoeDmgMax,
+                    m.owner, m.target  // exclude primary target (already hit)
+                );
+            };
+        }
+
         missile.initSprite();
 
         // Add to grid container (same coordinate space as entities)
@@ -2251,6 +2270,126 @@ export class Game {
             missile.destroy();
         }
         this.missiles = [];
+    }
+
+    /**
+     * Deal AOE damage to enemies within range of a world position
+     * @param {number} worldX - Center X of AOE
+     * @param {number} worldY - Center Y of AOE
+     * @param {number} range - Tile range for AOE
+     * @param {number} minDmg - Minimum damage
+     * @param {number} maxDmg - Maximum damage
+     * @param {DynamicEntity} owner - Who cast the spell (for XP/gold)
+     * @param {DynamicEntity} [exclude] - Entity to exclude (already hit by primary)
+     */
+    dealAOEDamage(worldX, worldY, range, minDmg, maxDmg, owner, exclude = null) {
+        // Convert range from tiles to world units (approximate: 1 tile ~= 32 world units)
+        const rangeWorld = range * 32;
+
+        for (const entity of this.entities) {
+            if (!entity.isAlive()) continue;
+            if (entity === exclude) continue;
+            if (entity === owner) continue;
+            // Only damage enemies (opposite team)
+            if (entity.team === owner.team) continue;
+
+            const dx = entity.worldX - worldX;
+            const dy = entity.worldY - worldY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist <= rangeWorld) {
+                const damage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+                const killed = entity.takeDamage(damage, owner);
+
+                // XP and gold for owner
+                if (owner) {
+                    if (owner.gainExperience && entity.getKickExp) {
+                        owner.gainExperience(entity.getKickExp(damage));
+                    }
+                    if (killed && owner.addGold && owner.objectType === 1) {
+                        owner.addGold(entity.deadGold || 20);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Start a Meteor Storm - spawns multiple meteor missiles over time
+     * @param {DynamicEntity} caster - The wizard casting the spell
+     * @param {DynamicEntity} target - Initial target area
+     * @param {object} spell - Spell config from LIBRARY_CONFIG.SPELLS.METEOR_STORM
+     */
+    startMeteorStorm(caster, target, spell) {
+        const hitCount = spell.hitCount || 5;
+        const interval = Math.floor(spell.duration / hitCount);  // ~25 ticks between meteors
+        let hits = 0;
+
+        const targetX = target.worldX;
+        const targetY = target.worldY;
+
+        const spawnMeteor = () => {
+            if (hits >= hitCount || !caster.isAlive()) return;
+
+            // Scatter meteors randomly within AOE range
+            const offsetX = (Math.random() - 0.5) * spell.aoeRange * 64;
+            const offsetY = (Math.random() - 0.5) * spell.aoeRange * 64;
+            const hitX = targetX + offsetX;
+            const hitY = targetY + offsetY;
+
+            // Deal AOE damage at impact point
+            this.dealAOEDamage(
+                hitX, hitY,
+                spell.aoeRange, spell.minDmg, spell.maxDmg,
+                caster
+            );
+
+            // Visual effect: spawn a meteor missile that falls from above
+            const dummyTarget = { worldX: hitX, worldY: hitY, isAlive: () => false };
+            const meteor = createMissile(
+                'METEOR',
+                hitX, hitY - 100,  // Start from above
+                dummyTarget, 0, caster
+            );
+            meteor.initSprite();
+            if (this.grid) {
+                this.grid.container.addChild(meteor.sprite);
+            }
+            this.missiles.push(meteor);
+
+            hits++;
+        };
+
+        // Spawn first meteor immediately, then schedule remaining
+        spawnMeteor();
+        for (let i = 1; i < hitCount; i++) {
+            setTimeout(() => spawnMeteor(), i * interval * 40);  // Convert ticks to ms (40ms per tick)
+        }
+    }
+
+    /**
+     * Find the nearest player building of a given type
+     * @param {number} gridI - Reference grid position
+     * @param {number} gridJ - Reference grid position
+     * @param {number} buildingType - BuildingType constant
+     * @returns {Building|null}
+     */
+    findNearestBuilding(gridI, gridJ, buildingType) {
+        let nearest = null;
+        let nearestDist = Infinity;
+
+        for (const b of this.buildings) {
+            if (b.buildingType !== buildingType || b.team !== 0 || !b.constructed) continue;
+            const di = gridI - (b.gridI + (b.sizeI || 1) / 2);
+            const dj = gridJ - (b.gridJ + (b.sizeJ || 1) / 2);
+            const dist = di * di + dj * dj;
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = b;
+            }
+        }
+
+        return nearest;
     }
 
     /**

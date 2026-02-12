@@ -29,6 +29,7 @@ import {
     ENCHANT_CONFIG,
     HEALER_CONFIG,
     NECROMANCER_CONFIG,
+    LIBRARY_CONFIG,
     getUnitStats, rollStat, getWeaponDamage, getWeaponID
 } from '../config/GameConfig.js';
 
@@ -70,6 +71,18 @@ export class DynamicEntity extends Entity {
         this.drainLifeCounter = 0;   // Cooldown for Drain Life spell
         this.cntrUndeadCounter = 0;  // Cooldown for Control Undead spell
         this.leading = null;         // Active skeleton (only one at a time per necromancer)
+
+        // Wizard spell AI
+        this.fireBlastCounter = 0;    // Cooldown counter for Fire Blast
+        this.fireBallCounter = 0;     // Cooldown counter for Fire Ball
+        this.meteorStormCounter = 0;  // Cooldown counter for Meteor Storm
+        this.magicResistCounter = 0;  // Cooldown counter for Magic Resist buff
+        this.fireShieldCounter = 0;   // Cooldown counter for Fire Shield buff
+        this.magicResistActive = false;
+        this.magicResistTimer = 0;
+        this.fireShieldActive = false;
+        this.fireShieldTimer = 0;
+        this.homeLibrary = null;      // Nearest Library building (for spell availability)
 
         // Auto-play
         this.autoPlay = true;     // Whether AI controls this unit
@@ -617,6 +630,32 @@ export class DynamicEntity extends Entity {
             if (this.regenerationTick >= 50) {  // REGENERATION_TICK = 0x32 = 50
                 this.health = Math.min(this.maxHealth, this.health + this.regeneration);
                 this.regenerationTick = 0;
+            }
+        }
+
+        // Wizard spell cooldown counters (increment each tick)
+        if (this.unitTypeId === UNIT_TYPE.WIZARD) {
+            this.fireBlastCounter++;
+            this.fireBallCounter++;
+            this.meteorStormCounter++;
+            this.magicResistCounter++;
+            this.fireShieldCounter++;
+
+            // Manage buff durations
+            if (this.magicResistActive) {
+                this.magicResistTimer--;
+                if (this.magicResistTimer <= 0) {
+                    this.magicResistActive = false;
+                    this.resist -= LIBRARY_CONFIG.SPELLS.MAGIC_RESIST.resistBonus;
+                }
+            }
+            if (this.fireShieldActive) {
+                this.fireShieldTimer--;
+                if (this.fireShieldTimer <= 0) {
+                    this.fireShieldActive = false;
+                    this.armor -= LIBRARY_CONFIG.SPELLS.FIRE_SHIELD.armorBonus;
+                    this.resist -= LIBRARY_CONFIG.SPELLS.FIRE_SHIELD.resistBonus;
+                }
             }
         }
 
@@ -2341,6 +2380,38 @@ export class DynamicEntity extends Entity {
         this.state = EntityState.ATTACKING;
         this.setAnimState('attack');
 
+        // Wizard spell casting - check before normal ranged attack
+        if (this.unitTypeId === UNIT_TYPE.WIZARD && this.homeLibrary && this.game) {
+            // Cast buff spells first (Magic Resist, Fire Shield)
+            if (!this.magicResistActive &&
+                this.homeLibrary.isSpellResearched('MAGIC_RESIST') &&
+                this.magicResistCounter >= LIBRARY_CONFIG.SPELLS.MAGIC_RESIST.cooldown) {
+                this.castMagicResist();
+            }
+            if (!this.fireShieldActive &&
+                this.homeLibrary.isSpellResearched('FIRE_SHIELD') &&
+                this.fireShieldCounter >= LIBRARY_CONFIG.SPELLS.FIRE_SHIELD.cooldown) {
+                this.castFireShield();
+            }
+
+            // Offensive spells: Fire Ball > Meteor Storm > Fire Blast > normal attack
+            if (this.homeLibrary.isSpellResearched('FIRE_BALL') &&
+                this.fireBallCounter >= LIBRARY_CONFIG.SPELLS.FIRE_BALL.cooldown) {
+                this.castFireBall(target);
+                return false;
+            }
+            if (this.homeLibrary.isSpellResearched('METEOR_STORM') &&
+                this.meteorStormCounter >= LIBRARY_CONFIG.SPELLS.METEOR_STORM.cooldown) {
+                this.castMeteorStorm(target);
+                return false;
+            }
+            if (this.homeLibrary.isSpellResearched('FIRE_BLAST') &&
+                this.fireBlastCounter >= LIBRARY_CONFIG.SPELLS.FIRE_BLAST.cooldown) {
+                this.castFireBlast(target);
+                return false;
+            }
+        }
+
         if (this.isRanged) {
             // Ranged attack - roll damage and spawn missile
             const damage = this.rollDamage(target);
@@ -2470,6 +2541,79 @@ export class DynamicEntity extends Entity {
         }
 
         return damage;
+    }
+
+    // =========================================================================
+    // WIZARD SPELL CASTING
+    // =========================================================================
+
+    /**
+     * Cast Fire Blast - single target 10-20 magic damage
+     */
+    castFireBlast(target) {
+        const spell = LIBRARY_CONFIG.SPELLS.FIRE_BLAST;
+        const damage = Math.floor(Math.random() * (spell.maxDmg - spell.minDmg + 1)) + spell.minDmg;
+        this.fireBlastCounter = 0;
+
+        if (this.game && this.game.spawnMissile) {
+            this.game.spawnMissile(this, target, 'FIRE_BLAST', damage);
+        }
+        if (this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.RANGE_UNIT_SHOT, this.worldX, this.worldY);
+        }
+    }
+
+    /**
+     * Cast Fire Ball - single target 30 dmg + AOE 2-15 to nearby enemies
+     */
+    castFireBall(target) {
+        const spell = LIBRARY_CONFIG.SPELLS.FIRE_BALL;
+        this.fireBallCounter = 0;
+
+        if (this.game && this.game.spawnMissile) {
+            this.game.spawnMissile(this, target, 'FIRE_BALL', spell.targetDmg);
+        }
+        if (this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.RANGE_UNIT_SHOT, this.worldX, this.worldY);
+        }
+    }
+
+    /**
+     * Cast Meteor Storm - AOE 5-30 damage, multiple hits over duration
+     */
+    castMeteorStorm(target) {
+        const spell = LIBRARY_CONFIG.SPELLS.METEOR_STORM;
+        this.meteorStormCounter = 0;
+
+        if (this.game && this.game.startMeteorStorm) {
+            this.game.startMeteorStorm(this, target, spell);
+        }
+        if (this.game && this.game.playSoundAt) {
+            this.game.playSoundAt(SOUNDS.RANGE_UNIT_SHOT, this.worldX, this.worldY);
+        }
+    }
+
+    /**
+     * Cast Magic Resist buff - +35 resist on self
+     */
+    castMagicResist() {
+        const spell = LIBRARY_CONFIG.SPELLS.MAGIC_RESIST;
+        this.magicResistCounter = 0;
+        this.magicResistActive = true;
+        this.magicResistTimer = spell.duration;
+        this.resist += spell.resistBonus;
+    }
+
+    /**
+     * Cast Fire Shield buff - +5 armor, +25 resist on self
+     */
+    castFireShield() {
+        const spell = LIBRARY_CONFIG.SPELLS.FIRE_SHIELD;
+        this.fireShieldCounter = 0;
+        this.fireShieldActive = true;
+        this.fireShieldTimer = spell.duration;
+        this.armor += spell.armorBonus;
+        this.resist += spell.resistBonus;
     }
 
     /**

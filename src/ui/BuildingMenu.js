@@ -19,6 +19,7 @@ import {
     COMBAT_CONSTANTS,
     BLACKSMITH_CONFIG,
     MARKETPLACE_CONFIG,
+    LIBRARY_CONFIG,
     ITEMS,
 } from '../config/GameConfig.js';
 
@@ -227,6 +228,7 @@ const BUILDING_CONFIG = {
     // Library (0x31)
     [BuildingType.LIBRARY]: {
         name: 'Library',
+        isLibrary: true,
         canUpgrade: true,
         get upgradeCost() { return BUILDING_UPGRADE_COSTS[BuildingType.LIBRARY]; },
         get maxLevel() { return BUILDING_MAX_LEVEL[BuildingType.LIBRARY]; }
@@ -381,6 +383,11 @@ export class BuildingMenu {
         // Marketplace special options - Market Day + item info
         if (config.isMarketplace) {
             this.addMarketplaceOptions(config, building);
+        }
+
+        // Library special options - spell research
+        if (config.isLibrary) {
+            this.addLibraryOptions(config, building);
         }
 
         // Info section
@@ -1108,6 +1115,106 @@ export class BuildingMenu {
 
         if (building.startMarketDay()) {
             this.game.showMessage('Market Day started!');
+            if (this.game.playSound) {
+                this.game.playSound(SOUNDS.GOLD);
+            }
+            this.updateMenu();
+        }
+    }
+
+    // =========================================================================
+    // LIBRARY
+    // =========================================================================
+
+    /**
+     * Add Library-specific options (spell research buttons)
+     * Each spell must be researched (player pays treasury gold + wait) before Wizards can cast it.
+     */
+    addLibraryOptions(config, building) {
+        // If a research is currently in progress, show it at the top
+        if (building.researchActive) {
+            const researchConfig = LIBRARY_CONFIG.RESEARCH[building.researchType];
+            const pct = building.researchTotal > 0
+                ? Math.floor((building.researchProgress / building.researchTotal) * 100)
+                : 0;
+
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'training-progress';
+            progressContainer.innerHTML = `
+                <div class="training-header">
+                    <span class="training-icon">${researchConfig ? researchConfig.icon : '🔬'}</span>
+                    <span class="training-text">Researching ${researchConfig ? researchConfig.name : ''}...</span>
+                </div>
+                <div class="training-bar-container">
+                    <div class="training-bar-fill research-fill" style="width: ${pct}%"></div>
+                </div>
+                <div class="training-percent">${pct}%</div>
+            `;
+            this.optionsContainer.appendChild(progressContainer);
+        }
+
+        // Research section header
+        const header = document.createElement('div');
+        header.className = 'build-section-header';
+        header.textContent = 'Spell Research';
+        this.optionsContainer.appendChild(header);
+
+        const busy = building.researchActive;
+
+        // Show each spell research item
+        for (const [key, researchDef] of Object.entries(LIBRARY_CONFIG.RESEARCH)) {
+            const researched = building.isSpellResearched(key);
+            const meetsLevel = building.level >= researchDef.requiredLevel;
+
+            if (researched) {
+                // Already researched - show as completed
+                const done = document.createElement('div');
+                done.className = 'building-option disabled';
+                done.innerHTML = `<span class="option-icon">${researchDef.icon}</span><span class="option-text">${researchDef.name}</span><span class="option-cost" style="color: #4a4;">Done</span>`;
+                this.optionsContainer.appendChild(done);
+            } else if (building.researchActive && building.researchType === key) {
+                // Currently being researched - skip (shown as progress bar above)
+            } else if (!meetsLevel) {
+                // Requires higher building level
+                const locked = document.createElement('div');
+                locked.className = 'building-option disabled';
+                locked.innerHTML = `<span class="option-icon">${researchDef.icon}</span><span class="option-text">${researchDef.name} (needs Lv${researchDef.requiredLevel})</span>`;
+                this.optionsContainer.appendChild(locked);
+            } else {
+                // Available to research
+                this.addOption({
+                    icon: researchDef.icon,
+                    text: `Research ${researchDef.name}`,
+                    cost: researchDef.cost,
+                    enabled: !busy && building.constructed && this.game.gold >= researchDef.cost,
+                    onClick: () => this.startSpellResearch(building, key)
+                });
+            }
+        }
+    }
+
+    /**
+     * Start spell research at Library (player pays treasury gold)
+     */
+    startSpellResearch(building, spellType) {
+        const config = LIBRARY_CONFIG.RESEARCH[spellType];
+        if (!config) return;
+
+        if (building.researchActive) {
+            this.game.showMessage('Library is busy!');
+            return;
+        }
+
+        if (this.game.gold < config.cost) {
+            this.game.showMessage(`Need ${config.cost} gold!`);
+            if (this.game.playSound) {
+                this.game.playSound(SOUNDS.CLICK_DENY);
+            }
+            return;
+        }
+
+        if (building.startSpellResearch(spellType)) {
+            this.game.showMessage(`Researching ${config.name}...`);
             if (this.game.playSound) {
                 this.game.playSound(SOUNDS.GOLD);
             }

@@ -64,7 +64,7 @@ All phases of the Playable Prototype are done:
   - [x] **Phase 2.9.3: Wizard Guild Enchantments** ✅ COMPLETE
   - [x] **Phase 2.9.4: Castle Level Requirements** ✅ COMPLETE
   - [x] **Phase 2.9.5: Temple Buildings & Units** ✅ COMPLETE (Healer, Necromancer, Paladin, DWarrior)
-  - [ ] **Phase 2.9.6: Library Spell Research** (spells, research UI)
+  - [x] **Phase 2.9.6: Library Spell Research** (spells, research UI) - IMPLEMENTED (2026-02-11)
   - [ ] **Phase 2.10: Mission System** (objectives, victory conditions)
 
 ---
@@ -1538,68 +1538,59 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 
 **All Phase 2.9.5 tasks complete.** ✅
 
-#### Phase 2.9.6: Library Spell Research System
+#### Phase 2.9.6: Library Spell Research System — IMPLEMENTED (2026-02-11)
 
-**Building Menu UI:**
-- [ ] Add research section to Library building menu (similar to Marketplace research)
-- [ ] Show available spells based on library level
-- [ ] Research progress bar (500 ticks per spell, ~20 seconds)
-- [ ] Only one research at a time
-- [ ] Track researched spells via bitmask on building `param` field
+**Implementation Summary:**
+- Added LIBRARY_CONFIG to GameConfig.js (5 spells, research costs, spell stats)
+- Fixed Library upgrade costs: [2500, 3500] and max level: 3 (from smali)
+- Added spell research state machine to Building.js (same pattern as Marketplace)
+- Added Library research UI to BuildingMenu.js (spell research buttons, progress bars)
+- Added Wizard spell casting to DynamicEntity.js (cooldown counters, buff timers, cast methods)
+- Added FIRE_BLAST, FIRE_BALL, METEOR missile types to Missile.js (with onHitCallback for AOE)
+- Added dealAOEDamage() and startMeteorStorm() to Game.js
+- Added findNearestBuilding() utility to Game.js
+- Connected Wizard to nearest Library on spawn (homeLibrary reference)
 
-**Research Items:**
+**Spell priority in combat:** Fire Ball > Meteor Storm > Fire Blast > normal ranged attack
+**Buff spells:** Magic Resist (+35 resist) and Fire Shield (+5 armor, +25 resist) auto-cast at combat start
 
-| # | Spell | Cost | Req. Level | Param Bit |
-|---|-------|------|-----------|-----------|
-| 0 | Fire Blast | 450g | Lv1 | 0x20 |
-| 1 | Magic Resist | 225g | Lv1 | 0x800 |
-| 2 | Fire Ball | 450g | Lv2 | 0x4000 |
-| 3 | Fire Shield | 450g | Lv2 | 0x8000 |
-| 4 | Meteor Storm | 1350g | Lv2 | 0x2000 |
+| # | Spell | Cost | Req. Level | Param Bit | Status |
+|---|-------|------|-----------|-----------|--------|
+| 0 | Fire Blast | 450g | Lv1 | 0x20 | Done |
+| 1 | Magic Resist | 225g | Lv1 | 0x800 | Done |
+| 2 | Fire Ball | 450g | Lv2 | 0x4000 | Done |
+| 3 | Fire Shield | 450g | Lv2 | 0x8000 | Done |
+| 4 | Meteor Storm | 1350g | Lv2 | 0x2000 | Done |
 
-**Spell Implementation (one by one):**
+**NEEDS TESTING:**
+- [ ] Build Library → verify menu shows 5 research options (Fire Blast + Magic Resist at Lv1, rest locked)
+- [ ] Research Fire Blast (450g) → verify progress bar, completion message, "Done" state
+- [ ] Build Wizard Guild, recruit Wizard → verify wizard uses Fire Blast spell missile in combat
+- [ ] Upgrade Library to Lv2 → verify Fire Ball, Fire Shield, Meteor Storm unlock
+- [ ] Research Fire Ball → verify wizard uses it in combat (AOE hits nearby enemies)
+- [ ] Research Magic Resist / Fire Shield → verify wizard buffs self at start of combat
+- [ ] Verify cooldowns work (wizard alternates between spells and normal attacks)
+- [ ] Verify Meteor Storm visual effect (multiple meteor impacts)
+- [ ] Verify serialization of spell research state (save/load)
 
-**Spell 1: Fire Blast (single target, 10-20 dmg)**
-- [ ] Research unlock in Library menu
-- [ ] Create spell projectile/missile with fire animation
-- [ ] Hero auto-cast during combat (40 tick cooldown)
-- [ ] Damage calculation: 10-20 fire damage, ignores armor
-- [ ] Visual effect (fire animation from Package 3)
+### Phase 2.9.7: Hero Rest-at-Home Healing System
 
-**Spell 2: Magic Resist (self buff, +35 resist)**
-- [ ] Research unlock in Library menu
-- [ ] Apply +35 magic resistance to caster
-- [ ] Duration: 750 ticks (~30 seconds)
-- [ ] Visual indicator on buffed hero
-- [ ] Auto-cast when entering combat
+**Discovery (2026-02-11):** All heroes heal by resting at their guild, NOT through passive regen.
+Only DWarrior (2 HP/50 ticks) and Barbarian (3 HP/50 ticks) have passive regeneration.
 
-**Spell 3: Fire Ball (AOE, target: 30 dmg, nearby: 2-15 dmg)**
-- [ ] Research unlock in Library menu
-- [ ] Create AOE fire projectile
-- [ ] Primary target: 30 damage
-- [ ] Secondary targets within 2 tiles: 2-15 damage
-- [ ] Hero auto-cast during combat (60 tick cooldown)
-- [ ] AOE visual effect
+**Original Game Mechanic (from DynamicObject.smali processHeroes, line 25947):**
+- Every `rest_time` (300 ticks / ~12 seconds), game checks if hero is at their home guild
+- If home exists and is not under attack (`home.damager == null`), hero heals 1 HP
+- Heroes with `regeneration > 0` (DWarrior/Barbarian) use that value instead of 1
+- `rnd_go_home` chance makes heroes walk back to guild when idle and damaged
 
-**Spell 4: Fire Shield (self buff, +5 armor, +25 resist)**
-- [ ] Research unlock in Library menu
-- [ ] Apply +5 armor and +25 magic resistance to caster
-- [ ] Duration: 750 ticks (~30 seconds)
-- [ ] Visual indicator on buffed hero
-- [ ] Auto-cast when entering combat
-
-**Spell 5: Meteor Storm (AOE, 5-30 dmg)**
-- [ ] Research unlock in Library menu
-- [ ] Create meteor projectiles (multiple hits in area)
-- [ ] Damage: 5-30 per hit within 2 tiles
-- [ ] Hero auto-cast during combat (150 tick cooldown)
-- [ ] Dramatic visual effect (meteor rain animation)
-
-**Spell System Infrastructure:**
-- [ ] Add spell state tracking to DynamicEntity (cooldown counters, buff timers)
-- [ ] Add spell casting animation state
-- [ ] Spell effect rendering (projectiles, AOE indicators, buff auras)
-- [ ] Cost reduction when Library is upgraded (~10% discount)
+**Tasks:**
+- [ ] Track hero's `home` building (the guild that trained them, set in `spawnHero`)
+- [ ] Add `shouldGoHome()` AI check — when damaged + idle, roll `rnd_go_home` chance
+- [ ] `tryGoHome()` — pathfind to home guild building
+- [ ] Heal 1 HP per 300 ticks while at home guild (if home not under attack)
+- [ ] `rnd_go_home` values per unit type (from smali: Warrior 0x46=70, Healer 0x46=70, Necro 0x63=99, etc.)
+- [ ] Heroes leave home when fully healed or when enemies appear nearby
 
 ### Phase 2.10: Mission System
 - [ ] Mission objectives (defeat enemies, protect castle)
