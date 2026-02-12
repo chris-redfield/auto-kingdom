@@ -680,6 +680,15 @@ export class BuildingMenu {
         const building = this.currentBuilding;
         const game = this.game;
 
+        // Derive display name from unit type string (e.g. 'PALADIN' -> 'Paladin', 'DWARRIOR' -> 'Dark Warrior')
+        const UNIT_DISPLAY_NAMES = {
+            'WARRIOR': 'Warrior', 'RANGER': 'Ranger', 'WIZARD': 'Wizard',
+            'PALADIN': 'Paladin', 'DWARRIOR': 'Dark Warrior', 'HEALER': 'Healer',
+            'NECROMANCER': 'Necromancer', 'BARBARIAN': 'Barbarian', 'ELF': 'Elf',
+            'DWARF': 'Dwarf', 'GNOME': 'Gnome'
+        };
+        const heroName = UNIT_DISPLAY_NAMES[unitType] || unitType;
+
         // Start training with callback to spawn hero when done
         building.startTraining(unitType, trainingTime, (completedUnitType) => {
             // Find spawn position near building
@@ -687,9 +696,6 @@ export class BuildingMenu {
 
             if (spawnPos) {
                 game.spawnHero(completedUnitType, spawnPos.i, spawnPos.j);
-
-                const config = BUILDING_CONFIG[building.buildingType];
-                const heroName = config ? config.recruitName : completedUnitType;
                 game.showMessage(`${heroName} ready!`);
 
                 // Play sound
@@ -705,8 +711,6 @@ export class BuildingMenu {
             }
         });
 
-        const config = BUILDING_CONFIG[this.currentBuilding.buildingType];
-        const heroName = config ? config.recruitName : unitType;
         this.game.showMessage(`Training ${heroName}...`);
 
         // Play sound

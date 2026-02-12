@@ -1506,7 +1506,7 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 - [x] Added Paladin button + animation table row to test_anim.html
 - [x] **Removed incorrect Paladin bonuses** (PALADIN_DEFENSE_BONUS, PALADIN_ATTACK_BONUS — NOT in original game)
   - Paladin has NO special combat abilities; its strength comes from high parry (75) and dodge (55) stats
-- [ ] **NEEDS IN-GAME TESTING**: recruitment, animations, combat behavior, stat progression, AI visits
+- [x] **TESTED AND WORKING** (2026-02-11): recruitment, animations, combat behavior, stat progression, AI visits
 
 **Regeneration System:** ✅ IMPLEMENTED (2026-02-10)
 - [x] Added regeneration field to UNIT_BASE_STATS (DWarrior: 2, Barbarian: 3)
@@ -1516,7 +1516,7 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 
 **Shared Tasks:**
 - [ ] Verify Healer and Necromancer stats in GameConfig.js match smali
-- [ ] **Test Paladin in-game**: recruitment from Warrior Guild (requires Agrella Temple), animations, combat, AI visits
+- [x] **Test Paladin in-game**: recruitment from Warrior Guild (requires Agrella Temple), animations, combat, AI visits ✅
 - [ ] Test regeneration system: DWarrior healing over time, Barbarian at level 6
 
 #### Phase 2.9.6: Library Spell Research System
