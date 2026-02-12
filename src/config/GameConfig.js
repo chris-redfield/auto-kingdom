@@ -295,51 +295,53 @@ export const UNIT_BASE_STATS = {
     },
 
     // TYPE_WIZARD_HEALER (8) - Healer wizard
+    // From DynamicObject.smali pswitch_3e (lines 10079-10308)
     [UNIT_TYPE.WIZARD_HEALER]: {
         speed: 0xc00,
         levelUp: 0x384,         // 900 XP per level (easiest to level)
         maxLevel: 10,
-        strength: [1, 3],
-        intelligence: [15, 24], // 0x0f to 0x18
-        artifice: [1, 5],
-        vitality: [5, 9],
-        willpower: 0,
-        H2H: 0,
-        ranged: 0,
-        parry: 25,
-        dodge: 15,
-        resist: 10,
+        strength: [1, 3],       // rnd(v3=1, v4=3)
+        intelligence: [20, 24], // rnd(v13=0x14, v4=0x18)
+        artifice: [1, 5],       // rnd(v3=1, v4=5)
+        vitality: [5, 9],       // rnd(v4=5, v8=9)
+        willpower: 25,          // 0x19
+        H2H: 0,                 // v14=0
+        ranged: 0,              // v14=0
+        parry: 25,              // 0x19 (same as willpower register)
+        dodge: 40,              // v9=0x28
+        resist: 0,              // v14=0
         attackRange: 8,
         attackType: ATTACK_TYPE.MAGIC,
         visionRange: 8,
-        life: 18,               // 0x12
-        weapon: 22,             // Magic staff (damage 12)
-        armor: 3,               // Light robes
+        life: 7,                // v1=0x7 (very fragile, relies on dodge/parry)
+        weapon: 20,             // v13=0x14 (staff)
+        armor: 0,               // v14=0 (no armor)
         deadExp: [800, 1200],
         deadGold: 200,
     },
 
     // TYPE_WIZARD_NECROMANCER (9) - Dark wizard
+    // From DynamicObject.smali pswitch_3d (lines 9800-10077)
     [UNIT_TYPE.WIZARD_NECROMANCER]: {
         speed: 0x800,
         levelUp: 0x4b0,         // 1200 XP per level
         maxLevel: 10,
-        strength: [1, 4],
-        intelligence: [22, 26], // 0x16 to 0x1a
-        artifice: [3, 8],
-        vitality: [6, 8],
+        strength: [1, 4],       // rnd(v3=1, v0=4)
+        intelligence: [22, 26], // rnd(0x16, 0x1a)
+        artifice: [3, 7],       // rnd(0x3, v1=0x7)
+        vitality: [4, 8],       // rnd(v0=4, 0x8)
         willpower: 18,          // 0x12
-        H2H: 0,
-        ranged: 0,
-        parry: 10,
-        dodge: 15,
+        H2H: 0,                 // v14=0
+        ranged: 0,              // v14=0
+        parry: 10,              // 0xa
+        dodge: 20,              // v13=0x14
         resist: 35,             // 0x23
         attackRange: 8,
         attackType: ATTACK_TYPE.MAGIC,
         visionRange: 8,
-        life: 10,
+        life: 10,               // 0xa
         weapon: 21,             // 0x15
-        armor: 2,               // Dark robes (minimal protection)
+        armor: 0,               // v14=0 (no armor)
         deadExp: [400, 800],
         deadGold: [50, 100],
     },
@@ -1153,6 +1155,7 @@ export function getUnitStats(unitTypeId) {
         maxDamage: baseStats.maxDamage || 15,
         deadExp: rollStat(baseStats.deadExp || [50, 100]),
         deadGold: rollStat(baseStats.deadGold || [10, 30]),
+        regeneration: baseStats.regeneration || 0,  // HP per regen tick (DWarrior: 2, Barbarian: 3)
     };
 }
 

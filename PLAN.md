@@ -62,6 +62,9 @@ All phases of the Playable Prototype are done:
   - [x] **Phase 2.9.1: Blacksmith Building** ✅ COMPLETE
   - [x] **Phase 2.9.2: Marketplace** ✅ FIXED
   - [x] **Phase 2.9.3: Wizard Guild Enchantments** ✅ COMPLETE
+  - [x] **Phase 2.9.4: Castle Level Requirements** ✅ COMPLETE
+  - [x] **Phase 2.9.5: Temple Buildings & Units** ✅ COMPLETE (Healer, Necromancer, Paladin, DWarrior)
+  - [ ] **Phase 2.9.6: Library Spell Research** (spells, research UI)
   - [ ] **Phase 2.10: Mission System** (objectives, victory conditions)
 
 ---
@@ -1490,7 +1493,7 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 - [x] Added to test_anim.html for animation preview
 - [x] **Tested and confirmed working** by user
 
-**Paladin (TYPE_PALADIN, type 0x2):** ⚠️ IMPLEMENTED, NEEDS TESTING (2026-02-10)
+**Paladin (TYPE_PALADIN, type 0x2):** ✅ COMPLETE (2026-02-11)
 - [x] Added UNIT_TYPE.PALADIN = 2 to GameConfig.js
 - [x] Stats corrected from DynamicObject.smali pswitch_44 (many were wrong initially):
   - HP 21 (was 35), H2H 85 (was 45), Parry 75 (was 25), Dodge 55 (was 45)
@@ -1508,16 +1511,32 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
   - Paladin has NO special combat abilities; its strength comes from high parry (75) and dodge (55) stats
 - [x] **TESTED AND WORKING** (2026-02-11): recruitment, animations, combat behavior, stat progression, AI visits
 
-**Regeneration System:** ✅ IMPLEMENTED (2026-02-10)
+**Regeneration System:** ✅ COMPLETE (2026-02-11)
 - [x] Added regeneration field to UNIT_BASE_STATS (DWarrior: 2, Barbarian: 3)
 - [x] initFromUnitType() reads stats.regeneration and initializes regenerationTick counter
 - [x] DynamicEntity.update() processes regen: every 50 ticks, heal `regeneration` HP (if damaged)
 - [x] Barbarian special: regeneration quadruples at level 6 (existing code in levelUp())
+- [x] **Bug fix:** `getUnitStats()` wasn't returning `regeneration` field — always returned undefined → 0
 
-**Shared Tasks:**
-- [ ] Verify Healer and Necromancer stats in GameConfig.js match smali
-- [x] **Test Paladin in-game**: recruitment from Warrior Guild (requires Agrella Temple), animations, combat, AI visits ✅
-- [ ] Test regeneration system: DWarrior healing over time, Barbarian at level 6
+**Bug Fixes (2026-02-11):**
+
+1. **Regeneration not working for DWarrior/Barbarian:**
+   - Root cause: `getUnitStats()` in GameConfig.js didn't include `regeneration` in return object
+   - Fix: Added `regeneration: baseStats.regeneration || 0` to getUnitStats()
+
+2. **Healer stats wrong (7 values corrected from smali pswitch_3e):**
+   - intelligence: [15,24] → **[20,24]**, willpower: 0 → **25**, dodge: 15 → **40**
+   - resist: 10 → **0**, life: 18 → **7**, weapon: 22 → **20**, armor: 3 → **0**
+   - Healer is very fragile (7 HP, no armor) but high dodge (40) and parry (25)
+
+3. **Necromancer stats wrong (4 values corrected from smali pswitch_3d):**
+   - artifice: [3,8] → **[3,7]**, vitality: [6,8] → **[4,8]**, dodge: 15 → **20**, armor: 2 → **0**
+
+4. **Training messages showed wrong name for alt-recruits:**
+   - Recruiting Paladin at Warrior Guild showed "Training Warrior..." instead of "Training Paladin..."
+   - Fix: Added UNIT_DISPLAY_NAMES lookup in recruitHero() in BuildingMenu.js
+
+**All Phase 2.9.5 tasks complete.** ✅
 
 #### Phase 2.9.6: Library Spell Research System
 
