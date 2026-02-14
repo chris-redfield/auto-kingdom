@@ -1580,22 +1580,90 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 
 ### Phase 2.9.7: Hero Rest-at-Home Healing System
 
-**Discovery (2026-02-11):** All heroes heal by resting at their guild, NOT through passive regen.
-Only DWarrior (2 HP/50 ticks) and Barbarian (3 HP/50 ticks) have passive regeneration.
+**Smali Research (2026-02-13):** Full reverse-engineering of DynamicObject.smali processHeroes (line 25947+),
+Script.smali setHeroesAction (line 40062+), and Const.smali.
 
-**Original Game Mechanic (from DynamicObject.smali processHeroes, line 25947):**
-- Every `rest_time` (300 ticks / ~12 seconds), game checks if hero is at their home guild
-- If home exists and is not under attack (`home.damager == null`), hero heals 1 HP
-- Heroes with `regeneration > 0` (DWarrior/Barbarian) use that value instead of 1
-- `rnd_go_home` chance makes heroes walk back to guild when idle and damaged
+#### Original Game Mechanics
 
-**Tasks:**
-- [ ] Track hero's `home` building (the guild that trained them, set in `spawnHero`)
-- [ ] Add `shouldGoHome()` AI check — when damaged + idle, roll `rnd_go_home` chance
-- [ ] `tryGoHome()` — pathfind to home guild building
-- [ ] Heal 1 HP per 300 ticks while at home guild (if home not under attack)
-- [ ] `rnd_go_home` values per unit type (from smali: Warrior 0x46=70, Healer 0x46=70, Necro 0x63=99, etc.)
-- [ ] Heroes leave home when fully healed or when enemies appear nearby
+**1. Healing at Home (State 10 — "at home"):**
+- Heroes heal every `regeneration_ticks` = **50 ticks** (0x32, ~2 seconds), NOT 300
+- If `regeneration > 0` (DWarrior/Barbarian): heals by that field value
+- If `regeneration == 0` (all others): heals **1 HP** per 50 ticks
+- Every `rest_time` = **300 ticks** (0x12c, ~12 seconds), a "resting" flag (param 0x200000) is set
+- Hero **leaves home** when: resting flag is set AND `life == lifeMax` (fully healed)
+- Leaving calls `evacuationHero()` which clears the flag, sets idle anim, changes action to 1
+
+**2. Passive Regeneration (All States — outside home):**
+- `regenerationTimer` increments every tick for ALL heroes (line 25549)
+- Every **200 ticks** (0xc8), `regeneration(0)` is called
+- Only heals if `regeneration > 0` — so only DWarrior and Barbarian benefit
+- DWarrior: 2 HP/200 ticks → boosted to **8 HP/200 ticks** at level 6 (`regeneration <<= 2`)
+- Barbarian: 3 HP/200 ticks (no level boost)
+
+**3. Go-Home Decision (Script.smali setHeroesAction):**
+- Happens when hero is in **state 4 (idle), action 1 (standard idle)**
+- Formula: `rnd(100) > (rnd_go_home - level)`
+- Higher `rnd_go_home` = LESS likely to go home
+- Level reduces threshold, so higher-level heroes go home more often
+
+| Hero | rnd_go_home | Hex | Tendency |
+|------|-------------|-----|----------|
+| Ranger | 10 | 0x0a | Goes home very often |
+| Barbarian | 70 | 0x46 | Moderate |
+| Elf | 70 | 0x46 | Moderate |
+| Healer | 70 | 0x46 | Moderate |
+| Paladin | 90 | 0x5a | Rarely |
+| Warrior | 99 | 0x63 | Almost never |
+| DWarrior | 99 | 0x63 | Almost never |
+| Dwarf | 99 | 0x63 | Almost never |
+| Wizard | 99 | 0x63 | Almost never |
+| Necromancer | 99 | 0x63 | Almost never |
+
+**4. Critical Health Flee (State 8):**
+- Heroes automatically flee home when `life <= lifeMin`, bypassing the random roll
+- If home is alive: action = 8 (flee to home)
+- If home is dead: action = 0x23 (wander)
+
+**5. Home Building Tracking:**
+- `home` field set at spawn time by the building that trained the hero
+- Stored as reference to the Building object + `homeId` for save/load
+- Initialized to null in DynamicObject.Init()
+
+**6. Regeneration Values Per Type:**
+
+| Hero | regeneration | regeneration_ticks | Passive heal rate |
+|------|-------------|-------------------|-------------------|
+| Warrior | 0 | 50 | None (home only: 1 HP/50t) |
+| Ranger | 0 | 50 | None (home only: 1 HP/50t) |
+| Paladin | 0 | 50 | None (home only: 1 HP/50t) |
+| Elf | 0 | 50 | None (home only: 1 HP/50t) |
+| Dwarf | 0 | 50 | None (home only: 1 HP/50t) |
+| Wizard | 0 | 50 | None (home only: 1 HP/50t) |
+| Healer | 0 | 50 | None (home only: 1 HP/50t) |
+| Necromancer | 0 | 50 | None (home only: 1 HP/50t) |
+| DWarrior | 2 (→8 at lv6) | 50 | 2 HP/200t (→8 HP/200t at lv6) |
+| Barbarian | 3 | 50 | 3 HP/200t |
+
+**7. Accelerated Healing When Under Attack:**
+- If `home.damager != null` (home under attack) OR castle under attack:
+  hero gets resting flag every **100 ticks** instead of 300
+- This means they leave home faster when buildings are threatened
+
+#### Implementation Tasks
+
+- [ ] Add `home` field to DynamicEntity, set at spawn time in `spawnHero()`
+- [ ] Add `rnd_go_home` values to GameConfig.js UNIT_STATS per hero type
+- [ ] Add `regeneration` and `regeneration_ticks` (50) fields to DynamicEntity
+- [ ] Add passive regeneration: every 200 ticks, heal if `regeneration > 0` (all states)
+- [ ] Add DWarrior level 6 regeneration boost (`regeneration <<= 2`)
+- [ ] Add `shouldGoHome()` AI check: state=idle, roll `rnd(100) > (rnd_go_home - level)`
+- [ ] Add critical flee: when `life <= lifeMin`, auto-pathfind to home (skip random roll)
+- [ ] Add state 10 ("at home"): hero enters building, becomes hidden/inactive
+- [ ] Heal every 50 ticks at home: `regeneration` amount or 1 HP
+- [ ] Set resting flag every 300 ticks (or 100 if home/castle under attack)
+- [ ] Leave home when resting flag set AND `life == lifeMax`
+- [ ] Remove hero from building guest list on departure
+- [ ] Handle home building destroyed: hero becomes idle, `home = null`
 
 ### Phase 2.10: Mission System
 - [ ] Mission objectives (defeat enemies, protect castle)
