@@ -64,7 +64,7 @@ All phases of the Playable Prototype are done:
   - [x] **Phase 2.9.3: Wizard Guild Enchantments** ✅ COMPLETE
   - [x] **Phase 2.9.4: Castle Level Requirements** ✅ COMPLETE
   - [x] **Phase 2.9.5: Temple Buildings & Units** ✅ COMPLETE (Healer, Necromancer, Paladin, DWarrior)
-  - [x] **Phase 2.9.6: Library Spell Research** (spells, research UI) - IMPLEMENTED (2026-02-11)
+  - [x] **Phase 2.9.6: Library Spell Research** (spells, research UI) - TESTED ✅ (2026-02-13)
   - [ ] **Phase 2.10: Mission System** (objectives, victory conditions)
 
 ---
@@ -1562,16 +1562,21 @@ The Library researches spells (Fire Blast, Teleport, etc.) — a separate featur
 | 3 | Fire Shield | 450g | Lv2 | 0x8000 | Done |
 | 4 | Meteor Storm | 1350g | Lv2 | 0x2000 | Done |
 
-**NEEDS TESTING:**
-- [ ] Build Library → verify menu shows 5 research options (Fire Blast + Magic Resist at Lv1, rest locked)
-- [ ] Research Fire Blast (450g) → verify progress bar, completion message, "Done" state
-- [ ] Build Wizard Guild, recruit Wizard → verify wizard uses Fire Blast spell missile in combat
-- [ ] Upgrade Library to Lv2 → verify Fire Ball, Fire Shield, Meteor Storm unlock
-- [ ] Research Fire Ball → verify wizard uses it in combat (AOE hits nearby enemies)
-- [ ] Research Magic Resist / Fire Shield → verify wizard buffs self at start of combat
-- [ ] Verify cooldowns work (wizard alternates between spells and normal attacks)
-- [ ] Verify Meteor Storm visual effect (multiple meteor impacts)
-- [ ] Verify serialization of spell research state (save/load)
+**TESTED (2026-02-13):**
+- [x] Build Library → menu shows 5 research options (Fire Blast + Magic Resist at Lv1, rest locked) ✅
+- [x] Research Fire Blast (450g) → progress bar, completion, "Done" state ✅
+- [x] Build Wizard Guild, recruit Wizard → wizard uses Fire Blast spell missile in combat ✅
+- [x] Upgrade Library to Lv2 → Fire Ball, Fire Shield, Meteor Storm unlock ✅
+- [x] Research Fire Ball → wizard uses it in combat (AOE hits nearby enemies) ✅
+- [x] Research Magic Resist / Fire Shield → wizard buffs self (armor goes up) ✅
+- [x] Cooldowns work → wizard alternates between spells and normal attacks ✅
+- [x] Meteor Storm visual effect works (multiple meteor impacts) ✅
+- [ ] Verify serialization of spell research state (save/load) — not yet tested
+
+**Bug Fixes (2026-02-13):**
+- Added Spells section to wizard UnitMenu (shows researched spells with stats)
+- Fixed homeLibrary lookup: falls back to any player Library if homeLibrary is null
+- Fixed Fire Ball detail display (uses targetDmg, not minDmg/maxDmg)
 
 ### Phase 2.9.7: Hero Rest-at-Home Healing System
 

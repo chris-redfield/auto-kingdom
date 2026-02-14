@@ -8,7 +8,7 @@
  * - XP and level progress
  */
 
-import { EQUIPMENT, ITEMS, ATTACK_TYPE, getWeaponID, BLACKSMITH_CONFIG, ENCHANT_CONFIG } from '../config/GameConfig.js';
+import { EQUIPMENT, ITEMS, ATTACK_TYPE, getWeaponID, BLACKSMITH_CONFIG, ENCHANT_CONFIG, LIBRARY_CONFIG, UNIT_TYPE } from '../config/GameConfig.js';
 import { SOUNDS } from '../audio/SoundConstants.js';
 import { getWeaponName, getArmorName } from '../entities/Inventory.js';
 
@@ -150,6 +150,11 @@ export class UnitMenu {
         // Equipment section
         this.addEquipmentSection(unit);
 
+        // Spells section (wizards only)
+        if (unit.unitTypeId === UNIT_TYPE.WIZARD) {
+            this.addSpellsSection(unit);
+        }
+
         // Potions section
         this.addPotionsSection(unit);
 
@@ -265,6 +270,42 @@ export class UnitMenu {
             } else if (enchantA >= maxEnchant && enchantA < ENCHANT_CONFIG.MAX_LEVEL) {
                 this.addInfoRow('Enchant', `Armor max (+${maxEnchant}) - Upgrade guild`);
             }
+        }
+    }
+
+    /**
+     * Add spells section for wizards - shows researched spells from their home library
+     */
+    addSpellsSection(unit) {
+        const header = document.createElement('div');
+        header.className = 'unit-section-header';
+        header.textContent = 'Spells';
+        this.optionsContainer.appendChild(header);
+
+        // Use homeLibrary or find any player library
+        const library = unit.homeLibrary || this.findPlayerLibrary();
+
+        let hasAny = false;
+        for (const [key, spell] of Object.entries(LIBRARY_CONFIG.RESEARCH)) {
+            if (library && library.isSpellResearched(key)) {
+                hasAny = true;
+                const stats = LIBRARY_CONFIG.SPELLS[key];
+                let detail = '';
+                if (stats.targetDmg !== undefined) {
+                    detail = `${stats.targetDmg} dmg + AOE`;
+                } else if (stats.minDmg !== undefined) {
+                    detail = `${stats.minDmg}-${stats.maxDmg} dmg`;
+                } else if (stats.resistBonus !== undefined && stats.armorBonus !== undefined) {
+                    detail = `+${stats.armorBonus} armor, +${stats.resistBonus} resist`;
+                } else if (stats.resistBonus !== undefined) {
+                    detail = `+${stats.resistBonus} resist`;
+                }
+                this.addInfoRow(spell.icon, `${spell.name} (${detail})`);
+            }
+        }
+
+        if (!hasAny) {
+            this.addInfoRow('Status', 'No spells researched');
         }
     }
 
@@ -573,6 +614,14 @@ export class UnitMenu {
             }
         }
         return null;
+    }
+
+    /**
+     * Find any player-owned Library building
+     */
+    findPlayerLibrary() {
+        if (!this.game.buildings) return null;
+        return this.game.buildings.find(b => b.buildingType === 0x31 && b.team === 0 && b.constructed) || null;
     }
 
     isNearBuildingType(unit, buildingType) {
